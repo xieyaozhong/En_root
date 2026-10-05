@@ -3,6 +3,7 @@ let roots=[];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 const ZH=(window.ENROOT_ROOT_ZH||{curated:{},gloss:{}});
+const WORD_ZH=(window.ENROOT_WORD_ZH||{});
 function zhForRoot(key,meanings){
   const aliases=String(key||"").replace(/-/g,"").split(/[\/,]/).map(x=>x.trim().toLowerCase()).filter(Boolean);
   for(const a of aliases){if(ZH.curated&&ZH.curated[a])return{zh:ZH.curated[a].zh,description:ZH.curated[a].description||"",origin:ZH.curated[a].origin||"",curated:true}}
@@ -29,11 +30,11 @@ function render(){
   const filtered=roots.filter(r=>{
     if(type!=="all"&&r.type!==type)return false;
     if(!q)return true;
-    return r.key.toLowerCase().includes(q)||r.meanings.join(" ").toLowerCase().includes(q)||String(r.zh||"").toLowerCase().includes(q)||String(r.description||"").toLowerCase().includes(q)||r.examples.join(" ").toLowerCase().includes(q);
+    return r.key.toLowerCase().includes(q)||r.meanings.join(" ").toLowerCase().includes(q)||String(r.zh||"").toLowerCase().includes(q)||String(r.description||"").toLowerCase().includes(q)||r.examples.join(" ").toLowerCase().includes(q)||r.examples.some(x=>String(WORD_ZH[String(x).toLowerCase()]||"").toLowerCase().includes(q));
   });
   $("shownCount").textContent="顯示 "+filtered.length.toLocaleString()+" / "+roots.length.toLocaleString()+" 組";
   const display=filtered.slice(0,240);
-  $("atlasGrid").innerHTML=display.length?display.map(r=>`<article class="card rootCard"><div class="rootType">${esc(r.type.toUpperCase())}${r.origin?" · "+esc(r.origin):""}</div><div class="rootKey">${esc(r.key)}</div><div class="rootMeaning"><b>中文核心義</b><br>${esc(r.zh||"—")}<br><span class="muted">English · ${esc(r.meanings.join(" · ")||"—")}</span></div>${r.description?`<div class="example"><b>字源記憶</b> ${esc(r.description)}</div>`:""}<div class="rootExamples">${r.examples.slice(0,8).map(x=>`<span title="例字">${esc(x)}</span>`).join("")}</div></article>`).join(""):`<div class="card atlasEmpty">沒有符合的字根</div>`;
+  $("atlasGrid").innerHTML=display.length?display.map(r=>`<article class="card rootCard"><div class="rootType">${esc(r.type.toUpperCase())}${r.origin?" · "+esc(r.origin):""}</div><div class="rootKey">${esc(r.key)}</div><div class="rootMeaning"><b>中文核心義</b><br>${esc(r.zh||"—")}<br><span class="muted">English · ${esc(r.meanings.join(" · ")||"—")}</span></div>${r.description?`<div class="example"><b>字源記憶</b> ${esc(r.description)}</div>`:""}<div class="rootExamples">${r.examples.slice(0,8).map(x=>{const zh=WORD_ZH[String(x).toLowerCase()]||"";return zh?`<span class="rootExample" title="例字"><b>${esc(x)}</b><small>${esc(zh)}</small></span>`:`<span class="rootExample hint" title="同根提示"><b>${esc(x)}</b><small>同根提示：${esc(r.zh||"相關字")}</small></span>`}).join("")}</div></article>`).join(""):`<div class="card atlasEmpty">沒有符合的字根</div>`;
 }
 async function init(){
   try{
