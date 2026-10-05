@@ -11,7 +11,7 @@
 <main class="wrap">
   <header class="top">
     <div class="brand"><div class="logo">ER</div><div><h1>EnRoot</h1><p>TOEIC + TOEFL Root Memory Lab</p></div></div>
-    <div class="chips"><a class="chip navlink" href="roots.html">字根地圖 1,061+</a><span class="chip" id="bankPill">詞庫載入中</span><span class="chip" id="hardPill">生難字 0</span></div>
+    <div class="chips"><a class="chip navlink" href="roots.html">字根地圖 1,061+</a><a class="chip navlink" href="cards.html">卡片圖鑑</a><span class="chip" id="pullPill">抽卡券 0</span><span class="chip" id="bankPill">詞庫載入中</span><span class="chip" id="hardPill">生難字 0</span></div>
   </header>
 
   <section id="home">
@@ -86,6 +86,18 @@
       <div class="stat"><b id="rw">0</b><small>需複習</small></div>
       <div class="stat"><b id="rr">0</b><small>接觸字根</small></div>
     </div>
+    <div class="gachaPanel">
+      <div class="gachaMachine">
+        <div class="pixelMachine"><span>ER</span></div>
+        <div>
+          <div class="eyebrow">WORD RELIC DRAW</div>
+          <h4>完成 10 題，抽一張單字卡</h4>
+          <p class="muted">答得越好，高稀有度機率越高。重複卡會累計收藏張數。</p>
+        </div>
+      </div>
+      <button class="gachaButton" id="drawCard">🎴 抽一張單字卡</button>
+      <div id="gachaReveal" class="gachaReveal hidden"></div>
+    </div>
     <div class="actions">
       <button class="primary" id="again">再來 10 題</button>
       <button class="secondary" id="hardReview">練生難字</button>
@@ -97,6 +109,7 @@
   <div class="footer">詞彙採 TOEIC＋TOEFL＋高階學術多來源超額覆蓋；字根地圖另整合 1,061 組公開字根資料。字根拆解與記憶法為學習輔助，非 ETS 官方產品。學習紀錄只儲存在目前瀏覽器。</div>
 </main>
 <script src="root-zh.js"></script>
+<script src="cards-data.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
