@@ -19,7 +19,7 @@
       <div class="card hero">
         <div class="eyebrow">10 QUESTIONS · ONE FOCUSED SESSION</div>
         <h2>不是硬背單字<br>是看懂它怎麼長出來</h2>
-        <p>以 TOEIC 常用詞彙為主，每回固定 10 題。每題答完立即拆字首、字根、字尾，提供同根字連結與記憶法，答錯或標記的字自動進入生難字本。</p>
+        <p>以 TOEIC＋TOEFL 為核心，再往 GRE／SAT／GMAT／IELTS 高階學術詞彙延伸。每回固定 10 題，答完立即拆字首、字根、字尾，提供同根字連結與記憶法，答錯或標記的字自動進入生難字本。</p>
         <div class="features">
           <div class="feature"><b>字根拆解</b><span>把單字轉成有意義的結構，不只記拼法</span></div>
           <div class="feature"><b>同根連結</b><span>從一個字延伸一整個詞族，增加遷移記憶</span></div>
@@ -34,6 +34,14 @@
 
       <aside class="card controls">
         <h3>開始一回 10 題</h3>
+        <label>考試詞庫
+          <select id="exam">
+            <option value="dual">雙滿分超額：TOEIC＋TOEFL＋進階學術</option>
+            <option value="toeic">TOEIC 990+ 商務核心</option>
+            <option value="toefl">TOEFL 120+ 學術核心＋進階</option>
+            <option value="advanced">超額進階：GRE／SAT／GMAT／IELTS</option>
+          </select>
+        </label>
         <label>練習模式
           <select id="mode">
             <option value="mixed">綜合：字義＋字根＋情境</option>
@@ -41,7 +49,7 @@
             <option value="hard">生難字複習：只練錯題與收藏</option>
           </select>
         </label>
-        <label>TOEIC 目標區間
+        <label id="bandLabel">TOEIC 目標區間
           <select id="band">
             <option value="all">全範圍（依高頻權重）</option>
             <option value="400-600">400–600</option>
