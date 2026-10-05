@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111f"><title>EnRoot｜單字卡片圖鑑</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="wrap">
+<header class="top">
+<a class="brand navlink" href="index.html"><div class="logo">ER</div><div><h1>Word Relic</h1><p>PIXEL VOCAB COLLECTION</p></div></a>
+<div class="chips"><a class="chip navlink" href="index.html">← 回練習</a><span class="chip" id="ownedPill">0 / 30</span></div>
+</header>
+<section class="card cardbookHero">
+<div class="eyebrow">PIXEL CARD COLLECTION</div>
+<h2>單字卡片圖鑑</h2>
+<p>每完成 10 題可抽 1 張。卡片不只收藏單字，也收藏它一路走進英文世界的歷史。</p>
+<div class="atlasTools">
+<input id="cardSearch" type="search" placeholder="搜尋單字、中文、字根或故事">
+<select id="rarityFilter"><option value="all">全部稀有度</option><option>UR</option><option>SSR</option><option>SR</option><option>R</option><option>N</option></select>
+</div>
+<div class="atlasMeta"><span class="chip" id="collectionStats">—</span><span class="chip" id="totalCopies">共 0 張</span></div>
+</section>
+<section id="cardGrid" class="collectionGrid"></section>
+</main>
+<div id="cardDetail" class="cardModal hidden"></div>
+<script src="cards-data.js"></script><script src="cards.js"></script>
+</body></html>
