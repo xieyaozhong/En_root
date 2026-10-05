@@ -28,3 +28,7 @@ These lists remain attributed to their upstream project and sources.
 ## Root atlas
 
 Root / prefix / suffix data is loaded at runtime from `WithEnglishWeCan/generated-english-roots-list` (1,061 entries). Upstream repository states MIT licensing. Existing EnRoot Chinese root glosses remain locally curated overrides.
+
+## Chinese root translations
+
+Traditional Chinese root glosses combine locally curated root explanations, exam-vocabulary bilingual glosses, and Simplified-to-Traditional character conversion based on OpenCC STCharacters data. OpenCC is licensed under Apache-2.0.
