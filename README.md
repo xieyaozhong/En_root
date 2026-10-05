@@ -1,10 +1,10 @@
 # EnRoot
 
-TOEIC 字根／字首記憶練習 App，每回固定 10 題。
+TOEIC＋TOEFL 字根／字首記憶練習 App，每回固定 10 題，並延伸到 GRE／SAT／GMAT／IELTS 高階學術詞彙。
 
 ## 目前功能
 
-- 10,000 詞 TOEIC 導向詞庫（執行時載入）
+- TOEIC 11,154 詞核心庫＋TOEFL／GRE／SAT／GMAT／IELTS 高階補充庫（執行時載入並去重）
 - 每回 10 題
 - 綜合模式：字義、字根、情境填空
 - 字根強化模式
@@ -12,6 +12,7 @@ TOEIC 字根／字首記憶練習 App，每回固定 10 題。
 - 字首／字根／字尾拆解
 - 同根字自動連結
 - 生難字記憶法
+- 考試詞庫切換：TOEIC 990+／TOEFL 120+／高階學術／雙滿分超額
 - TOEIC 分數區間篩選
 - 本機答題統計與熟悉度
 - 手機／平板／桌機響應式介面
@@ -19,8 +20,9 @@ TOEIC 字根／字首記憶練習 App，每回固定 10 題。
 
 ## 詞庫
 
-App 會在瀏覽器端載入：
-`kknono668/toeic-vocab-tw`
+App 會在瀏覽器端載入並合併：
+- `kknono668/toeic-vocab-tw`（TOEIC）
+- `grhliu/wordtyper-vocabularies`（TOEFL／GRE／SAT／GMAT／IELTS）
 
 公開資料集含 11,154 個 English–Traditional Chinese TOEIC 情境詞條，本 App 會先依 star rating（TOEIC 重要度）排序，再取核心 10,000 筆作為主要練習池，抽題時也會再次依重要度加權。
 
@@ -50,3 +52,10 @@ App 會在瀏覽器端載入：
 ## 儲存
 
 生難字、答題統計與熟悉度存放在瀏覽器 `localStorage`，不會上傳使用者學習資料。
+
+
+## 超額覆蓋策略
+
+TOEIC 與 TOEFL 並沒有一份官方固定的「滿分單字表」。EnRoot 因此採用超額覆蓋：先保留 TOEIC 商務核心，再加入 TOEFL 學術核心，最後以 GRE、SAT、GMAT、IELTS 詞庫作為滿分以上的高階延伸。
+
+目前補充來源的原始規模：TOEFL 6,959、GRE 7,485、SAT 4,471、GMAT 2,996、IELTS Core 4,974、IELTS Advanced 3,117；這些補充詞庫彼此去重後約 13,213 個不同詞，再與 TOEIC 詞庫合併去重。
