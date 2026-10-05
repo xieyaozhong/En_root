@@ -32,3 +32,8 @@ Root / prefix / suffix data is loaded at runtime from `WithEnglishWeCan/generate
 ## Chinese root translations
 
 Traditional Chinese root glosses combine locally curated root explanations, exam-vocabulary bilingual glosses, and Simplified-to-Traditional character conversion based on OpenCC STCharacters data. OpenCC is licensed under Apache-2.0.
+
+
+## Word Relic card notes
+
+Word Relic card stories are short educational etymology summaries written for this project. They are intended as memory aids, not as a substitute for a historical dictionary. Where a popular etymology is disputed, the card text avoids presenting the folklore as established fact.
