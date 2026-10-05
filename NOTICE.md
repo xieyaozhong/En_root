@@ -13,3 +13,14 @@ Vocabulary data is loaded at runtime from:
 The vocabulary dataset is not relicensed under MIT. Its original CC BY-SA 4.0 terms continue to apply.
 
 TOEIC is a registered trademark of Educational Testing Service (ETS). EnRoot is an independent learning project and is not affiliated with, endorsed by, or sponsored by ETS.
+
+## Advanced exam vocabulary
+
+Additional TOEFL / GRE / SAT / GMAT / IELTS vocabulary is loaded at runtime from:
+
+- Project: wordtyper-vocabularies
+- Repository: https://github.com/grhliu/wordtyper-vocabularies
+- Data basis: ECDICT-derived exam vocabulary lists
+- License: MIT License (repository license)
+
+These lists remain attributed to their upstream project and sources.
