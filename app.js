@@ -144,14 +144,27 @@ function syncGacha(){
  $("drawCard").disabled=n<1;
  $("drawCard").textContent=n?"🎴 抽一張單字卡 · 剩 "+n+" 次":"本回合抽卡完成";
 }
+let drawingCard=false;
 function drawCard(){
- if(!state.pullTickets||!state.pullTickets.length)return;
+ if(drawingCard||!state.pullTickets||!state.pullTickets.length)return;
+ drawingCard=true;
  const score=Number(state.pullTickets.shift())||0,rarity=rollRarity(score),card=pickCard(rarity);
- if(!card)return;
+ if(!card){drawingCard=false;return}
  const col=cardCollection(),old=col[card.word]||{count:0,first:new Date().toISOString()};
- old.count=(old.count||0)+1;old.last=new Date().toISOString();old.rarity=card.rarity;col[card.word]=old;saveCardCollection(col);save();syncGacha();
- const h="<div class='revealBurst "+esc(card.rarity)+"'><div class='rarity'>"+esc(card.rarity)+" · "+esc(rarityLabel(card.rarity))+"</div><div class='pixelSprite big'><i></i><b>"+esc(card.word[0].toUpperCase())+"</b></div><div class='relicWord'>"+esc(card.word)+"</div><div class='relicZh'>"+esc(card.zh)+"</div><div class='originMini'>"+esc(card.origin)+"</div><div class='storyBlock'><b>構詞線索</b><p>"+esc(card.root)+"</p><b>起源故事</b><p>"+esc(card.story)+"</p></div><div class='actions'><a class='secondary navlink' href='cards.html'>打開卡片圖鑑</a></div></div>";
- $("gachaReveal").innerHTML=h;$("gachaReveal").classList.remove("hidden");$("gachaReveal").classList.remove("pop");void $("gachaReveal").offsetWidth;$("gachaReveal").classList.add("pop");
+ old.count=(old.count||0)+1;old.last=new Date().toISOString();old.rarity=card.rarity;col[card.word]=old;saveCardCollection(col);save();
+ const reveal=$("gachaReveal"),btn=$("drawCard");
+ btn.disabled=true;btn.textContent="✦ 詞源召喚中…";
+ reveal.classList.remove("hidden","pop");
+ reveal.innerHTML="<div class='ritualStage'><div class='ritualRunes'><i>ROOT</i><i>WORD</i><i>MEMORY</i><i>ORIGIN</i></div><div class='ritualPortal'></div><div class='ritualCardBack'><span>ER</span></div><div class='ritualText'>正在從詞源圖鑑召喚單字卡…</div></div>";
+ setTimeout(function(){
+   const stage=reveal.querySelector(".ritualStage");if(stage){stage.classList.add("rare-"+card.rarity.toLowerCase());const t=stage.querySelector(".ritualText");if(t)t.textContent=card.rarity+" · "+rarityLabel(card.rarity)+" 能量出現";}
+ },650);
+ setTimeout(function(){
+   const art=window.ENROOT_PIXEL_ART?window.ENROOT_PIXEL_ART(card,"large"):"";
+   const cue=window.ENROOT_PIXEL_CUE?window.ENROOT_PIXEL_CUE(card):card.tag;
+   reveal.innerHTML="<div class='revealBurst "+esc(card.rarity)+"'><div class='rarity'>"+esc(card.rarity)+" · "+esc(rarityLabel(card.rarity))+"</div><div class='pixelArtWrap revealArt'>"+art+"</div><div class='visualCue strong'>像素記憶 · "+esc(cue)+"</div><div class='relicWord'>"+esc(card.word)+"</div><div class='relicZh'>"+esc(card.zh)+"</div><div class='originMini'>"+esc(card.origin)+"</div><div class='storyBlock'><b>構詞線索</b><p>"+esc(card.root)+"</p><b>起源故事</b><p>"+esc(card.story)+"</p></div><div class='actions'><a class='secondary navlink' href='cards.html'>打開卡片圖鑑</a></div></div>";
+   reveal.classList.remove("pop");void reveal.offsetWidth;reveal.classList.add("pop");drawingCard=false;syncGacha();
+ },1550);
 }
 function finish(){state.sessions=(state.sessions||0)+1;state.pullTickets=(state.pullTickets||[]);state.pullTickets.push(correct);save();$("quiz").classList.add("hidden");$("result").classList.remove("hidden");$("final").textContent=correct+"/10";$("rc").textContent=correct;$("rw").textContent=10-correct;$("rr").textContent=rootsSeen.size;$("note").textContent=correct>=9?"很穩，下一輪可以提高分數帶或改成字根強化。":correct>=7?"基礎已成形，把錯的幾個字再用字根連一次。":"先不要追求量，優先把本回合錯題的字根畫面記住。";const uniq=[];const seen=new Set();wrong.forEach(function(w){if(!seen.has(w.english_word)){seen.add(w.english_word);uniq.push(w)}});$("review").innerHTML=uniq.length?"<h4>本回合生難字</h4>"+uniq.map(function(w){const rs=roots(w.english_word);return"<div class='reviewItem'><b>"+esc(w.english_word)+"</b><p>"+esc(w.chinese_definition)+"<br>"+esc(formula(w.english_word,rs))+"<br>記憶法："+esc(mnemonic(w,rs))+"</p></div>"}).join(""):"<div class='reviewItem'><b>本回合沒有錯題</b><p>可以直接挑戰更高分數帶。</p></div>";$("gachaReveal").classList.add("hidden");$("gachaReveal").innerHTML="";syncGacha()}
 function home(){$("quiz").classList.add("hidden");$("result").classList.add("hidden");$("home").classList.remove("hidden");header()}
