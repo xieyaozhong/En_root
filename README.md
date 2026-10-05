@@ -1,0 +1,52 @@
+# EnRoot
+
+TOEIC 字根／字首記憶練習 App，每回固定 10 題。
+
+## 目前功能
+
+- 10,000 詞 TOEIC 導向詞庫（執行時載入）
+- 每回 10 題
+- 綜合模式：字義、字根、情境填空
+- 字根強化模式
+- 生難字模式：答錯自動加入，可手動收藏
+- 字首／字根／字尾拆解
+- 同根字自動連結
+- 生難字記憶法
+- TOEIC 分數區間篩選
+- 本機答題統計與熟悉度
+- 手機／平板／桌機響應式介面
+- 完整詞庫無法連線時，自動使用內建示範詞庫
+
+## 詞庫
+
+App 會在瀏覽器端載入：
+`kknono668/toeic-vocab-tw`
+
+公開資料集含 11,154 個 English–Traditional Chinese TOEIC 情境詞條，本 App 取前 10,000 筆作為主要練習池，並依 star rating 加權抽題。
+
+資料集授權：CC BY-SA 4.0  
+資料集頁面：https://huggingface.co/datasets/kknono668/toeic-vocab-tw
+
+> TOEIC 為 Educational Testing Service (ETS) 的註冊商標。本專案不是 ETS 官方產品，也未受 ETS 贊助或背書。
+
+## 執行
+
+這是純靜態網頁，不需要 npm、不需要後端。
+
+直接開啟 `index.html`，或用 GitHub Pages 部署即可。
+
+## 學習設計
+
+單字不是只顯示中文，而是嘗試建立：
+
+`prefix + root + suffix → 核心概念 → 中文意思 → 同根字`
+
+例如：
+
+`trans + port → across + carry → transport → 運輸`
+
+對不適合硬拆字根的單字，改用情境、語意或專屬記憶法，避免錯誤字源拆解。
+
+## 儲存
+
+生難字、答題統計與熟悉度存放在瀏覽器 `localStorage`，不會上傳使用者學習資料。
