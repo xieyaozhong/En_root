@@ -24,3 +24,7 @@ Additional TOEFL / GRE / SAT / GMAT / IELTS vocabulary is loaded at runtime from
 - License: MIT License (repository license)
 
 These lists remain attributed to their upstream project and sources.
+
+## Root atlas
+
+Root / prefix / suffix data is loaded at runtime from `WithEnglishWeCan/generated-english-roots-list` (1,061 entries). Upstream repository states MIT licensing. Existing EnRoot Chinese root glosses remain locally curated overrides.
