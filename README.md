@@ -59,3 +59,7 @@ App 會在瀏覽器端載入並合併：
 TOEIC 與 TOEFL 並沒有一份官方固定的「滿分單字表」。EnRoot 因此採用超額覆蓋：先保留 TOEIC 商務核心，再加入 TOEFL 學術核心，最後以 GRE、SAT、GMAT、IELTS 詞庫作為滿分以上的高階延伸。
 
 目前補充來源的原始規模：TOEFL 6,959、GRE 7,485、SAT 4,471、GMAT 2,996、IELTS Core 4,974、IELTS Advanced 3,117；這些補充詞庫彼此去重後約 13,213 個不同詞，再與 TOEIC 詞庫合併去重。
+
+## 字根地圖
+
+新增 `roots.html` 可搜尋字根頁，整合 `generated-english-roots-list` 的 1,061 組英文字根、字首與字尾；主練習頁也會載入同一套資料，並保留內建中文核心字根作為優先解釋。
