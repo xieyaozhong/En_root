@@ -22,7 +22,7 @@ TOEIC 字根／字首記憶練習 App，每回固定 10 題。
 App 會在瀏覽器端載入：
 `kknono668/toeic-vocab-tw`
 
-公開資料集含 11,154 個 English–Traditional Chinese TOEIC 情境詞條，本 App 取前 10,000 筆作為主要練習池，並依 star rating 加權抽題。
+公開資料集含 11,154 個 English–Traditional Chinese TOEIC 情境詞條，本 App 會先依 star rating（TOEIC 重要度）排序，再取核心 10,000 筆作為主要練習池，抽題時也會再次依重要度加權。
 
 資料集授權：CC BY-SA 4.0  
 資料集頁面：https://huggingface.co/datasets/kknono668/toeic-vocab-tw
