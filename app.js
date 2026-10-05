@@ -78,7 +78,8 @@ const F=[
 let words=[],session=[],idx=0,correct=0,wrong=[],rootsSeen=new Set(),state=loadState();
 function $(id){return document.getElementById(id)}
 function shuffle(a){return a.slice().sort(function(){return Math.random()-.5})}
-function sample(a){return a[Math.floor(Math.random()*a.length)]}\nfunction weighted(a){const bag=[];a.forEach(function(w){const n=Math.max(1,Math.min(5,Number(w.star_rating)||3));for(let i=0;i<n;i++)bag.push(w)});return sample(bag.length?bag:a)}
+function sample(a){return a[Math.floor(Math.random()*a.length)]}
+function weighted(a){const bag=[];a.forEach(function(w){const n=Math.max(1,Math.min(5,Number(w.star_rating)||3));for(let i=0;i<n;i++)bag.push(w)});return sample(bag.length?bag:a)}
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(m){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]})}
 function loadState(){try{return Object.assign({hard:{},seen:{},sessions:0,total:0,correct:0},JSON.parse(localStorage.getItem("enroot_state")||"{}"))}catch(e){return{hard:{},seen:{},sessions:0,total:0,correct:0}}}
 function save(){localStorage.setItem("enroot_state",JSON.stringify(state));header()}
