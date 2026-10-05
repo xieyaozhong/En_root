@@ -10,7 +10,7 @@
     .atlasHero{padding:28px;margin-bottom:16px}.atlasHero h2{font-size:clamp(32px,6vw,54px);margin:8px 0 10px;letter-spacing:-.04em}.atlasHero p{color:var(--muted);line-height:1.7;max-width:780px}
     .atlasTools{display:grid;grid-template-columns:1fr 180px;gap:10px;margin-top:18px}.atlasTools input,.atlasTools select{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:14px;background:#0a1628;color:var(--text);font:inherit}
     .atlasMeta{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.atlasGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-    .rootCard{padding:16px}.rootKey{font-size:25px;font-weight:900;color:var(--mint)}.rootType{font-size:11px;color:var(--blue);font-weight:800;letter-spacing:.08em}.rootMeaning{margin:8px 0 10px;line-height:1.6;color:#d8e6f4}.rootExamples{display:flex;gap:6px;flex-wrap:wrap}.rootExamples span{border:1px solid var(--line);border-radius:9px;padding:5px 7px;color:var(--muted);font-size:11px}.atlasEmpty{padding:30px;text-align:center;color:var(--muted)}
+    .rootCard{padding:16px}.rootKey{font-size:25px;font-weight:900;color:var(--mint)}.rootType{font-size:11px;color:var(--blue);font-weight:800;letter-spacing:.08em}.rootMeaning{margin:8px 0 10px;line-height:1.6;color:#d8e6f4}.rootExamples{display:flex;gap:6px;flex-wrap:wrap}.rootExamples span{border:1px solid var(--line);border-radius:10px;padding:7px 9px;color:var(--muted);font-size:11px}.rootExample{display:flex;flex-direction:column;gap:2px;min-width:92px}.rootExample b{color:#d2e0ff;font-size:12px}.rootExample small{color:var(--muted);line-height:1.35}.rootExample.hint b{color:var(--muted)}.atlasEmpty{padding:30px;text-align:center;color:var(--muted)}
     @media(max-width:820px){.atlasGrid{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.atlasTools{grid-template-columns:1fr}.atlasGrid{grid-template-columns:1fr}}
   </style>
 </head>
@@ -36,7 +36,7 @@
     </div>
     <div class="atlasMeta">
       <span class="chip" id="shownCount">—</span>
-      <span class="chip">點例字可直接複製拼字</span>
+      <span class="chip">例字泡泡同步顯示繁體中文</span>
     </div>
   </section>
 
@@ -44,6 +44,7 @@
   <div class="footer">字根資料整合自公開 MIT 授權的 generated-english-roots-list。字源拆解用於學習輔助；個別單字的歷史詞源可能比簡化字根模型更複雜。</div>
 </main>
 <script src="root-zh.js"></script>
+<script src="root-example-zh.js"></script>
 <script src="roots.js"></script>
 </body>
 </html>
