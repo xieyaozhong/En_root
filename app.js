@@ -145,13 +145,39 @@ function syncGacha(){
  $("drawCard").textContent=n?"🎴 抽一張單字卡 · 剩 "+n+" 次":"本回合抽卡完成";
 }
 let drawingCard=false;
-function drawCard(){
+function withCardStorageLock(action){
+ return navigator.locks&&typeof navigator.locks.request==="function"?navigator.locks.request("enroot-dungeon-storage",{mode:"exclusive"},action):Promise.resolve().then(action);
+}
+async function drawCard(){
  if(drawingCard||!state.pullTickets||!state.pullTickets.length)return;
  drawingCard=true;
- const score=Number(state.pullTickets.shift())||0,rarity=rollRarity(score),card=pickCard(rarity);
- if(!card){drawingCard=false;return}
- const col=cardCollection(),old=col[card.word]||{count:0,first:new Date().toISOString()};
- old.count=(old.count||0)+1;old.last=new Date().toISOString();old.rarity=card.rarity;col[card.word]=old;saveCardCollection(col);save();
+ let drawn;
+ try{
+   drawn=await withCardStorageLock(function(){
+     const stateRaw=localStorage.getItem("enroot_state");if(stateRaw===null){state=loadState();return null;}const latest=JSON.parse(stateRaw);
+     if(!latest||typeof latest!=="object"||Array.isArray(latest)||!Array.isArray(latest.pullTickets))throw new Error("invalid learning state");
+     if(!latest.pullTickets.length){state=latest;return null;}
+     const score=Number(latest.pullTickets[0])||0,rarity=rollRarity(score),card=pickCard(rarity);
+     if(!card)throw new Error("no card available");
+     const before=localStorage.getItem("enroot_cards"),col=JSON.parse(before||"{}");
+     if(!col||typeof col!=="object"||Array.isArray(col)||Object.values(col).some(function(item){return!item||typeof item!=="object"||!Number.isSafeInteger(item.count)||item.count<0}))throw new Error("invalid collection");
+     const old=Object.assign({},col[card.word]||{count:0,first:new Date().toISOString()});
+     old.count+=1;if(!Number.isSafeInteger(old.count))throw new Error("collection full");
+     old.last=new Date().toISOString();old.rarity=card.rarity;col[card.word]=old;
+     const after=JSON.stringify(col);latest.pullTickets.shift();
+     localStorage.setItem("enroot_cards",after);
+     try{localStorage.setItem("enroot_state",JSON.stringify(latest));}
+     catch(error){
+       if(localStorage.getItem("enroot_cards")===after){if(before===null)localStorage.removeItem("enroot_cards");else localStorage.setItem("enroot_cards",before);}
+       throw error;
+     }
+     state=latest;return{card:card,rarity:rarity};
+   });
+ }catch(error){
+   drawingCard=false;syncGacha();const reveal=$("gachaReveal");reveal.classList.remove("hidden");reveal.textContent="目前無法儲存抽卡結果，抽卡券已保留。請確認瀏覽器允許儲存資料後再試一次。";return;
+ }
+ if(!drawn){drawingCard=false;header();syncGacha();return;}
+ const card=drawn.card,rarity=drawn.rarity;header();
  const reveal=$("gachaReveal"),btn=$("drawCard");
  btn.disabled=true;btn.textContent="✦ 詞源召喚中…";
  reveal.classList.remove("hidden","pop");
@@ -168,4 +194,4 @@ function drawCard(){
 }
 function finish(){state.sessions=(state.sessions||0)+1;state.pullTickets=(state.pullTickets||[]);state.pullTickets.push(correct);save();$("quiz").classList.add("hidden");$("result").classList.remove("hidden");$("final").textContent=correct+"/10";$("rc").textContent=correct;$("rw").textContent=10-correct;$("rr").textContent=rootsSeen.size;$("note").textContent=correct>=9?"很穩，下一輪可以提高分數帶或改成字根強化。":correct>=7?"基礎已成形，把錯的幾個字再用字根連一次。":"先不要追求量，優先把本回合錯題的字根畫面記住。";const uniq=[];const seen=new Set();wrong.forEach(function(w){if(!seen.has(w.english_word)){seen.add(w.english_word);uniq.push(w)}});$("review").innerHTML=uniq.length?"<h4>本回合生難字</h4>"+uniq.map(function(w){const rs=roots(w.english_word);return"<div class='reviewItem'><b>"+esc(w.english_word)+"</b><p>"+esc(w.chinese_definition)+"<br>"+esc(formula(w.english_word,rs))+"<br>記憶法："+esc(mnemonic(w,rs))+"</p></div>"}).join(""):"<div class='reviewItem'><b>本回合沒有錯題</b><p>可以直接挑戰更高分數帶。</p></div>";$("gachaReveal").classList.add("hidden");$("gachaReveal").innerHTML="";syncGacha()}
 function home(){$("quiz").classList.add("hidden");$("result").classList.add("hidden");$("home").classList.remove("hidden");header()}
-$("start").onclick=start;$("again").onclick=start;$("back").onclick=home;$("drawCard").onclick=drawCard;$("exam").onchange=syncExamUI;$("hardReview").onclick=function(){$("mode").value="hard";home();start()};$("clear").onclick=function(){if(confirm("要清除生難字、答題統計與熟悉度嗎？")){localStorage.removeItem("enroot_state");localStorage.removeItem("enroot_cards");state=loadState();header();syncGacha()}};init();
+$("start").onclick=start;$("again").onclick=start;$("back").onclick=home;$("drawCard").onclick=drawCard;$("exam").onchange=syncExamUI;$("hardReview").onclick=function(){$("mode").value="hard";home();start()};$("clear").onclick=async function(){if(confirm("要清除生難字、答題統計與熟悉度嗎？")){try{await withCardStorageLock(function(){localStorage.removeItem("enroot_state");localStorage.removeItem("enroot_cards");state=loadState()});header();syncGacha()}catch(error){alert("目前無法清除資料，請確認瀏覽器允許儲存資料後再試一次。")}}};init();
