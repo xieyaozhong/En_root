@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#101217">
-  <meta name="description" content="消耗單字卡，踏入像素地牢。打字施法、收集遺物，挑戰三位古老守護者。">
+  <meta name="description" content="自由走位、衝刺閃避、打字施法。踏入充滿彈幕與陷阱的像素地牢，搭配遺物與專屬配樂挑戰三位守護者。">
   <title>符文地牢｜Word Relic</title>
-  <link rel="stylesheet" href="dungeon.css">
+  <link rel="stylesheet" href="dungeon.css"><link rel="stylesheet" href="dungeon-action.css">
 </head>
 <body>
 <div class="shell">
@@ -15,16 +15,18 @@
     <button class="icon-button" id="helpButton" aria-label="遊玩說明">?</button>
   </header>
   <main>
-    <div class="page-heading"><div><div class="eyebrow">THE RUNIC DEPTHS <span>ROGUELIKE</span></div><h1>符文地牢<span class="title-star" aria-hidden="true">✦</span></h1></div><div class="heading-meta"><span class="tiny-diamond">◆</span><span id="modeLabel">以單字喚醒魔法</span><button class="quiet-button" id="soundButton" aria-pressed="false">音效：關</button></div></div>
+    <div class="page-heading"><div><div class="eyebrow">THE RUNIC DEPTHS <span>ACTION ROGUELIKE</span></div><h1>符文地牢<span class="title-star" aria-hidden="true">✦</span></h1></div><div class="heading-meta"><span class="tiny-diamond">◆</span><span id="modeLabel">以單字喚醒魔法</span><button class="quiet-button" id="soundButton" aria-pressed="false">配樂：關</button><label class="volume-control" for="musicVolume">音量 <input id="musicVolume" type="range" min="0" max="100" value="45" aria-label="配樂音量"></label></div></div>
     <div class="game-layout">
-      <section class="game-column" aria-label="冒險場景">
+      <section class="game-column" id="gameSurface" aria-label="冒險場景">
         <div class="stage-frame">
-          <div class="stage-top"><div><span class="chapter" id="chapterLabel">CHAPTER I</span><h2 id="regionLabel">遺忘書庫</h2></div><div class="stage-controls"><span class="floor-label" id="floorLabel">尚未出發</span><button class="icon-button" id="pauseButton" hidden aria-label="暫停遊戲">Ⅱ</button></div></div>
-          <div class="arena"><canvas id="arena" width="768" height="384" aria-label="像素法師站在幽暗地牢，面對古老守護者">你的瀏覽器無法顯示 Canvas，請使用支援 Canvas 的瀏覽器。</canvas><div class="arena-vignette"></div><div id="bossBanner" class="boss-banner" hidden></div><div class="arena-caption" id="arenaCaption"><span>✧</span> 古老的文字，正在等待回聲。</div><div id="pauseOverlay" class="pause-overlay" hidden><span class="eyebrow">TIME STANDS STILL</span><h3>冒險已暫停</h3><p>準備好後，再讓文字化為魔法。</p><button id="resumeButton" class="primary">繼續冒險</button></div></div>
+          <div class="stage-top"><div><span class="chapter" id="chapterLabel">CHAPTER I</span><h2 id="regionLabel">苔光秘林</h2></div><div class="stage-controls"><span class="floor-label" id="floorLabel">尚未出發</span><button class="icon-button" id="expandButton" aria-label="切換全螢幕">⛶</button><button class="icon-button" id="pauseButton" hidden aria-label="暫停遊戲">Ⅱ</button></div></div>
+          <div class="arena"><canvas id="arena" width="960" height="540" tabindex="0" aria-label="地牢戰場。WASD 或方向鍵移動，空白鍵衝刺，Enter 詠唱。">你的瀏覽器無法顯示 Canvas，請使用支援 Canvas 的瀏覽器。</canvas><div class="arena-vignette"></div><div id="bossBanner" class="boss-banner" hidden></div><div id="arenaHUD" class="arena-hud" hidden><span id="roomBadge">探索房間</span><span id="enemyCount"></span></div><div id="focusFlag" class="focus-flag" hidden>詠唱中 · 時間放慢</div><div class="arena-caption" id="arenaCaption"><span>✧</span> 古老的文字，正在等待回聲。</div><div id="pauseOverlay" class="pause-overlay" hidden><span class="eyebrow">TIME STANDS STILL</span><h3>冒險已暫停</h3><p>準備好後，再讓文字化為魔法。</p><button id="resumeButton" class="primary">繼續冒險</button></div></div>
           <div class="vitals" id="vitals"><div class="vital-block"><div class="vital-label"><span>✚ 生命</span><b id="hpText">100 / 100</b></div><div class="meter health"><i id="hpBar" style="width:100%"></i></div></div><div class="mini-stat"><small>護盾</small><b id="shieldText">0</b></div><div class="mini-stat gold-stat"><small>金幣</small><b id="goldText">0</b></div><div class="mini-stat"><small>連擊</small><b id="comboText">× 0</b></div></div>
         </div>
+        <div class="movement-bar" id="movementBar" hidden><div class="ability-stat"><span>衝刺 <kbd>Space</kbd></span><div class="meter dash-meter"><i id="dashBar"></i></div><b id="dashLabel">就緒</b></div><div class="ability-stat"><span>專注</span><div class="meter focus-meter"><i id="focusBar"></i></div><b id="focusLabel">100%</b></div><button id="chantButton" class="chant-button">Enter · 詠唱</button></div>
         <section class="action-panel" id="actionPanel" aria-label="冒險操作"></section>
-        <div class="under-stage"><span>⌨ <kbd>Enter</kbd> 施法 <span class="separator">/</span> <kbd>Esc</kbd> 暫停</span><span>每一次拼寫，都有力量。</span></div>
+        <div id="touchControls" class="touch-controls" hidden><div class="touch-pad" aria-label="觸控移動"><button data-move="up" aria-label="向上移動">↑</button><button data-move="left" aria-label="向左移動">←</button><button data-move="down" aria-label="向下移動">↓</button><button data-move="right" aria-label="向右移動">→</button></div><button id="touchDash" class="dash-button">衝刺</button></div>
+        <div class="under-stage"><span><kbd>WASD / ↑↓←→</kbd> 移動 <span class="separator">/</span> <kbd>Space</kbd> 衝刺 <span class="separator">/</span> <kbd>Enter</kbd> 詠唱 <span class="separator">/</span> <kbd>Esc</kbd> 暫停</span></div>
         <div id="feedback" role="status" aria-live="polite" class="feedback"></div>
       </section>
       <aside class="sidebar" id="sidebar" aria-label="冒險準備與背包"></aside>
@@ -35,6 +37,6 @@
 </div>
 <dialog id="infoDialog"><div class="dialog-top"><span class="eyebrow">ADVENTURER’S JOURNAL</span><button class="icon-button" id="closeDialog" aria-label="關閉">×</button></div><div id="dialogContent"></div></dialog>
 <script src="cards-data.js"></script><script src="cards-extra.js"></script><script src="card-art.js"></script><script src="card-art-extra.js"></script>
-<script src="dungeon-engine.js"></script><script src="dungeon-storage.js"></script><script src="dungeon-renderer.js"></script><script src="dungeon.js"></script>
+<script src="dungeon-engine.js"></script><script src="dungeon-storage.js"></script><script src="dungeon-arena.js"></script><script src="dungeon-renderer.js"></script><script src="dungeon-arena-renderer.js"></script><script src="dungeon-audio.js"></script><script src="dungeon.js"></script>
 </body>
 </html>

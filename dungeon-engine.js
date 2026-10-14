@@ -14,7 +14,7 @@
   var ITEMS = {
     potion: { id: 'potion', name: '苔露藥水', icon: '✚', description: '恢復 38 點生命；任何探索階段皆可使用。', price: 24 },
     bomb: { id: 'bomb', name: '星火炸彈', icon: '✹', description: '造成 42 點無視護盾的傷害。', price: 30 },
-    hourglass: { id: 'hourglass', name: '凝時沙漏', icon: '⌛', description: '將敵人下一次行動延後 6 秒。', price: 22 },
+    hourglass: { id: 'hourglass', name: '凝時沙漏', icon: '⌛', description: '敵方大型招式延後 6 秒；敵人與飛彈減速 6 秒。', price: 22 },
     barrier: { id: 'barrier', name: '琥珀護符', icon: '◇', description: '立即獲得 30 點護盾，持續至戰鬥結束。', price: 25 },
     focus: { id: 'focus', name: '靈感墨水', icon: '◆', description: '接下來 3 次咒語傷害增加 12 點。', price: 26 }
   };
@@ -23,7 +23,7 @@
     moss: { id: 'moss', name: '苔心種子', icon: '❧', description: '每次正確施法恢復 2 點生命。', price: 65 },
     shell: { id: 'shell', name: '古龍鱗片', icon: '▰', description: '每場戰鬥開始時獲得 18 點護盾。', price: 60 },
     prism: { id: 'prism', name: '詞源稜鏡', icon: '◈', description: '本命咒語額外造成 14 點傷害。', price: 65 },
-    clock: { id: 'clock', name: '靜夜懷錶', icon: '◷', description: '敵人的每次行動準備時間延長 2 秒。', price: 65 },
+    clock: { id: 'clock', name: '靜夜懷錶', icon: '◷', description: '敵方大型招式的準備時間延長 2 秒。', price: 65 },
     fang: { id: 'fang', name: '連響獠牙', icon: 'ϟ', description: '連擊達 3 時，咒語額外造成 6 點傷害。', price: 60 },
     purse: { id: 'purse', name: '拾星口袋', icon: '✧', description: '獲得金幣時增加 35%；取得時立刻獲得 20 金幣。', price: 55 },
     phoenix: { id: 'phoenix', name: '不熄燈芯', icon: '☀', description: '每趟遠征一次：受到致命傷時恢復 50 點生命。', price: 75 }
@@ -39,6 +39,14 @@
     { word: 'stone', zh: '石頭', name: '石壁術', type: 'shield', power: 16 },
     { word: 'storm', zh: '風暴', name: '風暴術', type: 'attack', power: 19 }
   ];
+  // Spatial boons also appear in the existing reward/shop pools. Old turn-based
+  // saves retain their original behavior until the arena is lazily created.
+  Object.assign(RELICS, {
+    gale: { id: 'gale', name: '迅風羽', icon: '➶', description: '移動速度增加 22%；衝刺冷卻縮短 0.25 秒。', price: 65 },
+    thunderstep: { id: 'thunderstep', name: '雷步印', icon: 'ϟ', description: '衝刺結束時，對 100 步內的敵人各造成 10 點穿透傷害。', price: 70 },
+    starlace: { id: 'starlace', name: '連星線', icon: '✧', description: '施法命中後，對目標 180 步內的另一名敵人追加 8 點穿透傷害。', price: 70 },
+    frostglass: { id: 'frostglass', name: '霜時石', icon: '❄', description: '每次正確施法後，敵人與飛彈減速 35%，持續 2 秒。', price: 70 }
+  });
   var ENEMIES = [
     [
       { id: 'slime', name: '墨滴史萊姆', description: '沾滿墨水的小生物，正準備彈跳撞擊。' },
@@ -128,12 +136,12 @@
     }
     return { damage: actual, blocked: blocked };
   }
-  function hitEnemy(s, damage, pierce) {
+  function hitEnemy(s, damage, pierce, damageLimit) {
     if (!s.enemy) return 0;
     var direct = Math.round(damage * (pierce || 0));
     var blocked = Math.min(s.enemy.shield, damage - direct);
     s.enemy.shield -= blocked;
-    var actual = Math.min(s.enemy.hp, damage - blocked);
+    var actual = Math.min(s.enemy.hp, damage - blocked, Number.isFinite(damageLimit) ? Math.max(0, damageLimit) : Infinity);
     s.enemy.hp -= actual; s.stats.damageDealt += actual;
     return actual;
   }
@@ -309,7 +317,7 @@
     event(s, 'phase', e.name + ' 進入第二階段！護盾再生，攻勢增強。');
     return true;
   }
-  function submit(s, text) {
+  function submit(s, text, options) {
     if (s.status !== 'combat') return fail('目前不在戰鬥中。');
     var normalized = String(text || '').trim().toLowerCase();
     if (!normalized) return fail('輸入咒語後按 Enter。');
@@ -328,7 +336,7 @@
     var base = spell.type === 'heal' || spell.type === 'shield' ? 8 : spell.power;
     var rawDamage = base + p.power + (has(s, 'ember') ? 4 : 0) + (has(s, 'fang') && p.combo >= 3 ? 6 : 0)
       + (spell.type === 'signature' && has(s, 'prism') ? 14 : 0) + (p.focus > 0 ? 12 : 0);
-    var damage = hitEnemy(s, Math.round(rawDamage * multiplier), spell.type === 'signature' ? 0.5 : 0);
+    var damage = hitEnemy(s, Math.round(rawDamage * multiplier), spell.type === 'signature' ? 0.5 : 0, options && options.damageLimit);
     var healing = spell.type === 'heal' ? heal(s, spell.power + p.power) : 0, shield = 0;
     if (has(s, 'moss')) healing += heal(s, 2);
     if (spell.type === 'shield') { shield = Math.min(90 - p.shield, spell.power + p.power); p.shield += shield; }
@@ -409,7 +417,7 @@
     if (s.status !== 'shop') return fail('目前不在商店。');
     nextEncounter(s); event(s, 'route', '向商人道別，繼續深入。'); return done('繼續探索。');
   }
-  function useItem(s, id) {
+  function useItem(s, id, options) {
     if (s.status === 'won' || s.status === 'lost') return fail('這趟遠征已經結束。');
     var item = s.inventory.find(function (i) { return i.id === id; });
     if (!item || item.count <= 0) return fail('背包裡沒有這件道具。');
@@ -419,14 +427,47 @@
     var message, damage = 0;
     item.count -= 1; s.stats.itemsUsed += 1;
     if (id === 'potion') message = '喝下苔露藥水，恢復 ' + heal(s, 38) + ' 點生命。';
-    else if (id === 'bomb') { damage = hitEnemy(s, 42, 1); message = '星火炸彈爆開，造成 ' + damage + ' 點穿透傷害！'; }
-    else if (id === 'hourglass') { s.enemy.intent.remaining += 6; s.enemy.intent.duration = Math.max(s.enemy.intent.duration, s.enemy.intent.remaining); message = '凝時沙漏啟動：敵人的下一次行動延後 6 秒。'; }
+    else if (id === 'bomb') { damage = hitEnemy(s, 42, 1, options && options.damageLimit); message = '星火炸彈爆開，造成 ' + damage + ' 點穿透傷害！'; }
+    else if (id === 'hourglass') { s.enemy.intent.remaining += 6; s.enemy.intent.duration = Math.max(s.enemy.intent.duration, s.enemy.intent.remaining); message = '凝時沙漏啟動：敵方大型招式延後 6 秒。'; }
     else if (id === 'barrier') { var shield = Math.min(30, 90 - s.player.shield); s.player.shield += shield; message = '琥珀護符展開，獲得 ' + shield + ' 點護盾。'; }
     else if (id === 'focus') { s.player.focus += 3; message = '靈感墨水流動：接下來 3 次咒語傷害增加 12。'; }
     event(s, 'item', message, { damage: damage, itemId: id });
     if (s.status === 'combat') { if (s.enemy.hp <= 0) winEncounter(s); else checkPhase(s); }
     return done(message, { damage: damage });
   }
+  function damagePlayer(s, amount, options) {
+    if (s.status !== 'combat') return { ok: false, damage: 0, blocked: 0, restored: 0 };
+    var value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) return { ok: false, damage: 0, blocked: 0, restored: 0 };
+    var result = hitPlayer(s, Math.round(value));
+    result.ok = true; result.restored = 0;
+    if (result.damage > 0) s.player.combo = 0;
+    if (options && options.drain && s.enemy && s.enemy.hp > 0) {
+      result.restored = Math.min(s.enemy.maxHp - s.enemy.hp, result.damage);
+      s.enemy.hp += result.restored;
+    }
+    if (s.status !== 'lost') event(s, 'arena-hit', (options && options.name || '敵人的攻擊') + '：' +
+      (result.damage ? '受到 ' + result.damage + ' 點傷害。' : '護盾完全擋住了傷害。'), result);
+    return result;
+  }
+  function damageEnemy(s, amount, pierce) {
+    if (s.status !== 'combat' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) return 0;
+    var damage = hitEnemy(s, Math.round(Number(amount)), Math.max(0, Math.min(1, Number(pierce) || 0)));
+    if (s.enemy.hp <= 0) winEncounter(s); else checkPhase(s);
+    return damage;
+  }
+  function healPlayer(s, amount) {
+    return s.status === 'combat' && Number.isFinite(Number(amount)) ? heal(s, Math.max(0, Math.round(Number(amount)))) : 0;
+  }
+  function resolveArenaIntent(s) {
+    if (s.status !== 'combat') return null;
+    var e = s.enemy, intent = copy(e.intent);
+    e.shield = Math.min(70, e.shield + (intent.shield || 0));
+    e.turn += 1; makeIntent(s);
+    return intent;
+  }
   return { createRun: createRun, submit: submit, tick: tick, chooseRoute: chooseRoute, chooseReward: chooseReward,
-    chooseCamp: chooseCamp, useItem: useItem, buy: buy, leaveShop: leaveShop, ITEMS: ITEMS, RELICS: RELICS, REGIONS: REGIONS };
+    chooseCamp: chooseCamp, useItem: useItem, buy: buy, leaveShop: leaveShop, damagePlayer: damagePlayer,
+    damageEnemy: damageEnemy, healPlayer: healPlayer, resolveArenaIntent: resolveArenaIntent,
+    ITEMS: ITEMS, RELICS: RELICS, REGIONS: REGIONS };
 });
