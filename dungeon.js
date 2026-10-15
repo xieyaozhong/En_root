@@ -2,7 +2,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  const Engine = window.DungeonEngine, Storage = window.DungeonStorage, Arena = window.DungeonArena, Explore = window.DungeonExplore;
+  const Engine = window.DungeonEngine, Storage = window.DungeonStorage, Arena = window.DungeonArena, Explore = window.DungeonExplore, Chant = window.DungeonChant;
   const cards = window.ENROOT_CARDS || [];
   const renderer = new window.DungeonArenaRenderer($('arena'));
   const soundtrack = new window.DungeonAudio();
@@ -15,7 +15,8 @@
   let lastTime = 0, lastPaint = 0, saveClock = 0, audioEnabled = false, sessionHeld = false, persistenceBroken = false;
   let logSignature = '', sidebarSignature = '', actionSignature = '', settlementPromise = null, releaseSession = null;
   let chanting = false, dashQueued = false, chosenDifficulty = 'standard';
-  const heldKeys = new Set(), keyTimes = new Map(), touchDirections = new Map(), tapPulses = new Map();
+  const heldKeys = new Set(), keyTimes = new Map(), tapPulses = new Map();
+  let joystick=null, previousTyped='', qtePulseUntil=0, castFeedbackUntil=0;
   const directionKeys = {KeyW:'up',ArrowUp:'up',KeyS:'down',ArrowDown:'down',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
   const difficultyNames = {story:'故事',standard:'標準',veteran:'試煉'};
   const explorationStatuses = ['route','shop','npc','camp','reward'];
@@ -31,14 +32,14 @@
     soundtrack.setScene({region:run?.region || 0,combat:run?.status==='combat',boss:run?.enemy?.kind==='boss' && run?.status==='combat',paused:paused || document.hidden,focus:chanting});
   }
   function clearMovement() {
-    heldKeys.clear();keyTimes.clear();touchDirections.clear();tapPulses.clear();dashQueued=false;
-    document.querySelectorAll('[data-move]').forEach(button=>button.classList.remove('held'));
+    heldKeys.clear();keyTimes.clear();tapPulses.clear();dashQueued=false;joystick?.reset();
   }
   function movementInput() {
-    const directions=new Set(touchDirections.values()),now=performance.now();
+    const directions=new Set(),now=performance.now(),stick=joystick?.getVector() || {x:0,y:0};
     heldKeys.forEach(code=>{if(directionKeys[code])directions.add(directionKeys[code]);});
     tapPulses.forEach((until,direction)=>{if(now<until)directions.add(direction);else tapPulses.delete(direction);});
-    return {x:Number(directions.has('right'))-Number(directions.has('left')),y:Number(directions.has('down'))-Number(directions.has('up')),dash:dashQueued,focus:chanting};
+    const keyX=Number(directions.has('right'))-Number(directions.has('left')),keyY=Number(directions.has('down'))-Number(directions.has('up'));
+    return {x:keyX || keyY?keyX:stick.x,y:keyX || keyY?keyY:stick.y,dash:dashQueued,focus:chanting};
   }
   function setChant(value) {
     if(!run || run.status!=='combat' || paused || persistenceBroken)value=false;
@@ -47,8 +48,10 @@
     if(input){input.readOnly=!chanting;input.placeholder=chanting?'輸入英文，Enter 施法…':'按 Enter 開始詠唱…';if(chanting && document.activeElement!==input)input.focus({preventScroll:true});if(!chanting && document.activeElement===input)input.blur();}
     $('actionPanel').classList.toggle('is-chanting',chanting);
     $('chantButton').textContent=chanting?'Esc · 返回走位':'Enter · 詠唱';
+    previousTyped=input?.value || '';paintLetters();
     syncAudio();updateArenaHUD();
   }
+  function revealMovement(){if(matchMedia('(max-width: 780px)').matches)$('gameSurface').scrollIntoView({block:'start'});}
   function requestDash() {
     if(!navigable() || paused || persistenceBroken || inConversation())return;
     if(chanting)setChant(false);dashQueued=true;$('arena').focus({preventScroll:true});
@@ -56,7 +59,11 @@
   function updateArenaHUD() {
     const active=!!navigable(),combat=run?.status==='combat';
     $('arenaHUD').hidden=!active;$('movementBar').hidden=!active;$('touchControls').hidden=!active;
-    $('focusFlag').hidden=!combat || !chanting;$('focusAbility').hidden=!combat;$('chantButton').hidden=!combat;$('interactButton').hidden=!active || combat;
+    $('chantQte').hidden=!combat || !chanting || paused;
+    if($('inlineQte'))$('inlineQte').hidden=!combat || !chanting || paused;
+    document.body.classList.toggle('chanting-mode',combat && chanting);
+    $('castFeedback').hidden=!combat || paused || performance.now()>=castFeedbackUntil;
+    $('focusFlag').hidden=true;$('focusAbility').hidden=!combat;$('chantButton').hidden=!combat;$('interactButton').hidden=!active || combat;
     if(!active || !world())return;
     const arena=world(),player=arena.player;
     if(combat){
@@ -76,6 +83,13 @@
     $('focusBar').style.width=(player.focusEnergy || 0)+'%';$('focusLabel').textContent=Math.round(player.focusEnergy || 0)+'%';
     $('focusFlag').textContent=arena.focusActive?'詠唱中 · 時間放慢':'專注耗盡 · 返回走位可恢復';
     $('focusFlag').classList.toggle('exhausted',!arena.focusActive);
+    if(combat && chanting){
+      const energy=player.focusEnergy || 0;
+      $('qteTime').textContent=energy>0?'慢時 '+(energy/12).toFixed(1)+' 秒':'專注耗盡 · 敵人恢復速度';
+      if($('inlineQteTime'))$('inlineQteTime').textContent=$('qteTime').textContent;
+      $('qteTimeBar').style.width=energy+'%';$('chantQte').classList.toggle('exhausted',energy<=0);
+      if(performance.now()>=qtePulseUntil)$('chantQte').classList.remove('qte-hit','qte-miss');
+    }
     $('arena').dataset.playerX=player.x.toFixed(1);$('arena').dataset.playerY=player.y.toFixed(1);
     $('arena').dataset.dashCount=String(arena.dashes || 0);$('arena').dataset.focus=String(chanting);$('arena').dataset.mode=run.status;
     $('touchControls').inert=paused || inConversation();
@@ -225,7 +239,7 @@
       const labels={route:['選一扇門，走向下一段旅程','走近傳送門，按 E 或 Enter 進入。'],shop:['商人正在攤位等你','走近商人交談、購物或輸入挑戰文字；走到出口繼續。'],npc:['路上遇見了一位旅人','走近對方按 E 交談。接受幫助，或用指定文字發起挑戰。'],reward:['戰利品就在眼前','走近一座祭壇，按 E 領取；每次只能選一項。'],camp:['星燈照亮了營地','走近營火休息，或前往木偶磨練。兩者只能選一項。']};
       const [title,detail]=labels[run.status];
       const trophy=run.status==='reward' && run.npc?.defeated ? Engine.RELICS[Engine.NPCS[run.npc.id]?.lootId] : null;
-      area.innerHTML=`<div class="action-heading"><h3>${esc(title)}</h3><span class="pill">走近 · E 互動</span></div><p>${esc(detail)}</p>${trophy?`<div class="special-loot"><span>✦ NPC 專屬遺物 · 已裝備</span><strong>${esc(trophy.name)}</strong><p>${esc(trophy.description)}</p></div>`:''}<div class="nearby-card ${target?'in-range':''}"><span>${target?'◇ 可互動':'↟ 前往場景中的標記'}</span><strong>${esc(target?.name || '移動角色，探索這個房間')}</strong><p>${esc(target?.description || 'WASD／方向鍵移動，Space 衝刺。手機使用下方方向鍵與互動按鈕。')}</p></div><div class="scene-directory" aria-label="場景中的互動物件">${(scene?.objects || []).map(object=>`<span>${esc(object.icon || '◇')} ${esc(object.name)}</span>`).join('')}</div>`;
+      area.innerHTML=`<div class="action-heading"><h3>${esc(title)}</h3><span class="pill">走近 · E 互動</span></div><p>${esc(detail)}</p>${trophy?`<div class="special-loot"><span>✦ NPC 專屬遺物 · 已裝備</span><strong>${esc(trophy.name)}</strong><p>${esc(trophy.description)}</p></div>`:''}<div class="nearby-card ${target?'in-range':''}"><span>${target?'◇ 可互動':'↟ 前往場景中的標記'}</span><strong>${esc(target?.name || '移動角色，探索這個房間')}</strong><p>${esc(target?.description || 'WASD／方向鍵移動，Space 衝刺。手機拖曳搖桿移動，再按互動按鈕。')}</p></div><div class="scene-directory" aria-label="場景中的互動物件">${(scene?.objects || []).map(object=>`<span>${esc(object.icon || '◇')} ${esc(object.name)}</span>`).join('')}</div>`;
     }
   }
   function choiceMarkup(list, method) {
@@ -241,10 +255,12 @@
     area.classList.toggle('combat-panel',run.status==='combat');area.classList.toggle('is-chanting',chanting && run.status==='combat');
     if (run.status === 'combat') {
       const spell = run.spell, enemy = run.enemy;
-      area.innerHTML = `<div class="enemy-intent"><span id="enemyIntent"></span><b id="intentTime"></b></div><div class="meter enemy-meter"><i id="intentBar"></i></div><div class="spell-row"><div><div class="spell-word" id="spellWord">${esc(spell.word)}</div><div class="spell-meaning">${esc(spell.zh || '')}</div></div><div class="spell-type">${esc(spellTypes[spell.type]||'魔法咒語')}<br><small>${esc(spell.description||'')}</small></div></div><form class="spell-form" id="spellForm" autocomplete="off"><input id="spellInput" name="spell" aria-label="輸入咒語" placeholder="按 Enter 開始詠唱…" ${chanting?'':'readonly'} autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" enterkeyhint="send" maxlength="80"><button class="primary" type="submit">施法 ↵</button></form>`;
+      area.innerHTML = `<div class="enemy-intent"><span id="enemyIntent"></span><b id="intentTime"></b></div><div class="meter enemy-meter"><i id="intentBar"></i></div><div class="spell-row"><div><div class="spell-word" id="spellWord">${esc(spell.word)}</div><div class="spell-meaning">${esc(spell.zh || '')}</div></div><div class="spell-type">${esc(spellTypes[spell.type]||'魔法咒語')}<br><small>${esc(spell.description||'')}</small></div></div><div id="inlineQte" class="inline-qte" hidden><div class="qte-top"><b>✦ 咒語連鎖</b><span id="inlineQteTime"></span></div><div class="qte-letters" id="inlineQteLetters" aria-hidden="true"></div><p id="inlineQteHint" role="status" aria-live="polite"></p></div><form class="spell-form" id="spellForm" autocomplete="off"><input id="spellInput" name="spell" aria-label="輸入咒語" placeholder="按 Enter 開始詠唱…" ${chanting?'':'readonly'} autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" enterkeyhint="send" maxlength="80"><button class="primary" type="submit">施法 ↵</button></form>`;
       $('spellForm').onsubmit = event => {event.preventDefault();cast();};
-      $('spellInput').oninput = paintLetters;
+      $('spellInput').oninput = event=>{if(!event.isComposing)paintLetters(true);};
+      $('spellInput').oncompositionend=()=>paintLetters(true);
       $('spellInput').onfocus=()=>{if(!chanting)setChant(true);};
+      previousTyped='';paintLetters();
       liveCombat();
     } else if (explorationStatuses.includes(run.status)) {
       renderExploration(area);
@@ -257,19 +273,39 @@
     area.querySelectorAll('[data-action]').forEach(button=>{button.onclick=()=>doAction(button.dataset.action,button.dataset.choice);});
     syncPause();
   }
-  function paintLetters() {
-    if (!run?.spell || !$('spellInput')) return;
-    const typed = $('spellInput').value.toLowerCase(), target = run.spell.word.toLowerCase();
-    $('spellWord').innerHTML = [...run.spell.word].map((letter,i)=>`<span class="${i<typed.length ? (typed[i]===target[i]?'matched':'wrong'):''}">${esc(letter)}</span>`).join('');
-    $('spellInput').setAttribute('aria-invalid',typed && !target.startsWith(typed) ? 'true':'false');
+  function paintLetters(fromInput=false) {
+    if (run?.status!=='combat' || !$('spellInput')) return;
+    const typed=$('spellInput').value,state=Chant.feedback(previousTyped,typed,run.spell.word);
+    const display=char=>char===' '?'␣':char;
+    $('spellWord').innerHTML=state.letters.map(letter=>`<span class="${letter.state==='correct'?'matched':letter.state==='wrong'?'wrong':''}">${esc(letter.char)}</span>`).join('');
+    const keys=state.letters.map(letter=>`<span class="qte-letter ${letter.state}">${esc(display(letter.char))}</span>`).join('')+(state.extra?`<span class="qte-letter wrong">+${[...state.extra].length}</span>`:'');
+    $('qteLetters').innerHTML=keys;if($('inlineQteLetters'))$('inlineQteLetters').innerHTML=keys;
+    $('qteNext').textContent=state.complete?'↵':display(state.next || '⌫');
+    $('qteProgress').style.width=(state.progress*100)+'%';$('qteProgressText').textContent=state.matched+' / '+state.letters.length;
+    $('qteHint').textContent=state.complete?'咒語完成！按 Enter 或「施法」':state.extra?'刪除多出的字母，再施法':state.wrong?'第 '+(state.index+1)+' 個字母應為 '+display(state.next)+'，請刪除修正':state.kind==='corrected'?'已修正 · 繼續輸入':state.matched?'命中！繼續輸入下一鍵':'依序輸入亮起的字母';
+    if($('inlineQteHint'))$('inlineQteHint').textContent=$('qteHint').textContent;
+    if($('inlineQte')){$('inlineQte').classList.toggle('qte-invalid',state.wrong);$('inlineQte').classList.toggle('qte-ready',state.complete);}
+    $('chantQte').classList.toggle('qte-ready',state.complete);$('chantQte').classList.toggle('qte-invalid',state.wrong);
+    $('chantQte').dataset.state=state.complete?'ready':state.wrong?'wrong':'typing';
+    $('spellInput').setAttribute('aria-invalid',state.wrong?'true':'false');
+    if(fromInput && chanting && state.kind!=='idle'){
+      $('chantQte').classList.remove('qte-hit','qte-miss');
+      $('chantQte').classList.add(state.kind==='wrong'?'qte-miss':'qte-hit');qtePulseUntil=performance.now()+180;
+      if(state.kind==='wrong')tone('error');else if(state.kind==='ready')tone('heal');
+    }
+    previousTyped=typed;
   }
   function cast() {
     if(!run || run.status!=='combat' || paused || busy || persistenceBroken)return;
     const input=$('spellInput'), text=input.value;
     if(!text.trim()){setChant(true);return;}
+    paintLetters();
     const type=run.spell.type, result=Arena.cast(run,text);
     notify(result.message || (result.ok?'咒語施放成功。':'拼寫還差一點，請修正後再試。'),!result.ok);
-    if(result.ok){setChant(false);renderer.burst(type);tone(type);actionSignature='';render();$('arena').focus({preventScroll:true});}
+    if(result.ok){
+      $('castFeedback').textContent=result.fast?'✦ 迅捷施法！':'✦ 施法成功！';castFeedbackUntil=performance.now()+850;
+      setChant(false);renderer.burst(type);tone(type);actionSignature='';render();$('arena').focus({preventScroll:true});revealMovement();
+    }
     else {tone('error');$('spellInput')?.setAttribute('aria-invalid','true'); if(run.status!=='combat'){setChant(false);render();}else if(result.message?.includes('射程')){setChant(false);$('arena').focus({preventScroll:true});}else renderVitals();}
     persist();
   }
@@ -353,7 +389,7 @@
   }
   function help() {
     if(run){paused=true;syncPause();}
-    openDialog('<h2>移動、閃避、詠唱</h2><ol><li><b>WASD／方向鍵移動：</b>繞過石柱、與近戰敵人保持距離。手機使用畫面下方方向鍵。</li><li><b>Space 衝刺：</b>沿移動方向快速位移，短暫免疫碰撞傷害，冷卻 1.4 秒；不能穿越牆壁。</li><li><b>Enter 詠唱：</b>時間放慢，輸入畫面的英文，再按 Enter 施法。施法後自動返回走位，也可按 Esc 取消詠唱。</li><li><b>專注會耗盡：</b>詠唱時消耗專注，離開詠唱即可恢復。專注歸零後敵人恢復正常速度。</li><li><b>看清預警：</b>紅色地面標記會在短暫延遲後造成傷害。用走位離開，或衝刺穿過彈幕。</li><li><b>靠近再施法：</b>咒語自動鎖定射程內最近的敵人；每五次成功施法輪到卡片奧義。</li></ol><h3>走近互動與旅途 NPC</h3><p>探索時用 WASD 或方向鍵走近傳送門、祭壇、營火或 NPC，按 E／Enter 互動；手機點「E · 互動」。商店也要先走近商人才能購物。交談時按 Esc 返回場景，走到出口繼續。</p><p>旅途中可能遇見療癒師、鍛造師、製圖師與擺渡人。交談後可接受一次幫助，或輸入畫面指定文字發起雙階段 Boss 挑戰。商人同樣可被挑戰；擊敗必得專屬遺物。接受幫助後，本次相遇不能再挑戰。</p><h3>房間與遺物</h3><p>穿過三個區域、12 個節點。掩體、熔岩、機關與追擊者會改變走位策略。戰利品三選一，移速、連鎖、衝刺與緩速遺物可以搭配。</p><h3>配樂、暫停與接續</h3><p>點「配樂」開啟原創區域音樂，Boss 戰會增加節奏。按 Esc 暫停；切換分頁也會自動暫停。正式冒險會保存位置與進度，重新整理可接續。</p><h3>卡片與難度</h3><p>正式入場消耗 1 張收藏卡；練習免費。故事難度降低空間傷害，試煉提高傷害與彈速。失敗不退卡；道具、金幣與遺物只屬於本次冒險。</p>');
+    openDialog('<h2>移動、閃避、詠唱</h2><ol><li><b>WASD／方向鍵移動：</b>繞過石柱、與近戰敵人保持距離。手機拖曳左側搖桿，360 度移動；輕推慢走、推遠加速，放開即停止。</li><li><b>Space 衝刺：</b>沿移動方向快速位移，短暫免疫碰撞傷害，冷卻 1.4 秒；不能穿越牆壁。</li><li><b>Enter 詠唱：</b>時間放慢，依序輸入戰場提示的字母：下一鍵會亮起，打對變綠、打錯標紅；完成後再按 Enter 施法。施法後自動返回走位，也可按 Esc 取消詠唱。</li><li><b>專注會耗盡：</b>詠唱時消耗專注，離開詠唱即可恢復。專注歸零後敵人恢復正常速度。</li><li><b>看清預警：</b>紅色地面標記會在短暫延遲後造成傷害。用走位離開，或衝刺穿過彈幕。</li><li><b>靠近再施法：</b>咒語自動鎖定射程內最近的敵人；每五次成功施法輪到卡片奧義。</li></ol><h3>走近互動與旅途 NPC</h3><p>探索時用 WASD 或方向鍵走近傳送門、祭壇、營火或 NPC，按 E／Enter 互動；手機點「E · 互動」。商店也要先走近商人才能購物。交談時按 Esc 返回場景，走到出口繼續。</p><p>旅途中可能遇見療癒師、鍛造師、製圖師與擺渡人。交談後可接受一次幫助，或輸入畫面指定文字發起雙階段 Boss 挑戰。商人同樣可被挑戰；擊敗必得專屬遺物。接受幫助後，本次相遇不能再挑戰。</p><h3>房間與遺物</h3><p>穿過三個區域、12 個節點。掩體、熔岩、機關與追擊者會改變走位策略。戰利品三選一，移速、連鎖、衝刺與緩速遺物可以搭配。</p><h3>配樂、暫停與接續</h3><p>點「配樂」開啟原創區域音樂，Boss 戰會增加節奏。按 Esc 暫停；切換分頁也會自動暫停。正式冒險會保存位置與進度，重新整理可接續。</p><h3>卡片與難度</h3><p>正式入場消耗 1 張收藏卡；練習免費。故事難度降低空間傷害，試煉提高傷害與彈速。失敗不退卡；道具、金幣與遺物只屬於本次冒險。</p>');
   }
   function codex() {
     if(run){paused=true;syncPause();}
@@ -368,7 +404,7 @@
   $('soundButton').onclick=async()=>{const next=!audioEnabled;const ok=await soundtrack.setEnabled(next);audioEnabled=next && ok!==false;$('soundButton').textContent='配樂：'+(audioEnabled?'開':'關');$('soundButton').setAttribute('aria-pressed',String(audioEnabled));if(next && !audioEnabled)notify('瀏覽器尚未允許播放配樂，請再按一次配樂按鈕。',true);syncAudio();returnToArena();};
   soundtrack.setVolume(.45);$('musicVolume').oninput=event=>soundtrack.setVolume(Number(event.target.value)/100);
   $('musicVolume').onchange=returnToArena;
-  $('chantButton').onclick=()=>{setChant(!chanting);if(!chanting)$('arena').focus({preventScroll:true});};
+  $('chantButton').onclick=()=>{setChant(!chanting);if(!chanting){$('arena').focus({preventScroll:true});revealMovement();}};
   $('interactButton').onclick=interact;
   $('touchDash').onclick=requestDash;
   $('expandButton').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('gameSurface').requestFullscreen();}catch(_){notify('此瀏覽器不支援全螢幕，仍可直接遊玩。');}returnToArena();};
@@ -386,12 +422,15 @@
     const started=keyTimes.get(event.code);heldKeys.delete(event.code);keyTimes.delete(event.code);
     if(started!=null && performance.now()-started<70 && directionKeys[event.code] && !chanting && !paused && !inConversation())tapPulses.set(directionKeys[event.code],performance.now()+90);
   });
-  document.querySelectorAll('[data-move]').forEach(button=>{
-    button.onpointerdown=event=>{if(!navigable() || paused || persistenceBroken || inConversation())return;event.preventDefault();if(chanting)setChant(false);button.setPointerCapture(event.pointerId);touchDirections.set(event.pointerId,button.dataset.move);button.classList.add('held');};
-    const release=event=>{touchDirections.delete(event.pointerId);button.classList.remove('held');};
-    button.onpointerup=release;button.onpointercancel=release;button.onlostpointercapture=release;
-    button.onclick=event=>{if(event.detail===0 && navigable() && !paused && !persistenceBroken && !inConversation()){setChant(false);tapPulses.set(button.dataset.move,performance.now()+180);}};
+  joystick=new window.DungeonJoystick($('moveJoystick'),{
+    canStart:()=>!!navigable() && !paused && !persistenceBroken && !inConversation() && !$('infoDialog').open,
+    onStart:()=>{if(chanting)setChant(false);else clearMovement();$('arena').focus({preventScroll:true});},
+    onChange:vector=>{$('moveJoystick').dataset.x=vector.x.toFixed(3);$('moveJoystick').dataset.y=vector.y.toFixed(3);}
   });
+  ['contextmenu','selectstart','dragstart'].forEach(type=>document.addEventListener(type,event=>{
+    const target=event.target;
+    if(target instanceof HTMLElement && target.closest('#gameSurface') && !target.closest('input,textarea,select'))event.preventDefault();
+  }));
   $('arena').onpointerdown=()=>{if(chanting)setChant(false);$('arena').focus({preventScroll:true});};
   window.addEventListener('blur',()=>{clearMovement();if(navigable()){paused=true;syncPause();persist();}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden && run){paused=true;syncPause();persist();}});

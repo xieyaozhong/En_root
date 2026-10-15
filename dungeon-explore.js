@@ -126,11 +126,16 @@
     if (!dt) return exploration;
     input = input || {};
     var x = clamp(finite(input.x, 0), -1, 1), y = clamp(finite(input.y, 0), -1, 1), length = Math.hypot(x, y);
-    if (length > 0) { x /= length; y /= length; player.facingX = x; player.facingY = y; }
+    if (length > 0) { player.facingX = x / length; player.facingY = y / length; }
+    // Preserve a short joystick tilt for slow walking, but cap diagonal keyboard speed.
+    if (length > 1) { x /= length; y /= length; }
     player.dashCooldown = Math.max(0, player.dashCooldown - dt);
     if (input.dash && player.dashCooldown <= 0 && player.dashTime <= 0) {
       player.dashTime = 0.22; player.dashCooldown = has(run, 'gale') ? 1.15 : 1.4;
-      player.dashX = player.facingX; player.dashY = player.facingY; exploration.dashes++;
+      var facingLength = Math.hypot(player.facingX, player.facingY);
+      player.dashX = facingLength ? player.facingX / facingLength : 0;
+      player.dashY = facingLength ? player.facingY / facingLength : -1;
+      exploration.dashes++;
     }
     var dashDt = Math.min(dt, player.dashTime), walkDt = dt - dashDt;
     var beforeX = player.x, beforeY = player.y;
