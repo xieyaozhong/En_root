@@ -20,6 +20,8 @@
   function gem(c,x,y,r,color){c.fillStyle=color;c.beginPath();c.moveTo(x,y-r);c.lineTo(x+r*.65,y);c.lineTo(x,y+r);c.lineTo(x-r*.65,y);c.closePath();c.fill();}
   function poly(c,points,color){c.fillStyle=color;c.beginPath();points.forEach((p,i)=>i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));c.closePath();c.fill();}
   const regionOf=(run)=>typeof run?.region==='string'?({forest:0,mirror:1,library:1,void:2,obsidian:2}[run.region]??0):clamp(val(run?.region),0,2);
+  const NPC_IDS=new Set(['merchant','healer','smith','cartographer','ferryman']);
+  const EXPLORATION_STATES=new Set(['route','shop','npc','camp','reward']);
 
   class DungeonArenaRenderer {
     constructor(canvas){
@@ -99,7 +101,7 @@
 
     burst(kind='cast'){
       this.flashKind=String(kind);this.flash=1;
-      const scene=this.lastScene,run=scene?.run,arena=run?.arena,player=arena?.player;
+      const scene=this.lastScene,run=scene?.run,arena=EXPLORATION_STATES.has(run?.status)?run?.exploration:run?.arena,player=arena?.player;
       const target=arena?.enemies?.find(e=>String(e.id)===String(arena?.targetId)&&e.alive!==false&&e.hp>0);
       const friendly=/hurt|damage|heal|potion|shield|barrier|dash/.test(kind);
       const x=friendly?val(player?.x,260):val(target?.x,660),y=friendly?val(player?.y,320)-20:val(target?.y,285)-18;
@@ -110,16 +112,17 @@
     }
     draw(input=null,time=0){
       const scene=input&&Object.prototype.hasOwnProperty.call(input,'run')?input:{run:input};
-      const run=scene.run||null,arena=run?.arena||null,region=regionOf(run),p=PAL[region];
+      const run=scene.run||null,exploration=EXPLORATION_STATES.has(run?.status)?run?.exploration:null,arena=exploration?null:run?.arena||null,region=regionOf(run),p=PAL[region];
       const paused=!!scene.paused,still=paused||!!scene.reducedMotion;
       const stamp=val(time),dt=this.lastTime===null?0:clamp((stamp-this.lastTime)/1000,0,.05);this.lastTime=stamp;
       if(!paused)this.clock+=dt;const t=still?0:this.clock;
       this.lastScene=scene;
-      const roomKey=arena?.room?.id??null;if(roomKey!==this.lastRoom){this.trail=[];this.particles=[];this.lastPlayer=null;this.lastRoom=roomKey;}
+      const roomKey=exploration?.key??arena?.room?.id??null;if(roomKey!==this.lastRoom){this.trail=[];this.particles=[];this.lastPlayer=null;this.lastRoom=roomKey;}
       const c=this.ctx;c.save();c.setTransform(1,0,0,1,0,0);c.globalAlpha=1;c.clearRect(0,0,W,H);box(c,0,0,W,H,p.void);
       if(!still&&this.shake>0)c.translate(Math.round(Math.sin(t*73)*this.shake*3),Math.round(Math.cos(t*91)*this.shake*2));
       c.drawImage(this.backdrops[region],0,0);this.ambience(c,p,region,t,still);
-      if(arena)this.drawArena(c,arena,run,scene,p,region,t,dt,still);else this.lobby(c,p,region,t);
+      if(exploration)this.drawExploration(c,exploration,run,scene,p,region,t,dt,still);
+      else if(arena)this.drawArena(c,arena,run,scene,p,region,t,dt,still);else this.lobby(c,p,region,t);
       this.localEffects(c,p,dt,paused,still);
       // A small foreground lip encloses the room without obscuring feet.
       c.globalAlpha=.28;box(c,24,502,912,9,p.void);c.globalAlpha=1;
@@ -169,6 +172,113 @@
         c.save();c.globalAlpha=.55;const x=aim.x,y=aim.y;stroke(c,x-7,y,x-3,y,p.light,1);stroke(c,x+3,y,x+7,y,p.light,1);stroke(c,x,y-7,x,y-3,p.light,1);stroke(c,x,y+3,x,y+7,p.light,1);c.restore();
       }
     }
+    drawExploration(c,a,run,scene,p,region,t,dt,still){
+      const player=a.player||{x:480,y:420,r:12},objects=Array.isArray(a.objects)?a.objects:[],obstacles=Array.isArray(a.obstacles)?a.obstacles:[];
+      objects.forEach(o=>{
+        const x=val(o.x),y=val(o.y),r=Math.max(1,val(o.interactionRadius,85)),near=String(o.id)===String(a.nearbyId)||String(o.id)===String(a.dialogId),color=o.color||p.glow;
+        // The circle is the exact interaction radius in world space.
+        c.save();c.globalAlpha=near?.09:.025;c.fillStyle=color;c.beginPath();c.arc(x,y,r,0,TAU);c.fill();
+        c.globalAlpha=near?.48:.12;c.strokeStyle=color;c.lineWidth=near?2:1;c.setLineDash(near?[7,5]:[2,9]);c.beginPath();c.arc(x,y,r,0,TAU);c.stroke();c.setLineDash([]);
+        if(near){c.globalAlpha=.65;oval(c,x,y+3,val(o.r,24)+7,9,color);}
+        c.restore();
+      });
+      if(player.dashTime>0&&!still){
+        if(!this.lastPlayer||Math.hypot(player.x-this.lastPlayer.x,player.y-this.lastPlayer.y)>3)this.trail.push({x:player.x,y:player.y,life:.22,facingX:player.facingX});
+        this.lastPlayer={x:player.x,y:player.y};
+      }else this.lastPlayer=null;
+      for(let i=this.trail.length-1;i>=0;i--){const trail=this.trail[i];if(!scene.paused)trail.life-=dt;if(trail.life<=0){this.trail.splice(i,1);continue;}if(!still){c.save();c.globalAlpha=trail.life*.8;this.mage(c,trail,p,t,true,run);c.restore();}}
+      if(this.trail.length>12)this.trail=this.trail.slice(-12);
+      const layers=obstacles.map(o=>({kind:'obstacle',object:o,y:val(o.y)+val(o.h,38)}));
+      objects.forEach(o=>layers.push({kind:'interactable',object:o,y:val(o.y)}));layers.push({kind:'player',object:player,y:val(player.y)});
+      layers.sort((a,b)=>a.y-b.y).forEach(layer=>{
+        if(layer.kind==='obstacle')this.obstacle(c,layer.object,p,region);
+        else if(layer.kind==='player')this.mage(c,player,p,t,still,run);
+        else this.interactable(c,layer.object,p,t,still,String(layer.object.id)===String(a.nearbyId)||String(layer.object.id)===String(a.dialogId));
+      });
+      objects.forEach(o=>this.interactionLabel(c,o,p,String(o.id)===String(a.nearbyId)||String(o.id)===String(a.dialogId),String(o.id)===String(a.dialogId)));
+      this.playerStatus(c,player,run,p,t,still);
+    }
+    interactable(c,o,p,t,still,near){
+      const x=val(o.x),y=val(o.y),color=o.color||p.glow;
+      c.save();c.globalAlpha=.45;oval(c,x,y+3,o.kind==='door'||o.kind==='exit'?44:32,10,p.void);c.restore();
+      if(o.kind==='door'||o.kind==='exit'){
+        const exit=o.kind==='exit',w=exit?56:68,h=exit?76:92;
+        aura(c,x,y-h*.45,45,color,near?.13:.07);
+        box(c,x-w/2-8,y-h-4,w+16,h+9,p.void);box(c,x-w/2-4,y-h-7,w+8,h+10,p.trim);
+        box(c,x-w/2+3,y-h+2,w-6,h-2,'#101b2b');box(c,x-w/2+8,y-h+6,w-16,h-10,color);
+        c.save();c.globalAlpha=.68;box(c,x-w/2+11,y-h+10,w-22,h-17,p.void);c.restore();
+        box(c,x-w/2-9,y-h-10,w+18,7,p.accent);box(c,x-w/2-10,y+2,w+20,6,p.stone);box(c,x-w/2-15,y+8,w+30,5,p.wall);
+        for(let i=0;i<4;i++){const yy=y-18-i*16;box(c,x-w/2-3,yy,4,5,color);box(c,x+w/2-1,yy,4,5,color);}
+        const symbol=exit?'↑':o.icon||'◇';c.save();c.font='bold 24px sans-serif';c.textAlign='center';c.fillStyle=color;c.fillText(symbol,x,y-h*.52+8);c.restore();
+        if(!still){for(let i=0;i<5;i++){const yy=y-12-(t*15+i*17)%Math.max(1,h-16);c.save();c.globalAlpha=.6;box(c,x-18+i*9,yy,2,3,color);c.restore();}}
+      }else if(o.kind==='merchant'||o.kind==='npc'){
+        const npcId=o.npcId||o.sprite||(o.kind==='merchant'?'merchant':'healer');
+        c.save();c.translate(x,y);c.scale(.88,.88);this.npc(c,npcId,p,t,still,false,1);c.restore();
+      }else if(o.kind==='camp'){
+        const training=/train|power|strength|forge/.test(String(o.id)+' '+String(o.action)+' '+String(o.args));
+        if(training){
+          box(c,x-4,y-55,8,55,'#8d715a');box(c,x-22,y-43,44,7,'#b1936c');box(c,x-10,y-69,20,18,'#b5a186');
+          box(c,x-20,y-47,40,31,'#66536a');box(c,x-14,y-44,28,24,'#8c6c87');gem(c,x,y-30,9,color);box(c,x-19,y-6,38,7,p.trim);
+        }else{
+          for(let i=0;i<6;i++){const angle=i*TAU/6;pixelDisk(c,x+Math.cos(angle)*25,y+Math.sin(angle)*10,7,p.trim);}
+          stroke(c,x-17,y+2,x+14,y-7,'#9b795b',7);stroke(c,x-14,y-6,x+17,y+2,'#c39a6d',6);
+          const f=still?0:Math.sin(t*9)*4;aura(c,x,y-19,42,'#ffc789',.13);
+          poly(c,[[x-15,y-5],[x-8,y-31],[x-1,y-19],[x+4,y-48-f],[x+13,y-23],[x+16,y-5]],'#e98e6a');
+          poly(c,[[x-8,y-6],[x-4,y-23],[x+2,y-13],[x+5,y-32-f],[x+9,y-6]],'#ffe0a4');
+        }
+      }else{
+        // Loot rises above a stone plinth; the card symbol identifies its effect.
+        box(c,x-28,y-5,56,11,p.wall);box(c,x-23,y-13,46,11,p.stone);box(c,x-25,y-17,50,5,p.trim);box(c,x-20,y-17,40,2,p.accent);
+        const bob=still?0:Math.sin(t*2+x)*3;aura(c,x,y-39,27,color,near?.14:.07);
+        if(o.rewardKind==='relic'){gem(c,x,y-41+bob,21,color);gem(c,x-3,y-45+bob,12,p.light);}
+        else if(o.rewardKind==='item'||o.rewardKind==='supply'){
+          box(c,x-13,y-53+bob,26,32,'#192b3a');box(c,x-10,y-45+bob,20,21,color);box(c,x-6,y-61+bob,12,10,p.accent);box(c,x-8,y-56+bob,16,5,p.light);box(c,x-6,y-42+bob,3,13,p.light);
+        }else{box(c,x-18,y-59+bob,36,40,'#d6c4a0');box(c,x-14,y-55+bob,28,32,'#625372');gem(c,x,y-40+bob,12,color);box(c,x-10,y-25+bob,20,2,p.accent);}
+      }
+    }
+    interactionLabel(c,o,p,near,open){
+      const x=val(o.x),y=val(o.y),name=String(o.name||'互動'),color=o.color||p.light;
+      const width=Math.min(198,Math.max(86,name.length*15+22)),left=clamp(x-width/2,28,W-width-28),labelY=clamp(y+24,78,H-46);
+      c.save();c.globalAlpha=.89;box(c,left,labelY-13,width,26,near?'#273245':'#152431');c.globalAlpha=1;
+      if(near)box(c,left,labelY+11,width,2,color);
+      c.font='bold 14px sans-serif';c.textAlign='center';c.fillStyle=near?'#fff1d3':'#d3ded5';c.fillText(name.length>12?name.slice(0,11)+'…':name,left+width/2,labelY+5);
+      if(near){const top=clamp(y-(o.kind==='door'?124:o.kind==='exit'?108:98),64,H-78),text=open?'交談中':'E 互動';box(c,x-36,top-16,72,25,'#e6d2a5');box(c,x-34,top-14,68,21,'#29313c');c.fillStyle='#fff0c7';c.font='bold 13px sans-serif';c.fillText(text,x,top+1);}
+      c.restore();
+    }
+    npc(c,id,p,t,still,boss,phase){
+      const anger=boss?'#ffab9d':p.light,bob=still||boss?0:Math.sin(t*1.6)*1.5;
+      c.save();c.translate(0,bob);
+      if(boss){aura(c,0,-35,58,anger,phase>1?.15:.07);for(let i=0;i<5;i++){const a=i*TAU/5+(still?0:t*.5);gem(c,Math.cos(a)*46,-38+Math.sin(a)*31,phase>1?6:4,anger);}}
+      if(id==='merchant'){
+        // Travelling merchant: pointed hood, asymmetric coin satchel and scales.
+        box(c,-17,-14,11,15,'#473c46');box(c,7,-14,11,15,'#473c46');poly(c,[[-26,-9],[-22,-55],[0,-65],[23,-53],[27,-9]],'#8f685b');
+        poly(c,[[-19,-52],[-12,-80],[6,-87],[22,-54]],'#d2a271');box(c,-12,-60,29,19,'#4b3d48');box(c,-6,-57,5,4,boss?'#ff8f88':'#f0d293');box(c,7,-57,5,4,boss?'#ff8f88':'#f0d293');
+        box(c,-7,-39,14,25,'#bd8a63');box(c,-23,-26,48,6,'#553b4c');box(c,13,-28,20,21,'#d6ad72');box(c,18,-25,8,8,'#f7d591');
+        stroke(c,-36,-48,-36,-5,'#c7a277',4);stroke(c,-50,-42,-23,-42,'#dfbc83',3);stroke(c,-49,-42,-49,-29,'#d4b17c',1);stroke(c,-24,-42,-24,-29,'#d4b17c',1);oval(c,-49,-27,8,3,'#d4b17c');oval(c,-24,-27,8,3,'#d4b17c');
+      }else if(id==='healer'){
+        // A broad mushroom cap and leaf apron distinguish the thorn herbalist.
+        box(c,-14,-12,10,13,'#4c5654');box(c,5,-12,10,13,'#4c5654');poly(c,[[-23,-8],[-18,-46],[17,-46],[24,-8]],'#6b9b81');box(c,-11,-53,23,19,'#e4c3a3');
+        pixelDisk(c,0,-62,27,'#bc7187');box(c,-29,-63,58,7,'#e5b6a5');box(c,-15,-78,8,5,'#f2cfaa');box(c,5,-73,10,5,'#f2cfaa');box(c,-7,-47,3,4,boss?'#ee6f6d':'#3b474c');box(c,5,-47,3,4,boss?'#ee6f6d':'#3b474c');
+        box(c,-10,-31,20,18,'#bed1a6');box(c,-2,-28,4,12,'#5c8d76');box(c,-6,-24,12,4,'#5c8d76');stroke(c,29,-3,25,-55,'#a3a77a',4);gem(c,26,-59,12,'#c4efb5');poly(c,[[26,-37],[39,-44],[37,-32]],'#83b991');
+      }else if(id==='smith'){
+        // Squared shoulders, leather apron and a massive silver hammer.
+        box(c,-18,-14,12,15,'#4a4655');box(c,7,-14,12,15,'#4a4655');box(c,-25,-51,50,39,'#777887');box(c,-15,-50,31,40,'#bf8464');box(c,-24,-58,48,14,'#a2a8b4');
+        box(c,-13,-71,26,24,'#d3ad91');box(c,-17,-76,34,12,'#4f5465');box(c,-16,-72,32,3,'#d7bc88');box(c,-10,-59,6,4,boss?'#f88877':'#363844');box(c,4,-59,6,4,boss?'#f88877':'#363844');box(c,-10,-51,20,12,'#655064');
+        box(c,-10,-33,20,16,'#5e4d58');box(c,-7,-29,4,6,'#e9b882');stroke(c,32,-6,32,-66,'#a77a5b',6);box(c,20,-77,31,23,'#4d5065');box(c,21,-77,29,6,'#c1bec1');box(c,44,-73,8,15,'#8e90a2');
+      }else if(id==='cartographer'){
+        // Long indigo cloak, monocle, paper scroll and a floating compass.
+        poly(c,[[-25,-4],[-18,-52],[13,-57],[27,-3]],'#73789c');box(c,-11,-63,24,19,'#d6ba9f');box(c,-20,-65,41,7,'#b0aec0');poly(c,[[-15,-65],[-6,-88],[18,-67]],'#8e91b6');
+        box(c,-7,-57,4,4,boss?'#ed8c83':'#3b4059');box(c,2,-59,12,9,'#e0c995');box(c,5,-57,6,5,'#8fb8c4');box(c,-24,-34,49,23,'#d9c8a3');box(c,-27,-37,7,29,'#f1ddad');box(c,21,-37,7,29,'#f1ddad');
+        stroke(c,-15,-23,-4,-28,'#8a7c7e',2);stroke(c,-4,-28,7,-19,'#8a7c7e',2);stroke(c,7,-19,16,-26,'#8a7c7e',2);gem(c,36,-56+(still?0:Math.sin(t*2)*3),12,'#e6c38c');gem(c,36,-56,6,'#99c6ce');
+      }else{
+        // Ferryman: tall veiled silhouette, crescent lantern and a long oar.
+        poly(c,[[-26,-2],[-18,-67],[0,-87],[17,-69],[25,-2]],'#4b7182');poly(c,[[-12,-63],[0,-78],[12,-62],[9,-39],[-9,-39]],'#172c42');box(c,-7,-60,4,4,boss?'#ff9b91':'#b9e0de');box(c,4,-60,4,4,boss?'#ff9b91':'#b9e0de');
+        poly(c,[[-19,-36],[-30,-11],[-5,-17]],'#7ba3a9');poly(c,[[17,-37],[29,-13],[7,-19]],'#709ba6');stroke(c,32,1,32,-90,'#aca17d',4);box(c,27,-88,10,22,'#d8c69a');
+        stroke(c,-24,-39,-35,-39,'#d1c59d',2);stroke(c,-35,-39,-35,-25,'#d1c59d',2);aura(c,-35,-17,19,'#a2e3e1',.11);box(c,-42,-27,14,18,'#687e91');box(c,-39,-24,8,12,'#c3f0dd');box(c,-44,-10,18,3,'#b5c3a5');
+      }
+      if(boss&&phase>1){box(c,-18,-87,36,3,'#f3b09c');gem(c,0,-98,8,'#ffd1b0');}
+      c.restore();
+    }
     spring(c,s,player,t,still){
       const x=val(s.x),y=val(s.y),r=Math.max(1,val(s.r,48)),inside=Math.hypot(val(player.x)-x,val(player.y)-y)<=r;
       c.save();c.globalAlpha=inside?.24:.15;c.fillStyle='#84eacb';c.beginPath();c.arc(x,y,r,0,TAU);c.fill();
@@ -212,12 +322,13 @@
     }
     foe(c,e,p,t,still,region){
       const x=val(e.x),y=val(e.y),boss=e.kind==='boss'||e.boss;
-      const spawning=e.active===false,scale=boss?.7:.66;
+      const type=e.npcId||e.sprite||e.enemyId||e.id||'slime',npcId=String(type).replace(/^npc-/,''),isNpc=NPC_IDS.has(npcId);
+      const spawning=e.active===false,scale=isNpc?(boss?1.12:.88):(boss?.7:.66);
       c.save();c.globalAlpha*=spawning?.25:.4;oval(c,x,y+2,boss?39:20,boss?10:6,p.void);c.restore();
       if(spawning){c.save();c.globalAlpha=.35;this.targetRing(c,e,p,t);c.restore();}
       c.save();if(spawning)c.globalAlpha*=.45;c.translate(Math.round(x),Math.round(y));c.scale(scale,scale);
-      const type=e.sprite||e.enemyId||e.id||'slime';
-      if(this.legacy?.enemy)this.legacy.enemy.call(this.legacy,c,0,0,{id:type,kind:boss?'boss':e.kind,boss,phase:e.phase},t,p,still,[1,0,2][region]);
+      if(isNpc)this.npc(c,npcId,p,t,still,boss,val(e.phase,1));
+      else if(this.legacy?.enemy)this.legacy.enemy.call(this.legacy,c,0,0,{id:type,kind:boss?'boss':e.kind,boss,phase:e.phase},t,p,still,[1,0,2][region]);
       else this.fallbackFoe(c,e,p,boss);
       c.restore();
       if(val(e.chargeTime)>0){c.save();c.globalAlpha=.7;stroke(c,x-val(e.chargeX)*20,y-val(e.chargeY)*20,x-val(e.chargeX)*37,y-val(e.chargeY)*37,p.hot,3);c.restore();}

@@ -7,6 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const Engine = require('../dungeon-engine.js');
 const Arena = require('../dungeon-arena.js');
+const Explore = require('../dungeon-explore.js');
 const source = fs.readFileSync(path.join(__dirname, '../dungeon.js'), 'utf8');
 const html = fs.readFileSync(path.join(__dirname, '../dungeon.html'), 'utf8');
 const decode = s => s.replace(/&(?:amp|lt|gt|quot|#39);/g, x => ({'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'"','&#39;':"'"})[x]);
@@ -77,6 +78,7 @@ class Element {
   }
   blur() { if (this.ownerDocument.activeElement === this) this.ownerDocument.activeElement = this.ownerDocument.body; }
   setPointerCapture(id) { this.pointerId = id; }
+  scrollIntoView() {}
   showModal() { this.open = true; }
   close() { this.open = false; }
 }
@@ -102,7 +104,7 @@ async function harness(active = null) {
   const win = {
     DungeonEngine: {...Engine, createRun: (card, practice) => run = Engine.createRun(card, practice, 31)}, DungeonStorage: Storage,
     DungeonArena: {...Arena, update: (...args) => { calls.updates++; return Arena.update(...args); }, ensure: next => {run = next; return Arena.ensure(next);}},
-    DungeonArenaRenderer: Renderer, DungeonAudio: Audio, ENROOT_CARDS: [{word:'robot',zh:'機器人',rarity:'N'}],
+    DungeonExplore: Explore, DungeonArenaRenderer: Renderer, DungeonAudio: Audio, ENROOT_CARDS: [{word:'robot',zh:'機器人',rarity:'N'}],
     addEventListener: (name, callback) => (listeners.window[name] ||= []).push(callback)
   };
   vm.runInNewContext(source, {window:win, document:doc, navigator:{}, HTMLElement:Element,
@@ -116,8 +118,10 @@ async function harness(active = null) {
   const click = async id => { const el = $(id); assert.ok(el, id + ' exists'); el.focus(); await el.onclick?.({target:el,detail:1,preventDefault(){}}); };
   const combat = async (practice = true) => {
     await click(practice ? 'practiceRun' : 'startRun');
-    const choice = $('actionPanel').querySelectorAll('[data-action]').find(b => b.dataset.choice === 'battle');
-    assert.ok(choice, 'battle route exists'); await choice.onclick(); tick();
+    const choice = run.exploration.objects.find(o => o.args[0] === 'battle');
+    assert.ok(choice, 'battle door exists');
+    run.exploration.player.x=choice.x;run.exploration.player.y=choice.y+50;
+    await key('KeyE');tick();
     return run;
   };
   const pointer = (direction, id, type = 'down') => {
@@ -171,6 +175,43 @@ async function harness(active = null) {
   const touchStop = {x:p.x,y:p.y}; h.tick(.1); assert.equal(p.x,touchStop.x); assert.equal(p.y,touchStop.y, 'pointer cancellation releases movement');
   await h.key('Enter'); h.doc.hidden = true; await h.dispatch('document','visibilitychange');
   assert.equal(h.$('spellInput').readOnly,true); assert.equal(h.audioScene.paused,true, 'hidden tab pauses both input and music');
+
+  const walking=await harness();await walking.click('practiceRun');walking.tick(.1);
+  assert.equal(walking.$('interactButton').disabled,true,'remote route selection is unavailable');
+  await walking.key('KeyE');assert.equal(walking.run.status,'route');
+  await walking.key('KeyW');for(let i=0;i<11;i++)walking.tick(.1);await walking.key('KeyW','keyup');
+  assert.ok(walking.run.exploration.player.y<260,'exploration uses the real movement loop');
+  assert.equal(walking.$('interactButton').disabled,false,'walking into range enables interaction');
+  const walkY=walking.run.exploration.player.y;await walking.dispatch('window','blur');walking.tick(.1);
+  assert.equal(walking.run.exploration.player.y,walkY,'exploration pauses on blur');
+  await walking.click('resumeButton');assert.equal(walking.doc.activeElement,walking.$('arena'));
+  await walking.click('interactButton');assert.notEqual(walking.run.status,'route','nearby portal enters its room');
+
+  function encounter(id){
+    const next=Engine.createRun({word:'robot',zh:'機器人',rarity:'N'},false,31);
+    next.routes=[{id:id==='merchant'?'shop':'npc-'+id,type:id==='merchant'?'shop':'npc',npcId:id,name:id}];
+    Engine.chooseRoute(next,next.routes[0].id);
+    return {run:next,receipt:{id:'npc-entry',word:'robot'},finished:false};
+  }
+  const merchant=await harness(encounter('merchant'));await merchant.click('continueRun');merchant.tick(.1);
+  assert.equal(merchant.$('npcChallengeForm'),null,'merchant controls stay hidden until approaching');
+  const mp=merchant.run.exploration.player;mp.x=440;mp.y=270;merchant.tick(.1);
+  await merchant.key('KeyE');assert.ok(merchant.$('npcChallengeForm'),'merchant conversation opens nearby');
+  const stayY=mp.y;await merchant.key('KeyW');merchant.tick(.1);assert.equal(mp.y,stayY,'conversation freezes movement');
+  merchant.$('npcChallengeInput').focus();merchant.$('npcChallengeInput').value='wrong';
+  merchant.$('npcChallengeForm').onsubmit({preventDefault(){}});assert.equal(merchant.run.status,'shop');
+  merchant.tick(.1);assert.equal(merchant.$('npcChallengeInput').value,'wrong','typo remains editable between frames');
+  merchant.$('npcChallengeInput').value='debt';merchant.$('npcChallengeForm').onsubmit({preventDefault(){}});
+  assert.equal(merchant.run.status,'combat');assert.equal(merchant.run.enemy.npcId,'merchant');
+  assert.equal(merchant.doc.activeElement,merchant.$('arena'),'typed NPC challenge returns control to battle');
+
+  const helper=await harness(encounter('healer'));await helper.click('continueRun');helper.tick(.1);
+  helper.run.player.hp=30;helper.run.exploration.player.x=440;helper.run.exploration.player.y=270;helper.tick(.1);
+  await helper.key('KeyE');await helper.$('actionPanel').querySelector('[data-action="helpNpc"]').onclick();
+  assert.ok(helper.run.player.hp>30);assert.equal(helper.run.npc.helped,true);assert.equal(helper.$('npcChallengeForm'),null);
+  await helper.key('Escape');assert.equal(helper.run.exploration.dialogId,null);assert.equal(helper.$('pauseOverlay').hidden,true);
+  helper.run.exploration.player.x=795;helper.run.exploration.player.y=400;helper.tick(.1);await helper.key('KeyE');
+  assert.equal(helper.run.status,'route');assert.equal(helper.run.encounter,1,'walking to NPC exit advances exactly one node');
 
   const formal = await harness(); const formalRun = await formal.combat(false);
   assert.equal(formal.calls.consumes,1,'formal admission consumes once');
