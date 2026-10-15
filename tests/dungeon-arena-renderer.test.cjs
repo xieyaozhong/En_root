@@ -63,4 +63,52 @@ for(let region=0;region<3;region++) {
   }
 }
 renderer.draw({run:spring,paused:true,reducedMotion:true},2000); assert.equal(ctx.depth,0);
-console.log('Renderer checks passed: visible healing radius, 12 sprites across 3 regions, 5 hazard geometries, 6 effect types, dash/projectiles, reduced motion, and balanced canvas state.');
+
+const explorationObjects=[
+  {id:'route-battle',kind:'door',routeType:'battle',name:'交錯古道',icon:'⚔',x:210,y:210,r:30,interactionRadius:85,color:'#a2dab1'},
+  {id:'reward-relic',kind:'reward',rewardKind:'relic',name:'旅人的遺物',x:480,y:210,r:24,interactionRadius:85},
+  {id:'camp-rest',kind:'camp',name:'星燈休息',x:750,y:210,r:24,interactionRadius:85},
+  {id:'merchant',kind:'merchant',npcId:'merchant',name:'契約商人',x:210,y:370,r:24,interactionRadius:85},
+  {id:'healer',kind:'npc',npcId:'healer',name:'荊棘藥師',x:480,y:370,r:24,interactionRadius:85},
+  {id:'exit',kind:'exit',name:'繼續旅途',x:750,y:370,r:30,interactionRadius:85}
+];
+const explorationRun=sample(11);
+explorationRun.exploration={key:'test-crossroads',width:960,height:540,player:{x:212,y:276,r:12,facingX:1,dashTime:0,dashCooldown:0},objects:explorationObjects,obstacles:[],nearbyId:'route-battle',dialogId:null};
+for(const status of ['route','shop','npc','camp','reward']){
+  explorationRun.status=status;ctx.calls=[];renderer.draw({run:explorationRun},2100+frames++*16);
+  assert.equal(ctx.depth,0,'exploration frame balances canvas state');
+  assert.ok(ctx.calls.some(call=>call.name==='translate'&&call.args[0]===212&&call.args[1]===276),'exploration uses the actual movable player position');
+  assert.ok(ctx.calls.some(call=>call.name==='arc'&&call.args[0]===210&&call.args[1]===210&&call.args[2]===85),'interaction circle uses the gameplay radius');
+  assert.equal(ctx.calls.filter(call=>call.name==='fillText'&&call.args[0]==='E 互動').length,1,'only the nearby object receives a key prompt');
+  for(const object of explorationObjects) assert.ok(ctx.calls.some(call=>call.name==='fillText'&&call.args[0]===object.name),'interactable labels are drawn');
+  assert.ok(!ctx.calls.some(call=>call.name==='translate'&&call.args[0]===Math.round(explorationRun.arena.player.x)&&call.args[1]===Math.round(explorationRun.arena.player.y)),
+    'stale combat arena is not drawn over the exploration scene');
+}
+explorationRun.exploration.nearbyId=null;ctx.calls=[];renderer.draw({run:explorationRun},2300);
+assert.equal(ctx.calls.filter(call=>call.name==='fillText'&&call.args[0]==='E 互動').length,0,'distant objects do not advertise an unavailable interaction');
+explorationRun.exploration.dialogId='merchant';ctx.calls=[];renderer.draw({run:explorationRun,paused:true,reducedMotion:true},2400);
+assert.equal(ctx.calls.filter(call=>call.name==='fillText'&&call.args[0]==='交談中').length,1,'open conversation is visibly identified');
+assert.equal(ctx.depth,0);
+
+const npcIds=['merchant','healer','smith','cartographer','ferryman'],npcCalls=[],npcDraw=renderer.npc;
+renderer.npc=function(...args){npcCalls.push({id:args[1],boss:args[5],phase:args[6]});return npcDraw.apply(this,args);};
+const signatures=new Set();
+for(const npcId of npcIds){
+  explorationRun.status='npc';explorationRun.exploration.key='npc-'+npcId;
+  explorationRun.exploration.objects=[{id:npcId,kind:'npc',npcId,name:npcId,x:480,y:250,r:24,interactionRadius:85}];
+  explorationRun.exploration.nearbyId=npcId;explorationRun.exploration.dialogId=null;
+  ctx.calls=[];renderer.draw({run:explorationRun,reducedMotion:true},2500+frames++*16);assert.equal(ctx.depth,0);
+  assert.ok(npcCalls.some(call=>call.id===npcId&&!call.boss),'friendly NPC uses its own sprite');
+  signatures.add(JSON.stringify(ctx.calls.filter(call=>['fillRect','moveTo','lineTo'].includes(call.name))));
+  const bossRun=sample(13);bossRun.arena.enemies=[{id:'npc-'+npcId,npcId,sprite:npcId,kind:'boss',x:650,y:250,r:34,hp:100,maxHp:100,phase:2,active:true}];
+  bossRun.arena.targetId='npc-'+npcId;
+  renderer.draw({run:bossRun,reducedMotion:frames%2===0},2600+frames++*16);assert.equal(ctx.depth,0);
+  assert.ok(npcCalls.some(call=>call.id===npcId&&call.boss&&call.phase===2),'NPC battle renders the matching enlarged angry silhouette');
+}
+assert.equal(signatures.size,5,'five NPCs have distinct pixel silhouettes');
+// Every reward prop, training option and a dashing exploration player is drawable.
+explorationRun.status='reward';explorationRun.exploration.key='loot';explorationRun.exploration.player.dashTime=.12;
+explorationRun.exploration.objects=['item','supply','upgrade'].map((rewardKind,i)=>({id:rewardKind,kind:'reward',rewardKind,name:rewardKind,x:220+i*260,y:240,interactionRadius:85}));
+explorationRun.exploration.objects.push({id:'camp-train',kind:'camp',name:'訓練',x:480,y:380,interactionRadius:85});
+renderer.draw({run:explorationRun},3000);renderer.draw({run:explorationRun},3016);assert.equal(ctx.depth,0);
+console.log('Renderer checks passed: healing radius, 12 enemy sprites across 3 regions, 5 hazards, 6 effects, exploration player and proximity prompts, five distinct NPCs and matching Boss forms, loot/camp props, reduced motion, balanced Canvas state.');

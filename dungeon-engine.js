@@ -47,6 +47,36 @@
     starlace: { id: 'starlace', name: '連星線', icon: '✧', description: '施法命中後，對目標 180 步內的另一名敵人追加 8 點穿透傷害。', price: 70 },
     frostglass: { id: 'frostglass', name: '霜時石', icon: '❄', description: '每次正確施法後，敵人與飛彈減速 35%，持續 2 秒。', price: 70 }
   });
+  // Challenge trophies are earned from their owner, never from a normal loot roll.
+  Object.assign(RELICS, {
+    goldseal: { id: 'goldseal', name: '契金王印', icon: '¤', description: '獲得的金幣增加 25%，可與拾星口袋疊加。', special: true },
+    dewheart: { id: 'dewheart', name: '千露之心', icon: '❦', description: '每次正確施法恢復 3 點生命，可與苔心種子疊加。', special: true },
+    forgecore: { id: 'forgecore', name: '不滅爐心', icon: '♨', description: '所有咒語傷害增加 7 點。', special: true },
+    wayfinder: { id: 'wayfinder', name: '活頁星圖', icon: '✥', description: '每次迅捷施法獲得 5 點護盾，護盾上限為 90。', special: true },
+    ferrypass: { id: 'ferrypass', name: '歸航燈票', icon: '☽', description: '每趟遠征一次：受到致命傷時恢復 70 點生命，並獲得 20 點護盾。', special: true }
+  });
+  var NPCS = {
+    merchant: { id: 'merchant', name: '鍍金旅商・柯恩', title: '流浪商人', sprite: 'merchant', color: '#f3c26f', icon: '◆',
+      description: '他收購旅人的珍物，也把未清償的契約鑄成金幣。', helpDescription: '花費金幣購買補給與遺物；交易不會取消挑戰資格。',
+      challengeWord: 'debt', challengeDescription: '輸入 debt 宣告拒絕契約，挑戰金幣彈幕與封路金庫。', lootId: 'goldseal', lootName: '契金王印', hp: 260,
+      patterns: ['追債金雨', '金庫封街'] },
+    healer: { id: 'healer', name: '苔露醫師・芙苓', title: '苔露醫師', sprite: 'healer', color: '#91dfb1', icon: '❦',
+      description: '她用月露照料傷者，藥箱底下卻藏著帶刺的古老誓言。', helpDescription: '恢復 45 點生命，並獲得 1 瓶苔露藥水。',
+      challengeWord: 'thorn', challengeDescription: '輸入 thorn 喚醒荊棘誓言，迎戰追蹤毒花與環形根蔓。', lootId: 'dewheart', lootName: '千露之心', hp: 235,
+      patterns: ['藥園禁足', '千露根環'] },
+    smith: { id: 'smith', name: '星鐵鍛師・布洛', title: '星鐵鍛師', sprite: 'smith', color: '#ffa578', icon: '⚒',
+      description: '他的巨錘能替咒語鍛出鋒芒，也能把整座庭院當作鐵砧。', helpDescription: '本趟所有咒語威力永久增加 4 點。',
+      challengeWord: 'forge', challengeDescription: '輸入 forge 提出試煉，閃避巨錘落點與熔鐵橫掃。', lootId: 'forgecore', lootName: '不滅爐心', hp: 280,
+      patterns: ['星鐵墜錘', '熔爐掃刃'] },
+    cartographer: { id: 'cartographer', name: '迷途繪師・墨里', title: '迷途繪師', sprite: 'cartographer', color: '#b8abff', icon: '✥',
+      description: '他不停重畫不存在的道路，據說每張星圖都有自己的意志。', helpDescription: '獲得一件未持有的探索遺物；已全數擁有時改贈 40 金幣。',
+      challengeWord: 'erase', challengeDescription: '輸入 erase 擦去星圖，穿越格線封鎖與交錯星軌。', lootId: 'wayfinder', lootName: '活頁星圖', hp: 240,
+      patterns: ['刪界方格', '錯位星軌'] },
+    ferryman: { id: 'ferryman', name: '渡燈船夫・赫渡', title: '渡燈船夫', sprite: 'ferryman', color: '#8ccce3', icon: '☽',
+      description: '他替迷失的燈火引路，卻從不回答河流通往何處。', helpDescription: '生命上限增加 10、恢復 20 點生命，並獲得 20 金幣。',
+      challengeWord: 'toll', challengeDescription: '輸入 toll 質疑渡河代價，躲過靈潮與吸魂燈火。', lootId: 'ferrypass', lootName: '歸航燈票', hp: 265,
+      patterns: ['忘川渡潮', '引魂燈陣'] }
+  };
   var ENEMIES = [
     [
       { id: 'slime', name: '墨滴史萊姆', description: '沾滿墨水的小生物，正準備彈跳撞擊。' },
@@ -106,7 +136,7 @@
     s.player.hp += actual; s.stats.healing += actual; return actual;
   }
   function coins(s, amount) {
-    var value = Math.round(amount * (has(s, 'purse') ? 1.35 : 1));
+    var value = Math.round(amount * (1 + (has(s, 'purse') ? 0.35 : 0) + (has(s, 'goldseal') ? 0.25 : 0)));
     s.player.gold += value; s.stats.goldEarned += value; return value;
   }
   function addItem(s, id, count) {
@@ -129,6 +159,9 @@
       if (has(s, 'phoenix') && !s.phoenixUsed) {
         s.phoenixUsed = true; s.player.hp = Math.min(50, s.player.maxHp); s.player.shield += 15;
         event(s, 'revive', '不熄燈芯重新燃起！恢復 50 點生命並獲得 15 點護盾。');
+      } else if (has(s, 'ferrypass') && !s.ferryPassUsed) {
+        s.ferryPassUsed = true; s.player.hp = Math.min(70, s.player.maxHp); s.player.shield += 20;
+        event(s, 'revive', '歸航燈票燃起！船夫送你回到此岸，恢復 70 點生命並獲得 20 點護盾。');
       } else {
         s.status = 'lost'; s.player.hp = 0;
         event(s, 'lost', '你的燈火暫時熄滅了。帶著學會的咒語，再次出發吧。');
@@ -185,10 +218,10 @@
       seed: runSeed, rng: hash(runSeed),
       region: 0, regionName: REGIONS[0].name, encounter: 0, completedNodes: 0,
       player: { hp: 120 + rarity * 3, maxHp: 120 + rarity * 3, shield: 0, gold: 35, power: 0, combo: 0, focus: 0 },
-      enemy: null, spell: null, queue: [], routes: [], rewards: [], shop: [], inventory: [], relics: [],
+      enemy: null, npc: null, spell: null, queue: [], routes: [], rewards: [], shop: [], inventory: [], relics: [],
       generatedSpells: 0, elapsed: 0, log: [], eventId: 0, lastEvent: null, phoenixUsed: false,
       stats: { casts: 0, correct: 0, mistakes: 0, maxCombo: 0, damageDealt: 0, damageTaken: 0, healing: 0,
-        enemiesDefeated: 0, bossesDefeated: 0, goldEarned: 0, itemsUsed: 0, fastCasts: 0, elapsed: 0 }
+        enemiesDefeated: 0, bossesDefeated: 0, npcBossesDefeated: 0, goldEarned: 0, itemsUsed: 0, fastCasts: 0, elapsed: 0 }
     };
     var seen = Object.create(null);
     s.wordPool = (root.ENROOT_CARDS || []).filter(function (c) {
@@ -216,9 +249,14 @@
       camp: { name: '星燈營地', icon: '♨', description: '休息恢復生命，或磨練永久咒語威力。', danger: '安全' },
       shop: { name: '流浪商人', icon: '◆', description: '花費本趟金幣，補給藥水、道具與遺物。', danger: '安全' }
     };
-    var alternatives = shuffle(s, ['elite', 'treasure', 'camp', 'shop']).slice(0, 2);
+    var alternatives = shuffle(s, ['elite', 'treasure', 'camp', 'shop', 'npc']).slice(0, 2);
     // A safe rest is always available directly before the second and third bosses.
     if (s.encounter % 4 === 2 && s.region > 0 && alternatives.indexOf('camp') < 0) alternatives[1] = 'camp';
+    if (alternatives.indexOf('npc') >= 0) {
+      var visitors = s.region === 0 ? ['healer', 'smith', 'cartographer'] : s.region === 1 ? ['healer', 'cartographer', 'ferryman'] : ['smith', 'cartographer', 'ferryman'];
+      var visitor = NPCS[pick(s, visitors)];
+      definitions.npc = { npcId: visitor.id, name: visitor.name, icon: visitor.icon, description: visitor.description, danger: '旅途邂逅' };
+    }
     s.routes = ['battle'].concat(alternatives).map(function (kind) {
       return Object.assign({ id: kind, type: kind }, definitions[kind]);
     });
@@ -228,7 +266,12 @@
     var duration = 10.5 - s.region * 0.4, kind = 'attack', name = '蓄力撞擊', description = '準備攻擊；護盾會優先吸收傷害。', shield = 0;
     if (e.kind === 'boss') {
       damage = 12 + s.region * 4 + (e.phase === 2 ? 4 : 0); duration = e.phase === 2 ? 9.5 : 11;
-      if (e.id === 'thorn') {
+      if (e.isNpcBoss && NPCS[e.npcId]) {
+        var npc = NPCS[e.npcId]; name = npc.patterns[turn % 2]; duration = e.phase === 2 ? 7.5 : 9.5;
+        description = npc.challengeDescription; damage += 2;
+        if (e.npcId === 'smith' && turn % 2 === 0) { kind = 'guard'; shield = e.phase === 2 ? 20 : 12; }
+        if (e.npcId === 'ferryman' && turn % 2 === 1) kind = 'drain';
+      } else if (e.id === 'thorn') {
         if (turn % 3 === 0) { name = '荊棘結界'; kind = 'guard'; shield = e.phase === 2 ? 22 : 16; damage = 5; description = '獲得荊棘護盾並造成小量傷害；本命咒語能穿透一半護盾。'; }
         else { name = '棘冠重擊'; description = '荊棘即將落下，及時施放護盾或擊敗它。'; }
       } else if (e.id === 'witch') {
@@ -269,12 +312,15 @@
       makeRewards(s, true); event(s, 'treasure', '寶匣裡有 ' + amount + ' 金幣。再選擇一份寶藏帶走。');
     } else if (route.type === 'camp') {
       s.status = 'camp'; event(s, 'camp', '星燈下十分安全。休息回復生命，或磨練咒語威力。');
+    } else if (route.type === 'npc' && NPCS[route.npcId] && route.npcId !== 'merchant') {
+      s.status = 'npc'; s.npc = { id: route.npcId, encounter: s.encounter, helped: false, challenged: false, defeated: false };
+      event(s, 'npc', NPCS[route.npcId].name + ' 正在路旁等候。靠近交談，可以接受幫助，或主動提出挑戰。');
     } else { makeShop(s); event(s, 'shop', '流浪商人掀開斗篷：「下一個房間，也許正好用得上。」'); }
     return done('進入' + route.name + '。');
   }
   function makeRewards(s, guaranteedRelic) {
     s.status = 'reward';
-    var available = Object.keys(RELICS).filter(function (id) { return !has(s, id); });
+    var available = Object.keys(RELICS).filter(function (id) { return !RELICS[id].special && !has(s, id); });
     var choices = [
       { id: 'vigor', kind: 'upgrade', name: '生命結晶', icon: '♥', description: '生命上限增加 14，並恢復 28 點生命。' },
       { id: 'power', kind: 'upgrade', name: '刻印殘頁', icon: '✦', description: '本趟所有咒語威力永久增加 3。' },
@@ -291,19 +337,26 @@
   function winEncounter(s) {
     var e = s.enemy;
     s.stats.enemiesDefeated += 1;
-    if (e.kind === 'boss') s.stats.bossesDefeated += 1;
+    if (e.kind === 'boss' && !e.isNpcBoss) s.stats.bossesDefeated += 1;
+    if (e.isNpcBoss) s.stats.npcBossesDefeated = (s.stats.npcBossesDefeated || 0) + 1;
     var amount = coins(s, e.kind === 'boss' ? 55 + s.region * 15 : e.kind === 'elite' ? 42 + s.region * 9 : 22 + s.region * 7);
     s.player.shield = 0; s.player.combo = 0;
     var drop = null;
     if (e.kind === 'boss' || random(s) < 0.42) { drop = pick(s, Object.keys(ITEMS)); addItem(s, drop); }
     var message = '擊敗' + e.name + '！獲得 ' + amount + ' 金幣' + (drop ? '與' + ITEMS[drop].name : '') + '。';
-    if (s.encounter === 11) {
+    var specialLoot = e.isNpcBoss && NPCS[e.npcId] ? NPCS[e.npcId].lootId : null;
+    if (specialLoot) {
+      if (addRelic(s, specialLoot)) message += ' 特殊戰利品「' + RELICS[specialLoot].name + '」已放入背包！';
+      else message += ' 已持有特殊戰利品，額外獲得 ' + coins(s, 35) + ' 金幣。';
+      if (s.npc) s.npc.defeated = true;
+    }
+    if (s.encounter === 11 && e.id === 'king' && !e.isNpcBoss) {
       s.status = 'won'; s.completedNodes = 12;
       event(s, 'won', '失名之王化作晨光。你為世界找回了名字！' + message, { gold: amount, drop: drop });
     } else {
-      if (e.kind === 'boss') heal(s, 24);
+      if (e.kind === 'boss' && !e.isNpcBoss) heal(s, 24);
       makeRewards(s, e.kind !== 'battle');
-      event(s, 'victory', message + (e.kind === 'boss' ? '區域淨化，恢復 24 點生命。' : ''), { gold: amount, drop: drop });
+      event(s, 'victory', message + (e.kind === 'boss' && !e.isNpcBoss ? '區域淨化，恢復 24 點生命。' : ''), { gold: amount, drop: drop, specialLoot: specialLoot });
     }
   }
   function checkPhase(s) {
@@ -334,12 +387,14 @@
     if (fast) s.stats.fastCasts += 1;
     var multiplier = 1 + Math.min(8, p.combo - 1) * 0.055 + (fast ? 0.16 : 0);
     var base = spell.type === 'heal' || spell.type === 'shield' ? 8 : spell.power;
-    var rawDamage = base + p.power + (has(s, 'ember') ? 4 : 0) + (has(s, 'fang') && p.combo >= 3 ? 6 : 0)
+    var rawDamage = base + p.power + (has(s, 'ember') ? 4 : 0) + (has(s, 'forgecore') ? 7 : 0) + (has(s, 'fang') && p.combo >= 3 ? 6 : 0)
       + (spell.type === 'signature' && has(s, 'prism') ? 14 : 0) + (p.focus > 0 ? 12 : 0);
     var damage = hitEnemy(s, Math.round(rawDamage * multiplier), spell.type === 'signature' ? 0.5 : 0, options && options.damageLimit);
     var healing = spell.type === 'heal' ? heal(s, spell.power + p.power) : 0, shield = 0;
     if (has(s, 'moss')) healing += heal(s, 2);
+    if (has(s, 'dewheart')) healing += heal(s, 3);
     if (spell.type === 'shield') { shield = Math.min(90 - p.shield, spell.power + p.power); p.shield += shield; }
+    if (fast && has(s, 'wayfinder')) { var starShield = Math.min(5, Math.max(0, 90 - p.shield)); shield += starShield; p.shield += starShield; }
     if (p.focus > 0) p.focus -= 1;
     if (spell.word === 'frost') s.enemy.intent.remaining = Math.min(s.enemy.intent.duration + 4, s.enemy.intent.remaining + 1);
     var message = spell.name + '！造成 ' + damage + ' 傷害' + (healing ? '，恢復 ' + healing + ' 生命' : '') + (shield ? '，獲得 ' + shield + ' 護盾' : '') + (fast ? '・迅捷施法' : '') + '。';
@@ -371,7 +426,7 @@
   }
   function nextEncounter(s) {
     s.completedNodes = s.encounter + 1; s.encounter += 1;
-    s.rewards = []; s.shop = [];
+    s.rewards = []; s.shop = []; s.npc = null;
     buildRoutes(s);
   }
   function chooseReward(s, id) {
@@ -396,12 +451,59 @@
   }
   function makeShop(s) {
     s.status = 'shop';
+    s.npc = { id: 'merchant', encounter: s.encounter, helped: false, challenged: false, defeated: false };
     var itemIds = ['potion'].concat(shuffle(s, ['bomb', 'hourglass', 'barrier', 'focus']).slice(0, 2));
     s.shop = itemIds.map(function (id) { return Object.assign({}, ITEMS[id], { id: 'buy-' + id, itemId: id, kind: 'item', sold: false }); });
-    var available = Object.keys(RELICS).filter(function (id) { return !has(s, id); });
+    var available = Object.keys(RELICS).filter(function (id) { return !RELICS[id].special && !has(s, id); });
     if (available.length) {
       var id = pick(s, available); s.shop.push(Object.assign({}, RELICS[id], { id: 'buy-' + id, relicId: id, kind: 'relic', sold: false }));
     }
+  }
+  function getNpc(s) {
+    if (!s || (s.status !== 'shop' && s.status !== 'npc')) return null;
+    // Upgrade existing shop saves without changing offers or their sold state.
+    if (s.status === 'shop' && (!s.npc || s.npc.id !== 'merchant' || s.npc.encounter !== s.encounter)) {
+      s.npc = { id: 'merchant', encounter: s.encounter, helped: false, challenged: false, defeated: false };
+    }
+    return s.npc && NPCS[s.npc.id] || null;
+  }
+  function helpNpc(s) {
+    var npc = getNpc(s);
+    if (!npc || s.status !== 'npc') return fail('請與旅途中的夥伴交談；商人的補給需要交易。');
+    if (s.npc.helped || s.npc.challenged) return fail('這次邂逅已經做出選擇，無法再次取得幫助或挑戰。');
+    s.npc.helped = true;
+    var message;
+    if (npc.id === 'healer') { var healed = heal(s, 45); addItem(s, 'potion'); message = '芙苓包紮了傷口，恢復 ' + healed + ' 點生命，並送你 1 瓶苔露藥水。'; }
+    else if (npc.id === 'smith') { s.player.power += 4; message = '布洛替咒語淬上星鐵：本趟咒語威力永久增加 4。'; }
+    else if (npc.id === 'cartographer') {
+      var options = ['gale', 'clock', 'starlace', 'frostglass'].filter(function (id) { return !has(s, id); });
+      if (options.length) { var relic = pick(s, options); addRelic(s, relic); message = '墨里從星圖取出「' + RELICS[relic].name + '」，交到你手中。'; }
+      else message = '你已集齊探索遺物，墨里改贈 ' + coins(s, 40) + ' 金幣作為盤纏。';
+    } else { s.player.maxHp += 10; var recovery = heal(s, 20); message = '赫渡點亮歸航燈：生命上限增加 10，恢復 ' + recovery + ' 點生命，獲得 ' + coins(s, 20) + ' 金幣。'; }
+    s.npc.helpMessage = message;
+    event(s, 'npc-help', message + ' 接受善意後，本次邂逅不再能提出挑戰。');
+    return done(message);
+  }
+  function challengeNpc(s, text) {
+    var npc = getNpc(s);
+    if (!npc) return fail('現在沒有可以挑戰的旅人。');
+    if (s.npc.helped || s.npc.challenged || s.npc.defeated) return fail('這次邂逅已經做出選擇，無法再次挑戰。');
+    var normalized = String(text || '').trim().toLowerCase();
+    if (normalized !== npc.challengeWord) return fail('只有完整輸入「' + npc.challengeWord + '」才會展開首領戰；一般交談不會觸發戰鬥。');
+    s.npc.challenged = true; s.status = 'combat'; s.player.combo = 0;
+    s.player.shield = has(s, 'shell') ? 18 : 0; s.shop = []; s.arena = null;
+    var hp = npc.hp + s.region * 60;
+    s.enemy = { id: 'npc-' + npc.id, npcId: npc.id, isNpcBoss: true, sprite: npc.sprite,
+      name: npc.name, description: npc.challengeDescription, kind: 'boss', hp: hp, maxHp: hp, shield: 0, phase: 1, turn: 0 };
+    s.spell.elapsed = 0; makeIntent(s);
+    event(s, 'encounter', npc.name + ' 接下挑戰！擊敗後可獲得專屬遺物「' + npc.lootName + '」。');
+    return done('挑戰開始：' + npc.name + '。');
+  }
+  function leaveNpc(s) {
+    if (s.status !== 'npc' || !getNpc(s)) return fail('目前沒有旅途邂逅可離開。');
+    var name = getNpc(s).name;
+    nextEncounter(s); event(s, 'route', '向' + name + '道別，繼續旅程。');
+    return done('繼續探索。');
   }
   function buy(s, id) {
     if (s.status !== 'shop') return fail('目前不在商店。');
@@ -469,5 +571,6 @@
   return { createRun: createRun, submit: submit, tick: tick, chooseRoute: chooseRoute, chooseReward: chooseReward,
     chooseCamp: chooseCamp, useItem: useItem, buy: buy, leaveShop: leaveShop, damagePlayer: damagePlayer,
     damageEnemy: damageEnemy, healPlayer: healPlayer, resolveArenaIntent: resolveArenaIntent,
-    ITEMS: ITEMS, RELICS: RELICS, REGIONS: REGIONS };
+    getNpc: getNpc, helpNpc: helpNpc, challengeNpc: challengeNpc, leaveNpc: leaveNpc,
+    ITEMS: ITEMS, RELICS: RELICS, REGIONS: REGIONS, NPCS: NPCS };
 });

@@ -96,8 +96,8 @@
       var hp = i === count - 1 ? remaining - hpUsed : Math.floor(remaining / count); hpUsed += hp;
       var kind = boss ? 'boss' : ['chaser', 'ranged', 'charger'][i % 3];
       var spawnAt = room.id === 'waves' ? i < 2 ? 0 : i < 4 ? 4.5 : 9 : 0;
-      var enemy = { id: boss ? run.enemy.id : run.enemy.id + '-' + i, kind: kind,
-        sprite: boss ? run.enemy.id : kind === 'ranged' ? 'eye' : kind === 'charger' ? 'knight' : run.enemy.id,
+      var enemy = { id: boss ? run.enemy.id : run.enemy.id + '-' + i, kind: kind, npcId: run.enemy.npcId || null,
+        sprite: boss ? run.enemy.sprite || run.enemy.id : kind === 'ranged' ? 'eye' : kind === 'charger' ? 'knight' : run.enemy.id,
         name: boss ? run.enemy.name : ACTOR_NAMES[kind], x: 0, y: 0, r: boss ? 30 : kind === 'charger' ? 20 : 16,
         hp: hp, maxHp: maxHp, alive: hp > 0, active: spawnAt === 0, spawnAt: spawnAt, phase: run.enemy.phase,
         cooldown: 1.8 + i * 0.3, telegraph: 0, chargeX: 0, chargeY: 0, chargeTime: 0, volley: null, hurt: 0 };
@@ -157,11 +157,77 @@
     var d = dist(h, p);
     return h.kind === 'ring' ? d <= h.r + p.r && d >= (h.innerR || h.r - 24) - p.r : d <= h.r + p.r;
   }
+  function npcPattern(run, a, boss, intent, turn, phase) {
+    var npc = Engine.NPCS[run.enemy.npcId], p = a.player, damage = intent.damage;
+    var base = { source: 'boss', ownerId: boss.id, damage: damage, color: npc.color };
+    function mark(spec) { return hazard(a, Object.assign({}, base, spec)); }
+    a.lastPattern = npc.patterns[turn % 2];
+    if (npc.id === 'merchant') {
+      if (turn % 2 === 0) {
+        boss.volley = { delay: 1.15, radial: phase === 2 ? 26 : 16, rotation: turn * 0.23,
+          damage: damage, color: '#ffd36e', shape: 'coin', speed: phase === 2 ? 150 : 125 };
+        mark({ kind: 'ring', x: boss.x, y: boss.y, r: 64, innerR: 57, delay: 1, life: 0.15, cosmetic: true });
+        if (phase === 2) mark({ kind: 'circle', x: p.x, y: p.y, r: 66, delay: 1.9, life: 0.35 });
+      } else {
+        [185, 410, 635, 860].forEach(function (x, i) {
+          mark({ kind: 'line', x: x, y: 70, x2: x, y2: 490, width: phase === 2 ? 58 : 40, delay: 1.15 + i * 0.15, life: 0.65 });
+        });
+        if (phase === 2) mark({ kind: 'line', x: 55, y: p.y, x2: 905, y2: p.y, width: 36, delay: 2.05, life: 0.4 });
+      }
+    } else if (npc.id === 'healer') {
+      if (turn % 2 === 0) {
+        for (var flower = 0; flower < (phase === 2 ? 5 : 3); flower++) {
+          var angle = flower * 2.4, radius = flower ? 85 : 0;
+          mark({ x: clamp(p.x + Math.cos(angle) * radius, 100, 860), y: clamp(p.y + Math.sin(angle) * radius, 110, 450),
+            r: 44, delay: 1.1 + flower * 0.22, life: phase === 2 ? 2.2 : 0.65, repeat: phase === 2 });
+        }
+      } else {
+        [110, 205, phase === 2 ? 300 : 0].filter(Boolean).forEach(function (r, i) {
+          mark({ kind: 'ring', x: boss.x, y: boss.y, r: r, innerR: r - 30, delay: 1.1 + i * 0.45, life: 0.55 });
+        });
+        if (phase === 2) mark({ x: p.x, y: p.y, r: 45, delay: 2.2, life: 1.3 });
+      }
+    } else if (npc.id === 'smith') {
+      if (turn % 2 === 0) {
+        mark({ x: p.x, y: p.y, r: phase === 2 ? 112 : 88, delay: 1.4, life: 0.25, damage: damage + 5 });
+        mark({ kind: 'ring', x: p.x, y: p.y, r: phase === 2 ? 195 : 160, innerR: phase === 2 ? 158 : 130, delay: 1.9, life: 0.45 });
+        if (phase === 2) mark({ x: boss.x, y: boss.y, r: 80, delay: 2.3, life: 0.45 });
+      } else {
+        mark({ kind: 'line', x: 70, y: 85, x2: 890, y2: 475, width: 60, delay: 1.4, life: 0.5 });
+        mark({ kind: 'line', x: 70, y: 475, x2: 890, y2: 85, width: 60, delay: phase === 2 ? 1.65 : 2.2, life: 0.5 });
+        if (phase === 2) mark({ kind: 'line', x: 70, y: 280, x2: 890, y2: 280, width: 48, delay: 2.1, life: 0.5 });
+      }
+    } else if (npc.id === 'cartographer') {
+      if (turn % 2 === 0) {
+        [265, 515, 765].forEach(function (x) { mark({ kind: 'line', x: x, y: 70, x2: x, y2: 490, width: phase === 2 ? 48 : 28, delay: 1.5, life: 0.6 }); });
+        [185, 385].forEach(function (y) { mark({ kind: 'line', x: 55, y: y, x2: 905, y2: y, width: phase === 2 ? 48 : 28, delay: phase === 2 ? 1.6 : 2, life: 0.6 }); });
+      } else {
+        [-95, 95].forEach(function (offset, i) {
+          mark({ kind: 'line', x: 80, y: clamp(p.y + offset, 90, 450), x2: 880, y2: clamp(540 - p.y - offset, 90, 450), width: 38, delay: 1.2 + i * 0.35, life: 0.45 });
+        });
+        if (phase === 2) mark({ x: p.x, y: p.y, r: 70, delay: 1.85, life: 0.55 });
+      }
+    } else {
+      if (turn % 2 === 0) {
+        var top = turn % 4 === 0;
+        mark({ kind: 'rect', x: 55, y: top ? 65 : 345, w: 850, h: 145, delay: 1.5, life: 0.8, drain: true });
+        if (phase === 2) mark({ kind: 'rect', x: 55, y: top ? 345 : 65, w: 850, h: 145, delay: 2.1, life: 0.8, drain: true });
+        mark({ kind: 'line', x: p.x, y: 70, x2: p.x, y2: 490, width: 34, delay: 1.8, life: 0.4 });
+      } else {
+        boss.volley = { delay: 1.1, radial: phase === 2 ? 22 : 14, rotation: turn * 0.34, damage: damage,
+          drain: true, color: '#94dce8', speed: 118 };
+        mark({ kind: 'ring', x: boss.x, y: boss.y, r: 62, innerR: 54, delay: 0.9, life: 0.15, cosmetic: true });
+        if (phase === 2) mark({ x: p.x, y: p.y, r: 58, delay: 1.8, life: 0.5, drain: true });
+      }
+    }
+  }
   function bossPattern(run, a, intent) {
     var boss = living(a)[0]; if (!boss) return;
     var phase = run.enemy.phase, turn = run.enemy.turn - 1, p = a.player, damage = intent.damage;
     a.patternCount += 1;
-    if (run.enemy.id === 'thorn') {
+    if (run.enemy.isNpcBoss && Engine.NPCS[run.enemy.npcId]) {
+      npcPattern(run, a, boss, intent, turn, phase);
+    } else if (run.enemy.id === 'thorn') {
       if (turn % 2 === 0) {
         a.lastPattern = '荊棘追跡';
         for (var i = 0; i < (phase === 2 ? 5 : 3); i++) {
@@ -246,7 +312,8 @@
       if (e.volley.delay <= 0) {
         var volley = e.volley; e.volley = null;
         if (volley.radial) {
-          for (var n = 0; n < volley.radial; n++) projectile(run, a, e.id, e.x, e.y, volley.rotation + n * Math.PI * 2 / volley.radial, 125 + run.region * 10, volley.damage, { drain: volley.drain, color: '#c69fff' });
+          for (var n = 0; n < volley.radial; n++) projectile(run, a, e.id, e.x, e.y, volley.rotation + n * Math.PI * 2 / volley.radial, volley.speed || 125 + run.region * 10, volley.damage,
+            { drain: volley.drain, color: volley.color || '#c69fff', shape: volley.shape || 'orb' });
         } else {
           var angle = Math.atan2(volley.y - e.y, volley.x - e.x);
           for (var spread = -volley.spread; spread <= volley.spread; spread++) projectile(run, a, e.id, e.x, e.y, angle + spread * 0.18, 150 + run.region * 9, volley.damage);

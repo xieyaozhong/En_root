@@ -112,6 +112,7 @@ for(let seed=0;seed<80;seed++) {
     else if(mixed.status==='reward')E.chooseReward(mixed,mixed.rewards[seed%3].id);
     else if(mixed.status==='shop'){for(const offer of mixed.shop)E.buy(mixed,offer.id);E.leaveShop(mixed);}
     else if(mixed.status==='camp')E.chooseCamp(mixed,mixed.player.hp<mixed.player.maxHp*0.65?'rest':'train');
+    else if(mixed.status==='npc'){E.helpNpc(mixed);E.leaveNpc(mixed);}
     assert.ok(mixed.player.hp>=0&&mixed.player.hp<=mixed.player.maxHp);
     assert.ok(mixed.player.gold>=0);
     assert.ok(mixed.inventory.every(i=>i.count>=0));

@@ -1,0 +1,197 @@
+(function (root, factory) {
+  'use strict';
+  var engine = typeof module === 'object' && module.exports ? require('./dungeon-engine.js') : root.DungeonEngine;
+  var api = factory(engine);
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  if (root) root.DungeonExplore = api;
+})(typeof window !== 'undefined' ? window : globalThis, function (Engine) {
+  'use strict';
+  var VERSION = 1, WIDTH = 960, HEIGHT = 540, RANGE = 85;
+  var STATES = ['route', 'shop', 'npc', 'camp', 'reward'];
+  function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+  function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+  function fail(message) { return { ok: false, message: message }; }
+  function done(message, extra) { return Object.assign({ ok: true, message: message }, extra || {}); }
+  function has(run, id) { return (run.relics || []).some(function (relic) { return relic.id === id; }); }
+  function object(id, kind, name, description, x, y, extra) {
+    return Object.assign({ id: id, kind: kind, name: name, description: description || '', x: x, y: y,
+      r: 26, interactionRadius: RANGE, color: '#a5d9c2', icon: '◆', action: '', args: [] }, extra || {});
+  }
+  function slots(length) {
+    if (length === 1) return [480];
+    return Array.from({ length: length }, function (_, i) { return 200 + i * 560 / (length - 1); });
+  }
+  function getNpc(run) { return typeof Engine.getNpc === 'function' ? Engine.getNpc(run) : null; }
+  function buildObjects(run, npc) {
+    if (run.status === 'route') {
+      var positions = slots(run.routes.length);
+      return run.routes.map(function (route, i) {
+        return object('route-' + route.id, 'door', route.name, route.description, positions[i], 185, {
+          r: 34, color: route.type === 'boss' || route.type === 'elite' ? '#ff987b' : '#a5c9ff', icon: route.icon,
+          action: 'chooseRoute', args: [route.id], routeType: route.type, npcId: route.npcId || null
+        });
+      });
+    }
+    if (run.status === 'reward') {
+      var rewardPositions = slots(run.rewards.length);
+      return run.rewards.map(function (reward, i) {
+        return object('reward-' + reward.id, 'reward', reward.name, reward.description, rewardPositions[i], 215, {
+          color: '#e8cc7b', icon: reward.icon, action: 'chooseReward', args: [reward.id], rewardKind: reward.kind
+        });
+      });
+    }
+    if (run.status === 'camp') return [
+      object('camp-rest', 'camp', '星燈休息', '恢復最大生命的 48%。', 315, 220, { icon: '♨', color: '#ffba81', action: 'chooseCamp', args: ['rest'] }),
+      object('camp-train', 'camp', '符文磨練', '咒語威力增加 3，並恢復 10 點生命。', 645, 220, { icon: '✦', color: '#b8a4ff', action: 'chooseCamp', args: ['train'] })
+    ];
+    var merchant = run.status === 'shop';
+    var person = npc || { id: merchant ? 'merchant' : 'traveler', name: merchant ? '流浪商人' : '旅人', description: '靠近並交談。', color: '#e8c57b' };
+    return [
+      object('npc-' + person.id, merchant ? 'merchant' : 'npc', person.name, person.description, 440, 210, {
+        r: 28, color: person.color, icon: merchant ? '◆' : '✦', npcId: person.id, sprite: person.sprite || person.id, action: 'dialog'
+      }),
+      object('exit', 'exit', merchant ? '離開商店' : '繼續旅途', '靠近出口繼續探索。', 795, 375, {
+        r: 30, color: '#a5c9ff', icon: '➜', action: merchant ? 'leaveShop' : 'leaveNpc'
+      })
+    ];
+  }
+  function roomKey(run, npc) {
+    return [run.status, run.encounter, run.currentRoute && run.currentRoute.id || '', npc && npc.id || '',
+      run.status === 'route' ? (run.routes || []).map(function (r) { return r.id; }).join(',') : '',
+      run.status === 'reward' ? (run.rewards || []).map(function (r) { return r.id; }).join(',') : ''].join(':');
+  }
+  function nearObject(exploration) {
+    var best = null, closest = RANGE + 0.001;
+    exploration.objects.forEach(function (target) {
+      var distance = Math.hypot(exploration.player.x - target.x, exploration.player.y - target.y);
+      if (distance <= target.interactionRadius && distance < closest) { best = target; closest = distance; }
+    });
+    exploration.nearbyId = best ? best.id : null;
+    return best;
+  }
+  function ensure(run) {
+    if (!run || STATES.indexOf(run.status) < 0) return null;
+    var npc = (run.status === 'shop' || run.status === 'npc') ? getNpc(run) : null;
+    var key = roomKey(run, npc), exploration = run.exploration;
+    if (!exploration || exploration.version !== VERSION || exploration.key !== key || !exploration.player) {
+      exploration = run.exploration = {
+        version: VERSION, key: key, width: WIDTH, height: HEIGHT,
+        bounds: { left: 32, right: 928, top: 60, bottom: 510 },
+        player: { x: 480, y: 435, r: 12, facingX: 0, facingY: -1, dashTime: 0, dashCooldown: 0, dashX: 0, dashY: -1, moving: false },
+        objects: [], obstacles: [], nearbyId: null, dialogId: null, time: 0, dashes: 0
+      };
+    }
+    exploration.width = WIDTH; exploration.height = HEIGHT;
+    exploration.bounds = { left: 32, right: 928, top: 60, bottom: 510 };
+    var player = exploration.player;
+    player.r = 12;
+    player.x = clamp(finite(player.x, 480), 44, 916);
+    player.y = clamp(finite(player.y, 435), 72, 498);
+    player.facingX = finite(player.facingX, 0); player.facingY = finite(player.facingY, -1);
+    player.dashX = finite(player.dashX, player.facingX); player.dashY = finite(player.dashY, player.facingY);
+    player.dashTime = clamp(finite(player.dashTime, 0), 0, 0.22);
+    player.dashCooldown = clamp(finite(player.dashCooldown, 0), 0, 1.4);
+    exploration.time = Math.max(0, finite(exploration.time, 0));
+    exploration.dashes = Math.max(0, finite(exploration.dashes, 0));
+    if (!Array.isArray(exploration.obstacles)) exploration.obstacles = [];
+    // Build actions from current engine state instead of trusting serialized UI data.
+    exploration.objects = buildObjects(run, npc);
+    if (!exploration.objects.some(function (target) { return target.id === exploration.dialogId && (target.kind === 'merchant' || target.kind === 'npc'); })) exploration.dialogId = null;
+    nearObject(exploration);
+    return exploration;
+  }
+  function blocked(exploration, x, y) {
+    var r = exploration.player.r;
+    return exploration.obstacles.some(function (box) {
+      return Math.hypot(x - clamp(x, box.x, box.x + box.w), y - clamp(y, box.y, box.y + box.h)) < r;
+    });
+  }
+  function move(exploration, dx, dy) {
+    var player = exploration.player, bounds = exploration.bounds;
+    var steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 5));
+    for (var i = 0; i < steps; i++) {
+      var x = clamp(player.x + dx / steps, bounds.left + player.r, bounds.right - player.r);
+      var y = clamp(player.y + dy / steps, bounds.top + player.r, bounds.bottom - player.r);
+      if (!blocked(exploration, x, player.y)) player.x = x;
+      if (!blocked(exploration, player.x, y)) player.y = y;
+    }
+  }
+  function update(run, seconds, input) {
+    var exploration = ensure(run);
+    if (!exploration) return null;
+    var player = exploration.player;
+    player.moving = false;
+    if (exploration.dialogId) return exploration;
+    var dt = clamp(finite(seconds, 0), 0, 0.1);
+    if (!dt) return exploration;
+    input = input || {};
+    var x = clamp(finite(input.x, 0), -1, 1), y = clamp(finite(input.y, 0), -1, 1), length = Math.hypot(x, y);
+    if (length > 0) { x /= length; y /= length; player.facingX = x; player.facingY = y; }
+    player.dashCooldown = Math.max(0, player.dashCooldown - dt);
+    if (input.dash && player.dashCooldown <= 0 && player.dashTime <= 0) {
+      player.dashTime = 0.22; player.dashCooldown = has(run, 'gale') ? 1.15 : 1.4;
+      player.dashX = player.facingX; player.dashY = player.facingY; exploration.dashes++;
+    }
+    var dashDt = Math.min(dt, player.dashTime), walkDt = dt - dashDt;
+    var beforeX = player.x, beforeY = player.y;
+    if (dashDt > 0) move(exploration, player.dashX * 760 * dashDt, player.dashY * 760 * dashDt);
+    if (walkDt > 0 && length > 0) {
+      var speed = has(run, 'gale') ? 219.6 : 180;
+      move(exploration, x * speed * walkDt, y * speed * walkDt);
+    }
+    player.dashTime = Math.max(0, player.dashTime - dt);
+    player.moving = player.x !== beforeX || player.y !== beforeY;
+    exploration.time += dt;
+    nearObject(exploration);
+    return exploration;
+  }
+  function nearest(run) { var exploration = ensure(run); return exploration ? nearObject(exploration) : null; }
+  function inRange(exploration, target) {
+    return target && Math.hypot(exploration.player.x - target.x, exploration.player.y - target.y) <= RANGE;
+  }
+  function applyResult(run, result, beforeKey) {
+    if (!result || !result.ok) return result || fail('目前無法互動。');
+    var exploration = ensure(run);
+    return Object.assign({}, result, { changed: true, dialog: !!(exploration && exploration.key === beforeKey && exploration.dialogId) });
+  }
+  function interact(run) {
+    var exploration = ensure(run);
+    if (!exploration) return fail('目前無法與場景互動。');
+    if (exploration.dialogId) return fail('請先結束交談，再移動到其他地方。');
+    var target = nearObject(exploration);
+    if (!target) return fail('請移動到目標附近，再按 E 互動。');
+    if (target.kind === 'merchant' || target.kind === 'npc') {
+      exploration.dialogId = target.id; exploration.player.dashTime = 0; exploration.player.moving = false;
+      return done('與' + target.name + '交談。', { dialog: true });
+    }
+    var result;
+    // Each action is explicitly listed: objects never grant arbitrary engine access.
+    if (target.action === 'chooseRoute' && run.status === 'route') result = Engine.chooseRoute(run, target.args[0]);
+    else if (target.action === 'chooseReward' && run.status === 'reward') result = Engine.chooseReward(run, target.args[0]);
+    else if (target.action === 'chooseCamp' && run.status === 'camp') result = Engine.chooseCamp(run, target.args[0]);
+    else if (target.action === 'leaveShop' && run.status === 'shop') result = Engine.leaveShop(run);
+    else if (target.action === 'leaveNpc' && run.status === 'npc' && typeof Engine.leaveNpc === 'function') result = Engine.leaveNpc(run);
+    else return fail('目前無法使用這個互動。');
+    return applyResult(run, result, exploration.key);
+  }
+  function act(run, method, value) {
+    var exploration = ensure(run);
+    if (!exploration || !exploration.dialogId) return fail('請先走近角色並與他交談。');
+    var target = exploration.objects.find(function (o) { return o.id === exploration.dialogId; });
+    if (!inRange(exploration, target)) { exploration.dialogId = null; return fail('距離太遠，請重新走近角色交談。'); }
+    var merchant = target.kind === 'merchant' && run.status === 'shop', npc = target.kind === 'npc' && run.status === 'npc';
+    var result;
+    if (method === 'buy' && merchant) result = Engine.buy(run, value);
+    else if (method === 'helpNpc' && npc && typeof Engine.helpNpc === 'function') result = Engine.helpNpc(run);
+    else if (method === 'challengeNpc' && (merchant || npc) && typeof Engine.challengeNpc === 'function') result = Engine.challengeNpc(run, value);
+    else return fail('交談中無法執行這個動作。');
+    return applyResult(run, result, exploration.key);
+  }
+  function close(run) {
+    var exploration = ensure(run);
+    if (!exploration) return fail('目前沒有交談對象。');
+    exploration.dialogId = null; exploration.player.moving = false;
+    return done('結束交談，可以繼續移動。');
+  }
+  return { ensure: ensure, update: update, nearest: nearest, interact: interact, act: act, close: close, RANGE: RANGE, STATES: STATES.slice() };
+});
