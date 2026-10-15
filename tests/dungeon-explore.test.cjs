@@ -66,6 +66,26 @@ Explore.update(walking, NaN, { x: Infinity, y: NaN });
 assert.equal(w.player.x, finiteBefore.x);
 assert.equal(w.player.y, finiteBefore.y);
 
+// Analog tilt controls walking speed; facing and a dash always retain full direction.
+const analog = run(), analogArea = Explore.ensure(analog), ap = analogArea.player;
+Explore.update(analog, .1, { x: .25, y: 0 });
+assert.ok(Math.abs(ap.x - 480 - 4.5) < 1e-8, 'quarter tilt walks at quarter speed');
+assert.equal(ap.facingX, 1); assert.equal(ap.facingY, 0);
+const diagonalStart = { x: ap.x, y: ap.y };
+Explore.update(analog, .1, { x: .3, y: -.4 });
+assert.ok(Math.abs(Math.hypot(ap.x - diagonalStart.x, ap.y - diagonalStart.y) - 9) < 1e-8, 'half tilt diagonal walks at half speed');
+assert.ok(Math.abs(ap.facingX - .6) < 1e-8 && Math.abs(ap.facingY + .8) < 1e-8, 'analog facing is a unit vector');
+const stoppedAt = { x: ap.x, y: ap.y };
+Explore.update(analog, .1, { x: 0, y: 0 });
+assert.equal(ap.x, stoppedAt.x); assert.equal(ap.y, stoppedAt.y);
+Explore.update(analog, .1, { dash: true });
+assert.ok(Math.abs(Math.hypot(ap.x - stoppedAt.x, ap.y - stoppedAt.y) - 76) < 1e-8, 'dash after releasing a partial tilt uses full speed');
+assert.ok(Math.abs(ap.dashX - .6) < 1e-8 && Math.abs(ap.dashY + .8) < 1e-8);
+const tiltedDash = run(), tiltedPlayer = Explore.ensure(tiltedDash).player;
+Explore.update(tiltedDash, .1, { x: -.1, y: 0, dash: true });
+assert.ok(Math.abs(tiltedPlayer.x - 480 + 76) < 1e-8, 'dash during partial tilt also uses full speed');
+assert.equal(tiltedPlayer.dashX, -1);
+
 // Old saves are upgraded lazily; normal JSON round trips retain location and RNG.
 const old = run(), restored = JSON.parse(JSON.stringify(old));
 assert.deepEqual(Explore.ensure(old), Explore.ensure(restored));
