@@ -6,6 +6,7 @@ const ids = Object.keys(Engine.NPCS);
 const clone = value => JSON.parse(JSON.stringify(value));
 function encounter(id, seed = 41, node = 0) {
   const run = Engine.createRun({ word: 'magic', zh: '魔法', rarity: 'N' }, true, seed);
+  run.nodesPerRegion = 4;
   run.encounter = node; run.region = Math.min(2, Math.floor(node / 4));
   run.routes = [{ id: 'visitor', type: id === 'merchant' ? 'shop' : 'npc', npcId: id, name: Engine.NPCS[id].name }];
   assert.equal(Engine.chooseRoute(run, 'visitor').ok, true);
@@ -30,17 +31,17 @@ function ordinary() {
   run.spell = { word: 'spark', name: '星火術', type: 'attack', power: 17, elapsed: 0 };
   return run;
 }
-assert.equal(ids.length, 5, 'merchant and four distinct travelers');
-assert.equal(new Set(ids.map(id => Engine.NPCS[id].challengeWord)).size, 5);
-assert.equal(new Set(ids.map(id => Engine.NPCS[id].lootId)).size, 5);
+assert.equal(ids.length, 8, 'merchant, four travelers and three recruitable companions');
+assert.equal(new Set(ids.map(id => Engine.NPCS[id].challengeWord)).size, 8);
+assert.equal(new Set(ids.map(id => Engine.NPCS[id].lootId)).size, 8);
 assert.equal(Engine.NPCS.merchant.challengeWord, 'debt');
 const observed = new Set();
 for (let seed = 0; seed < 150; seed++) {
   const run = Engine.createRun(null, true, seed);
   assert.deepEqual(run, Engine.createRun(null, true, seed), 'NPC route choice uses the seeded run RNG');
-  for (let node = 0; node < 11; node++) {
+  for (let node = 0; node < 17; node++) {
     for (const route of run.routes) if (route.type === 'npc') observed.add(route.npcId);
-    if (run.encounter % 4 === 3) assert.deepEqual(run.routes.map(r => r.type), ['boss']);
+    if (run.encounter % 6 === 5) assert.deepEqual(run.routes.map(r => r.type), ['boss']);
     Engine.chooseRoute(run, 'battle' === run.routes[0].id ? 'battle' : 'boss');
     Engine.damageEnemy(run, 100000, 1);
     Engine.chooseReward(run, run.rewards[0].id);
@@ -106,6 +107,8 @@ for (const id of ids) {
   assert.notDeepEqual(first, second, 'each boss alternates two actual spatial patterns');
   Engine.damageEnemy(run, Math.ceil(run.enemy.maxHp * 0.51), 1);
   assert.equal(run.enemy.phase, 2);
+  Arena.update(run, 0.05, {});
+  assert.ok(run.enemy.intent.remaining >= 2.6, 'phase awakening leaves a readable warning window');
   const phase = pattern(run);
   assert.equal(phase.name, Engine.NPCS[id].patterns[0]);
   assert.notDeepEqual(phase, first, 'phase two expands actual attacks, not only the label');
@@ -148,7 +151,7 @@ for (const id of ids) {
 }
 const endNode = fight('merchant', 11); Engine.damageEnemy(endNode, 100000, 1);
 assert.equal(endNode.status, 'reward', 'optional boss cannot trigger the king ending');
-console.log('PASS five unique two-phase bosses, save restoration, guaranteed trophy and single advancement');
+console.log('PASS eight unique two-phase bosses, save restoration, guaranteed trophy and single advancement');
 
 for (let seed = 0; seed < 100; seed++) {
   const shop = encounter('merchant', seed);

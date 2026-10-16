@@ -53,7 +53,10 @@
     dewheart: { id: 'dewheart', name: '千露之心', icon: '❦', description: '每次正確施法恢復 3 點生命，可與苔心種子疊加。', special: true },
     forgecore: { id: 'forgecore', name: '不滅爐心', icon: '♨', description: '所有咒語傷害增加 7 點。', special: true },
     wayfinder: { id: 'wayfinder', name: '活頁星圖', icon: '✥', description: '每次迅捷施法獲得 5 點護盾，護盾上限為 90。', special: true },
-    ferrypass: { id: 'ferrypass', name: '歸航燈票', icon: '☽', description: '每趟遠征一次：受到致命傷時恢復 70 點生命，並獲得 20 點護盾。', special: true }
+    ferrypass: { id: 'ferrypass', name: '歸航燈票', icon: '☽', description: '每趟遠征一次：受到致命傷時恢復 70 點生命，並獲得 20 點護盾。', special: true },
+    lanternwake: { id: 'lanternwake', name: '不眠星燈', icon: '✺', description: '每場戰鬥開始時獲得 12 點護盾，可與古龍鱗片疊加。', special: true },
+    echoquill: { id: 'echoquill', name: '複音羽筆', icon: '♫', description: '本命咒語的基礎傷害增加 8 點。', special: true },
+    paperedge: { id: 'paperedge', name: '千摺刃印', icon: '▱', description: '所有咒語傷害增加 3 點；護盾咒額外獲得 6 點護盾。', special: true }
   });
   var NPCS = {
     merchant: { id: 'merchant', name: '鍍金旅商・柯恩', title: '流浪商人', sprite: 'merchant', color: '#f3c26f', icon: '◆',
@@ -77,6 +80,24 @@
       challengeWord: 'toll', challengeDescription: '輸入 toll 質疑渡河代價，躲過靈潮與吸魂燈火。', lootId: 'ferrypass', lootName: '歸航燈票', hp: 265,
       patterns: ['忘川渡潮', '引魂燈陣'] }
   };
+  Object.assign(NPCS, {
+    lantern: { id: 'lantern', name: '燈旅精靈・路米', title: '提燈同行者', sprite: 'lantern', color: '#81ead8', icon: '✺', companionRole: 'support',
+      description: '它把遠行者的願望收進星燈，會跟在你身後，替即將熄滅的勇氣續光。', helpDescription: '邀請路米同行至本趟結束；跟隨走位，戰鬥中定期補充護盾。',
+      challengeWord: 'eclipse', challengeDescription: '輸入 eclipse 熄去星燈，閃避追光燈陣與層疊日蝕環。', lootId: 'lanternwake', lootName: '不眠星燈', hp: 245,
+      patterns: ['追光燈陣', '不眠日蝕'] },
+    echo: { id: 'echo', name: '回聲學徒・伊可', title: '複音詠唱者', sprite: 'echo', color: '#c8a4ff', icon: '♫', companionRole: 'mimic',
+      description: '伊可總慢半拍念出你的最後一個字；那些回聲卻能化為真正的魔法。', helpDescription: '邀請伊可同行至本趟結束；成功施法後，延遲模仿攻擊、治癒或護盾咒。錯字不會被模仿。',
+      challengeWord: 'silence', challengeDescription: '輸入 silence 打斷回聲，迎戰複音光束與延遲落點；第二道攻勢會晚一步落下。', lootId: 'echoquill', lootName: '複音羽筆', hp: 250,
+      patterns: ['雙聲迴廊', '遲來的咒語'] },
+    sentinel: { id: 'sentinel', name: '紙甲衛士・折鋒', title: '千摺守衛', sprite: 'sentinel', color: '#f5d48c', icon: '▱', companionRole: 'guard',
+      description: '一頁古老的守護誓言摺成了鎧甲。它不說話，只會跟上值得守護的旅人。', helpDescription: '邀請折鋒同行至本趟結束；跟隨玩家，定期以紙刃迎擊附近敵人。',
+      challengeWord: 'unfold', challengeDescription: '輸入 unfold 展開戰書，躲過摺紙斬線與千刃交叉突擊。', lootId: 'paperedge', lootName: '千摺刃印', hp: 290,
+      patterns: ['摺界斬', '千刃列陣'] }
+  });
+  // Untagged saves keep their original twelve-node route and boss gates.
+  function getNodesPerRegion(s) { return s && s.nodesPerRegion === 6 ? 6 : 4; }
+  function getCampaignLength(s) { return getNodesPerRegion(s) * REGIONS.length; }
+  function startingShield(s) { return (has(s, 'shell') ? 18 : 0) + (has(s, 'lanternwake') ? 12 : 0); }
   var ENEMIES = [
     [
       { id: 'slime', name: '墨滴史萊姆', description: '沾滿墨水的小生物，正準備彈跳撞擊。' },
@@ -214,7 +235,7 @@
     var rarity = { N: 0, R: 1, SR: 2, SSR: 3, UR: 4 }[cleanCard.rarity] || 0;
     var runSeed = seed === undefined ? Date.now() : seed;
     var s = {
-      version: 1, status: 'route', practice: !!practice, card: cleanCard, cardBonus: rarity,
+      version: 1, nodesPerRegion: 6, companions: [], status: 'route', practice: !!practice, card: cleanCard, cardBonus: rarity,
       seed: runSeed, rng: hash(runSeed),
       region: 0, regionName: REGIONS[0].name, encounter: 0, completedNodes: 0,
       player: { hp: 120 + rarity * 3, maxHp: 120 + rarity * 3, shield: 0, gold: 35, power: 0, combo: 0, focus: 0 },
@@ -235,9 +256,10 @@
   }
   function buildRoutes(s) {
     s.status = 'route'; s.enemy = null; s.player.shield = 0; s.player.combo = 0;
-    s.region = Math.min(2, Math.floor(s.encounter / 4)); s.regionName = REGIONS[s.region].name;
+    var nodes = getNodesPerRegion(s), localNode = s.encounter % nodes;
+    s.region = Math.min(2, Math.floor(s.encounter / nodes)); s.regionName = REGIONS[s.region].name;
     s.routes = [];
-    if (s.encounter % 4 === 3) {
+    if (localNode === nodes - 1) {
       var boss = BOSS[REGIONS[s.region].boss];
       s.routes = [{ id: 'boss', type: 'boss', name: boss.name, icon: '♜', description: boss.description, danger: '區域首領' }];
       return;
@@ -251,9 +273,13 @@
     };
     var alternatives = shuffle(s, ['elite', 'treasure', 'camp', 'shop', 'npc']).slice(0, 2);
     // A safe rest is always available directly before the second and third bosses.
-    if (s.encounter % 4 === 2 && s.region > 0 && alternatives.indexOf('camp') < 0) alternatives[1] = 'camp';
+    if (localNode === nodes - 2 && alternatives.indexOf('camp') < 0) alternatives[1] = 'camp';
+    // Each expanded chapter offers a random un-recruited companion early on.
+    var recruits = ['lantern', 'echo', 'sentinel'].filter(function (id) { return !(s.companions || []).some(function (c) { return c.id === id; }); });
+    if (nodes === 6 && localNode === 1 && recruits.length && alternatives.indexOf('npc') < 0) alternatives[1] = 'npc';
     if (alternatives.indexOf('npc') >= 0) {
-      var visitors = s.region === 0 ? ['healer', 'smith', 'cartographer'] : s.region === 1 ? ['healer', 'cartographer', 'ferryman'] : ['smith', 'cartographer', 'ferryman'];
+      var visitors = (s.region === 0 ? ['healer', 'smith', 'cartographer'] : s.region === 1 ? ['healer', 'cartographer', 'ferryman'] : ['smith', 'cartographer', 'ferryman']).concat(recruits);
+      if (nodes === 6 && localNode === 1 && recruits.length) visitors = recruits;
       var visitor = NPCS[pick(s, visitors)];
       definitions.npc = { npcId: visitor.id, name: visitor.name, icon: visitor.icon, description: visitor.description, danger: '旅途邂逅' };
     }
@@ -296,7 +322,7 @@
   function startCombat(s, kind) {
     var boss = kind === 'boss', template = boss ? BOSS[REGIONS[s.region].boss] : pick(s, ENEMIES[s.region]);
     var hp = boss ? template.hp : 78 + s.region * 42 + (kind === 'elite' ? 48 : 0) + Math.floor(random(s) * 13);
-    s.status = 'combat'; s.player.combo = 0; s.player.shield = has(s, 'shell') ? 18 : 0;
+    s.status = 'combat'; s.player.combo = 0; s.player.shield = startingShield(s);
     s.enemy = Object.assign({}, template, { kind: kind, hp: hp, maxHp: hp, shield: 0, phase: 1, turn: 0 });
     s.spell.elapsed = 0; makeIntent(s);
     event(s, 'encounter', template.name + ' 出現了！' + (boss ? template.description : '輸入畫面中的英文並按 Enter 施法。'));
@@ -350,8 +376,8 @@
       else message += ' 已持有特殊戰利品，額外獲得 ' + coins(s, 35) + ' 金幣。';
       if (s.npc) s.npc.defeated = true;
     }
-    if (s.encounter === 11 && e.id === 'king' && !e.isNpcBoss) {
-      s.status = 'won'; s.completedNodes = 12;
+    if (s.encounter === getCampaignLength(s) - 1 && e.id === 'king' && !e.isNpcBoss) {
+      s.status = 'won'; s.completedNodes = getCampaignLength(s);
       event(s, 'won', '失名之王化作晨光。你為世界找回了名字！' + message, { gold: amount, drop: drop });
     } else {
       if (e.kind === 'boss' && !e.isNpcBoss) heal(s, 24);
@@ -387,13 +413,13 @@
     if (fast) s.stats.fastCasts += 1;
     var multiplier = 1 + Math.min(8, p.combo - 1) * 0.055 + (fast ? 0.16 : 0);
     var base = spell.type === 'heal' || spell.type === 'shield' ? 8 : spell.power;
-    var rawDamage = base + p.power + (has(s, 'ember') ? 4 : 0) + (has(s, 'forgecore') ? 7 : 0) + (has(s, 'fang') && p.combo >= 3 ? 6 : 0)
-      + (spell.type === 'signature' && has(s, 'prism') ? 14 : 0) + (p.focus > 0 ? 12 : 0);
+    var rawDamage = base + p.power + (has(s, 'ember') ? 4 : 0) + (has(s, 'forgecore') ? 7 : 0) + (has(s, 'paperedge') ? 3 : 0) + (has(s, 'fang') && p.combo >= 3 ? 6 : 0)
+      + (spell.type === 'signature' && has(s, 'prism') ? 14 : 0) + (spell.type === 'signature' && has(s, 'echoquill') ? 8 : 0) + (p.focus > 0 ? 12 : 0);
     var damage = hitEnemy(s, Math.round(rawDamage * multiplier), spell.type === 'signature' ? 0.5 : 0, options && options.damageLimit);
     var healing = spell.type === 'heal' ? heal(s, spell.power + p.power) : 0, shield = 0;
     if (has(s, 'moss')) healing += heal(s, 2);
     if (has(s, 'dewheart')) healing += heal(s, 3);
-    if (spell.type === 'shield') { shield = Math.min(90 - p.shield, spell.power + p.power); p.shield += shield; }
+    if (spell.type === 'shield') { shield = Math.min(Math.max(0, 90 - p.shield), spell.power + p.power + (has(s, 'paperedge') ? 6 : 0)); p.shield += shield; }
     if (fast && has(s, 'wayfinder')) { var starShield = Math.min(5, Math.max(0, 90 - p.shield)); shield += starShield; p.shield += starShield; }
     if (p.focus > 0) p.focus -= 1;
     if (spell.word === 'frost') s.enemy.intent.remaining = Math.min(s.enemy.intent.duration + 4, s.enemy.intent.remaining + 1);
@@ -473,7 +499,13 @@
     if (s.npc.helped || s.npc.challenged) return fail('這次邂逅已經做出選擇，無法再次取得幫助或挑戰。');
     s.npc.helped = true;
     var message;
-    if (npc.id === 'healer') { var healed = heal(s, 45); addItem(s, 'potion'); message = '芙苓包紮了傷口，恢復 ' + healed + ' 點生命，並送你 1 瓶苔露藥水。'; }
+    if (npc.companionRole) {
+      if (!Array.isArray(s.companions)) s.companions = [];
+      if (!s.companions.some(function (c) { return c.id === npc.id; }) && s.companions.length < 3) {
+        s.companions.push({ id: npc.id, npcId: npc.id, name: npc.name, sprite: npc.sprite, color: npc.color, role: npc.companionRole });
+        message = npc.name + ' 加入隊伍，將陪伴你走完本趟遠征。';
+      } else { addItem(s, 'potion'); message = npc.name + ' 已與你同行，送你一瓶苔露藥水。'; }
+    } else if (npc.id === 'healer') { var healed = heal(s, 45); addItem(s, 'potion'); message = '芙苓包紮了傷口，恢復 ' + healed + ' 點生命，並送你 1 瓶苔露藥水。'; }
     else if (npc.id === 'smith') { s.player.power += 4; message = '布洛替咒語淬上星鐵：本趟咒語威力永久增加 4。'; }
     else if (npc.id === 'cartographer') {
       var options = ['gale', 'clock', 'starlace', 'frostglass'].filter(function (id) { return !has(s, id); });
@@ -491,7 +523,7 @@
     var normalized = String(text || '').trim().toLowerCase();
     if (normalized !== npc.challengeWord) return fail('只有完整輸入「' + npc.challengeWord + '」才會展開首領戰；一般交談不會觸發戰鬥。');
     s.npc.challenged = true; s.status = 'combat'; s.player.combo = 0;
-    s.player.shield = has(s, 'shell') ? 18 : 0; s.shop = []; s.arena = null;
+    s.player.shield = startingShield(s); s.shop = []; s.arena = null;
     var hp = npc.hp + s.region * 60;
     s.enemy = { id: 'npc-' + npc.id, npcId: npc.id, isNpcBoss: true, sprite: npc.sprite,
       name: npc.name, description: npc.challengeDescription, kind: 'boss', hp: hp, maxHp: hp, shield: 0, phase: 1, turn: 0 };
@@ -572,5 +604,6 @@
     chooseCamp: chooseCamp, useItem: useItem, buy: buy, leaveShop: leaveShop, damagePlayer: damagePlayer,
     damageEnemy: damageEnemy, healPlayer: healPlayer, resolveArenaIntent: resolveArenaIntent,
     getNpc: getNpc, helpNpc: helpNpc, challengeNpc: challengeNpc, leaveNpc: leaveNpc,
+    getNodesPerRegion: getNodesPerRegion, getCampaignLength: getCampaignLength,
     ITEMS: ITEMS, RELICS: RELICS, REGIONS: REGIONS, NPCS: NPCS };
 });

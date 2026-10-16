@@ -9,12 +9,13 @@ const Arena = require('../dungeon-arena.js');
 // Validate drawing contracts and state balance with a recording Canvas context.
 // Pixel appearance, clipping and text layout still require real browser visual QA.
 class Context {
-  constructor() { this.depth = 0; this.calls = []; }
-  save() { this.depth++; }
-  restore() { assert.ok(this.depth > 0, 'restore always has a matching save'); this.depth--; }
+  constructor() { this.depth = 0; this.calls = []; this.globalAlpha=1; this.states=[]; }
+  save() { this.depth++; this.states.push({globalAlpha:this.globalAlpha,fillStyle:this.fillStyle,strokeStyle:this.strokeStyle}); }
+  restore() { assert.ok(this.depth > 0, 'restore always has a matching save'); this.depth--; Object.assign(this,this.states.pop()); }
   record(name, args) {
     for (const arg of args) if(typeof arg === 'number') assert.ok(Number.isFinite(arg), name + ' receives finite coordinates');
-    this.calls.push({name,args});
+    assert.ok(Number.isFinite(this.globalAlpha)&&this.globalAlpha>=0&&this.globalAlpha<=1,'draw opacity is finite and valid');
+    this.calls.push({name,args,alpha:this.globalAlpha,color:this.fillStyle});
   }
 }
 for (const name of ['fillRect','clearRect','beginPath','closePath','moveTo','lineTo','fill','stroke','ellipse','arc','rect',
@@ -90,7 +91,7 @@ explorationRun.exploration.dialogId='merchant';ctx.calls=[];renderer.draw({run:e
 assert.equal(ctx.calls.filter(call=>call.name==='fillText'&&call.args[0]==='交談中').length,1,'open conversation is visibly identified');
 assert.equal(ctx.depth,0);
 
-const npcIds=['merchant','healer','smith','cartographer','ferryman'],npcCalls=[],npcDraw=renderer.npc;
+const npcIds=['merchant','healer','smith','cartographer','ferryman','lantern','echo','sentinel'],npcCalls=[],npcDraw=renderer.npc;
 renderer.npc=function(...args){npcCalls.push({id:args[1],boss:args[5],phase:args[6]});return npcDraw.apply(this,args);};
 const signatures=new Set();
 for(const npcId of npcIds){
@@ -105,10 +106,86 @@ for(const npcId of npcIds){
   renderer.draw({run:bossRun,reducedMotion:frames%2===0},2600+frames++*16);assert.equal(ctx.depth,0);
   assert.ok(npcCalls.some(call=>call.id===npcId&&call.boss&&call.phase===2),'NPC battle renders the matching enlarged angry silhouette');
 }
-assert.equal(signatures.size,5,'five NPCs have distinct pixel silhouettes');
+assert.equal(signatures.size,8,'eight NPCs have distinct pixel silhouettes');
 // Every reward prop, training option and a dashing exploration player is drawable.
 explorationRun.status='reward';explorationRun.exploration.key='loot';explorationRun.exploration.player.dashTime=.12;
 explorationRun.exploration.objects=['item','supply','upgrade'].map((rewardKind,i)=>({id:rewardKind,kind:'reward',rewardKind,name:rewardKind,x:220+i*260,y:240,interactionRadius:85}));
 explorationRun.exploration.objects.push({id:'camp-train',kind:'camp',name:'訓練',x:480,y:380,interactionRadius:85});
 renderer.draw({run:explorationRun},3000);renderer.draw({run:explorationRun},3016);assert.equal(ctx.depth,0);
-console.log('Renderer checks passed: healing radius, 12 enemy sprites across 3 regions, 5 hazards, 6 effects, exploration player and proximity prompts, five distinct NPCs and matching Boss forms, loot/camp props, reduced motion, balanced Canvas state.');
+
+const companionRun=sample(36);
+const companions=['lantern','echo','sentinel'].map((npcId,i)=>({id:'companion-'+npcId,npcId,x:180+i*42,y:340,r:11,name:'同行者・'+npcId,color:'#b1e6e7'}));
+companionRun.arena.companions=companions;
+companionRun.arena.effects=[{id:'echo-cast',kind:'companion-cast',fromX:221,fromY:341,targetX:651,targetY:281,spellWord:'frost',spellType:'attack',life:.6,maxLife:.6}];
+ctx.calls=[];renderer.draw({run:companionRun,reducedMotion:true},3100);
+assert.equal(ctx.depth,0);
+for(const ally of companions)assert.ok(ctx.calls.some(call=>call.name==='fillText'&&call.args[0]==='◆ '+ally.npcId),'each follower carries a friendly nameplate');
+assert.ok(ctx.calls.some(call=>call.name==='moveTo'&&call.args[0]===221&&call.args[1]===321),'echo starts at the companion, not player or origin');
+assert.ok(ctx.calls.some(call=>call.name==='lineTo'&&call.args[0]===651&&call.args[1]===261),'echo reaches its actual spell target');
+assert.ok(ctx.calls.some(call=>call.name==='fillText'&&call.args[0]==='回聲'),'a copied spell is identified');
+companionRun.status='route';companionRun.exploration={key:'allies',player:{x:480,y:400,r:12},objects:[],obstacles:[],companions};
+ctx.calls=[];renderer.draw({run:companionRun,reducedMotion:true},3116);
+for(const ally of companions)assert.ok(ctx.calls.some(call=>call.name==='fillText'&&call.args[0]==='◆ '+ally.npcId),'companions remain visible during exploration');
+
+// New environmental dressing is distinctive, but never changes or substitutes for damage geometry.
+const roomRun=sample(44),roomSignatures=new Set();roomRun.arena.effects=[];
+const hazard={kind:'line',x:111,y:145,x2:822,y2:377,width:32,delay:.8,life:.3};roomRun.arena.hazards=[hazard];
+const untouchedHazard=JSON.stringify(hazard);
+for(const id of ['tempest','meteor','mirrors','eclipse']){
+  roomRun.arena.room={id};ctx.calls=[];renderer.draw({run:roomRun,reducedMotion:true},3200);
+  roomSignatures.add(JSON.stringify(ctx.calls));assert.equal(JSON.stringify(hazard),untouchedHazard,'art does not mutate trap geometry');assert.equal(ctx.depth,0);
+}
+assert.equal(roomSignatures.size,4,'four new room themes have different visible decoration');
+const palette={light:'#d7f4e5',glow:'#8ecabb',void:'#101929',hot:'#f7b6a3'};
+const spellSignatures=new Set();
+for(const [spellType,spellWord] of [['attack','fire'],['attack','frost'],['attack','storm'],['attack','rune'],['signature','robot'],['heal','bloom'],['shield','ward']]){
+  ctx.calls=[];renderer.effect(ctx,{kind:'cast',x:210,y:275,x2:630,y2:310,spellType,spellWord,life:.4,maxLife:.6},palette,0,true);
+  spellSignatures.add(JSON.stringify(ctx.calls));assert.equal(ctx.depth,0);
+}
+assert.equal(spellSignatures.size,7,'fire, frost, storm, rune, signature, heal and shield have distinct spell effects');
+for(const spellType of ['heal','shield']){
+  ctx.calls=[];renderer.effect(ctx,{kind:'companion-cast',npcId:'echo',fromX:200,fromY:350,targetX:480,targetY:300,spellType,life:.5,maxLife:.6},palette,0,true);
+  assert.ok(ctx.calls.some(call=>call.name==='ellipse'&&call.args[0]===480&&call.args[1]===280),'copied support spell surrounds its player target');
+  assert.ok(!ctx.calls.some(call=>call.name==='ellipse'&&call.args[0]===200&&call.args[1]===330),'support ring is not mistakenly centered on its companion caster');
+}
+for(const [npcId,label] of [['lantern','護持'],['sentinel','援擊']]){
+  ctx.calls=[];renderer.effect(ctx,{kind:'companion-cast',npcId,fromX:200,fromY:350,targetX:480,targetY:300,spellType:npcId==='lantern'?'shield':'strike',life:.5,maxLife:.6},palette,0,true);
+  assert.ok(ctx.calls.some(call=>call.name==='fillText'&&call.args[0]===label),'non-mimic companion effect uses its actual support role');
+}
+
+// Final-hit effects arrive on the same frame as reward state. Render once, then
+// expire independently of frozen engine effects without delaying loot or saves.
+const deathRun=sample(55),dead={id:'npc-echo',npcId:'echo',sprite:'echo',kind:'boss',name:'伊可',x:640,y:280,r:30,phase:2};
+deathRun.arena.effects=[{id:'final-death',kind:'death',x:640,y:280,r:60,actor:dead,boss:true,color:'#c9baff',life:1.2,maxLife:1.2}];
+deathRun.arena.enemies=[];deathRun.status='reward';deathRun.exploration={key:'victory-loot',player:{x:480,y:430,r:12},objects:[],obstacles:[]};
+const before=JSON.stringify(deathRun);ctx.calls=[];renderer.draw({run:deathRun,reducedMotion:true},3300);
+assert.equal(renderer.deathScenes.length,1,'final boss death captured despite immediate reward transition');
+assert.ok(ctx.calls.some(call=>call.name==='fillText'&&call.args[0]==='封印破碎'),'boss death has a visible finishing cue');
+assert.equal(JSON.stringify(deathRun),before,'visual death completion never modifies gameplay or rewards');
+assert.notEqual(renderer.deathScenes[0].actor,dead,'dead actor is a snapshot rather than live gameplay state');
+const lifetime=renderer.deathScenes[0].life;
+renderer.draw({run:deathRun,paused:true,reducedMotion:true},3350);assert.equal(renderer.deathScenes[0].life,lifetime,'pause freezes death progression');
+ctx.calls=[];renderer.drawDeaths(ctx,palette,0,deathRun,.02,false,true);
+assert.ok(!ctx.calls.some(call=>call.name==='rotate'),'reduced motion avoids death tumbling');
+for(let i=0;i<32;i++)renderer.draw({run:deathRun,reducedMotion:true},3400+i*50);
+assert.equal(renderer.deathScenes.length,0,'local death finishes while retained engine effect stays present');
+renderer.draw({run:deathRun,reducedMotion:true},5050);assert.equal(renderer.deathScenes.length,0,'old death effect cannot replay every reward frame');
+
+const lostRun=sample(57);lostRun.status='lost';lostRun.player.hp=0;lostRun.arena.effects=[];
+const mageDraw=renderer.mage,magePositions=[];
+renderer.mage=function(...args){magePositions.push([args[1].x,args[1].y]);return mageDraw.apply(this,args);};
+renderer.draw({run:lostRun,reducedMotion:true},5100);
+assert.equal(renderer.deathScenes.length,1,'loss creates player death even without a gameplay effect');
+assert.equal(renderer.deathScenes[0].actor.kind,'player');
+assert.ok(!magePositions.some(([x,y])=>x===lostRun.arena.player.x&&y===lostRun.arena.player.y),'dead player is not still drawn as a living mage');
+assert.ok(magePositions.some(([x,y])=>x===0&&y===0),'player death draws the departing sprite snapshot');
+renderer.draw({run:null},5150);assert.equal(renderer.deathScenes.length,0,'returning to lobby clears lingering death effects');
+
+const introRun=sample(61);introRun.arena.enemies=[{...dead,hp:100,maxHp:100,alive:true,active:true}];
+introRun.arena.effects=[{id:'intro',kind:'boss-intro',name:'回聲學徒・伊可',x:640,y:280,life:1.7,maxLife:1.8}];
+ctx.calls=[];renderer.draw({run:introRun,reducedMotion:true},5200);
+assert.ok(ctx.calls.some(call=>call.name==='fillText'&&call.args[0]==='回聲學徒・伊可'),'boss entrance announces its identity');
+assert.ok(ctx.calls.some(call=>call.name==='fillRect'&&call.args[0]===24&&call.args[1]===52),'boss pressure frame remains outside collision bounds');
+for(const shape of ['coin','paper','lantern','crystal'])renderer.projectile(ctx,{shape,x:400,y:200,r:6,vx:1,vy:1},palette,0,true);
+assert.equal(ctx.depth,0);
+console.log('Renderer checks passed: eight NPC silhouettes/Boss forms, followers, echo origins, seven spell effects, four room themes, boss entrances, death persistence/expiration, player death, reduced motion, exact hazard geometry, balanced Canvas state.');

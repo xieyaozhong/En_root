@@ -151,6 +151,102 @@ function harness(options = {}) {
     h.audio.dispose();
   });
 
+  await test('every boss and special NPC selects a distinct original score and completes its loop', async () => {
+    const h = harness(), ids = ['thorn', 'witch', 'king', 'merchant', 'healer', 'smith', 'cartographer', 'ferryman', 'lantern', 'echo', 'sentinel'];
+    const catalog = h.window.DungeonAudio.BOSS_THEMES;
+    assert.equal(catalog.length, ids.length);
+    assert.equal(new Set(catalog.map(track => track.name)).size, ids.length);
+    const signatures = new Set();
+    await h.audio.setEnabled(true);
+    for (const id of ids) {
+      h.audio.setScene({ combat: true, boss: true, bossId: id, phase: 1 });
+      const info = h.audio.getTrackInfo();
+      assert.equal(info.id, 'boss-' + id); assert.equal(info.bossId, id);
+      assert.equal(info.kind, 'boss'); assert.equal(info.phase, 1);
+      assert.equal(info.name, h.audio.themeName); assert.equal(info.bars, 32);
+      assert.equal(info.tempo, catalog.find(track => track.bossId === id).tempo);
+      const firstSource = h.contexts[0].sources.length;
+      let wrapped = false, previous = h.audio._step;
+      for (let i = 0; i < 3500; i++) {
+        h.advance(0.025);
+        assert.ok(h.audio._voices.size <= 96);
+        if (i === 160) {
+          // Compare emitted pitches/timbres, not metadata or BPM alone.
+          const tones = h.contexts[0].sources.slice(firstSource).filter(source => source.type);
+          signatures.add(JSON.stringify(tones.slice(0, 36).map(source => [source.type, source.frequency.events.find(event => event.kind === 'set').value])));
+        }
+        if (h.audio._step < previous) wrapped = true;
+        previous = h.audio._step;
+      }
+      assert.ok(wrapped, id + ' completes its own 32-bar composition');
+    }
+    assert.equal(signatures.size, ids.length, 'all identities produce different musical phrases');
+    h.audio.dispose();
+  });
+
+  await test('boss identity and phase transitions replace the score without duplicating timers or cutting effects', async () => {
+    const h = harness(); await h.audio.setEnabled(true);
+    h.audio.setScene({ combat: true, boss: true, bossId: 'npc-merchant', phase: 1 }); h.advance(0.1);
+    assert.equal(h.audio.getTrackInfo().bossId, 'merchant');
+    h.audio.sfx('bossIntro');
+    let voices = [...h.audio._voices], music = voices.filter(v => v.channel === 'music'), effects = voices.filter(v => v.channel === 'sfx');
+    const musicStops = music.map(v => v.source.stopTime), effectStops = effects.map(v => v.source.stopTime);
+    const tempo = h.audio.getTrackInfo().tempo;
+    h.audio.setScene({ bossId: 'merchant', phase: 1 });
+    assert.deepEqual(music.map(v => v.source.stopTime), musicStops, 'rendering the same scene does not restart music');
+    h.audio.setScene({ phase: 2 });
+    assert.equal(h.audio.getTrackInfo().tempo, tempo + 16); assert.equal(h.audio.getTrackInfo().phase, 2);
+    assert.ok(music.every(v => Math.abs(v.source.stopTime - 0.135) < 0.00001));
+    assert.deepEqual(effects.map(v => v.source.stopTime), effectStops);
+    assert.equal(h.timers.size, 1); assert.equal(h.contexts[0].resumeCalls, 1);
+    h.audio.setScene({ bossId: 'echo' });
+    assert.equal(h.audio.getTrackInfo().bossId, 'echo'); assert.equal(h.audio.getTrackInfo().phase, 1, 'new identity clears prior rage');
+    h.audio.setScene({ boss: false, combat: false, region: 1 });
+    assert.equal(h.audio.getTrackInfo().id, 'region-1'); assert.match(h.audio.themeName, /Library/);
+    h.audio.dispose();
+  });
+
+  await test('phase two adds musical pressure while all boss effects obey mute, pause and visibility', async () => {
+    const first = harness(), second = harness();
+    for (const [h, phase] of [[first, 1], [second, 2]]) {
+      h.audio.setScene({ combat: true, boss: true, bossId: 'king', phase });
+      await h.audio.setEnabled(true);
+      for (let i = 0; i < 100; i++) h.advance(0.025);
+    }
+    assert.ok(second.contexts[0].sources.length > first.contexts[0].sources.length, 'rage adds density as well as tempo');
+    first.audio.dispose(); second.audio.dispose();
+    const h = harness(), effects = ['bossIntro', 'bossPhase', 'bossDeath', 'playerDeath', 'echo'];
+    h.audio.setScene({ boss: true, bossId: 'lantern', phase: 2 });
+    for (const kind of effects) assert.equal(h.audio.sfx(kind), false);
+    assert.equal(h.contexts.length, 0, 'scene changes never create an audio context');
+    await h.audio.setEnabled(true);
+    for (const kind of effects) {
+      assert.equal(h.audio.sfx(kind), true); assert.equal(h.audio.sfx(kind), false);
+      h.advance(1);
+    }
+    h.audio.setScene({ paused: true, bossId: 'sentinel' });
+    for (const kind of effects) assert.equal(h.audio.sfx(kind), false);
+    h.advance(2); assert.equal(h.audio._voices.size, 0); assert.equal(h.timers.size, 0);
+    h.audio.setScene({ paused: false }); h.hidden(true);
+    for (const kind of effects) assert.equal(h.audio.sfx(kind), false);
+    h.hidden(false); await h.audio.setEnabled(false);
+    h.audio.setScene({ bossId: 'ferryman', phase: 2 });
+    assert.equal(h.timers.size, 0); assert.equal(h.audio.sfx('bossIntro'), false);
+    h.audio.dispose();
+  });
+
+  await test('missing or unknown boss identities use the regional boss score safely', async () => {
+    const h = harness();
+    h.audio.setScene({ region: 2, boss: true, bossId: 'unknown', phase: Infinity });
+    assert.equal(h.audio.getTrackInfo().bossId, 'king'); assert.equal(h.audio.getTrackInfo().phase, 1);
+    h.audio.setScene({ bossId: '__proto__' }); assert.equal(h.audio.getTrackInfo().bossId, 'king');
+    h.audio.setScene({ bossId: 'constructor' }); assert.equal(h.audio.getTrackInfo().bossId, 'king');
+    h.audio.setScene({ bossId: null, region: 0 }); assert.equal(h.audio.getTrackInfo().bossId, 'thorn');
+    h.audio.setScene({ boss: false, combat: false }); assert.equal(h.audio.getTrackInfo().id, 'region-0');
+    assert.equal(h.audio.getTrackInfo().tempo, h.window.DungeonAudio.THEMES[0].tempo);
+    assert.equal(h.contexts.length, 0); h.audio.dispose();
+  });
+
   await test('long clock gaps do not replay a backlog; effects are throttled', async () => {
     const h = harness(); await h.audio.setEnabled(true);
     assert.equal(h.audio.sfx('cast'), true); assert.equal(h.audio.sfx('cast'), false);

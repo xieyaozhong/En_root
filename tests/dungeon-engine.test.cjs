@@ -134,7 +134,7 @@ for(const seconds of [0,3,5,7]) {
   }
   assert.ok(guard<1000,'run always terminates');
   if(seconds<=5) assert.equal(run.status,'won',seconds+' second typing is completable');
-  if(run.status==='won') {assert.equal(run.stats.bossesDefeated,3);assert.equal(run.completedNodes,12);assert.equal(run.stats.enemiesDefeated,12);}
+  if(run.status==='won') {assert.equal(run.stats.bossesDefeated,3);assert.equal(run.completedNodes,18);assert.equal(run.stats.enemiesDefeated,18);}
   summaries.push({seconds,status:run.status,hp:run.player.hp,casts:run.stats.casts,elapsed:run.elapsed,relics:run.relics.length});
 }
 console.log('Dungeon engine checks passed. Balance:',JSON.stringify(summaries));

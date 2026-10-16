@@ -13,7 +13,11 @@
     { id: 'embers', type: 'lava', name: '餘燼環庭', description: '熔池持續灼傷停留者。從外環繞行，或用衝刺跨越短距離危險。', mutator: '持續灼燒' },
     { id: 'waves', type: 'waves', name: '回聲競技場', description: '敵人分三波出現。擊敗所有援軍才能開啟出口，利用空檔恢復專注。', mutator: '三波援軍' },
     { id: 'bridges', type: 'corridor', name: '雙橋密道', description: '長牆將場地分成窄橋。從兩端繞行，別讓蓄力衝撞封住退路。', mutator: '狹道走位' },
-    { id: 'spring', type: 'spring', name: '月露泉庭', description: '中央靈泉每三秒恢復 3 點生命；敵人的攻擊仍能穿過泉水。', mutator: '爭奪靈泉' }
+    { id: 'spring', type: 'spring', name: '月露泉庭', description: '中央靈泉每三秒恢復 3 點生命；敵人的攻擊仍能穿過泉水。', mutator: '爭奪靈泉' },
+    { id: 'tempest', type: 'wind', name: '風暴天橋', description: '兩側風牆交替掃過，金色箭頭預告風向。避開光帶，或逆風衝刺脫離。', mutator: '風牆推移' },
+    { id: 'meteor', type: 'meteor', name: '落星殘庭', description: '星隕會記住你停留的位置，稍後落下。看見圓形預警便移動，不要回到原點。', mutator: '追蹤星隕' },
+    { id: 'mirrors', type: 'mirrors', name: '稜鏡觀測所', description: '稜鏡依序掃出橫向、縱向光束。石柱提供掩體，預警線之間留有安全空隙。', mutator: '交錯光束' },
+    { id: 'eclipse', type: 'eclipse', name: '蝕月祭壇', description: '中央祭壇依序放出擴散月環。留在環與環之間，或趁預警衝過將爆發的月環。', mutator: '擴散月環' }
   ];
   var ACTOR_NAMES = { chaser: '逐光獵影', ranged: '符箭侍從', charger: '重甲破陣者' };
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -66,7 +70,10 @@
   function ensure(run) {
     if (!run || run.status !== 'combat' || !run.enemy) return null;
     var key = String(run.seed) + ':' + run.encounter + ':' + run.enemy.id;
-    if (run.arena && run.arena.version === 1 && run.arena.key === key) return run.arena;
+    if (run.arena && run.arena.version === 1 && run.arena.key === key) {
+      syncCompanions(run, run.arena);
+      return run.arena;
+    }
     var boss = run.enemy.kind === 'boss', roomIndex = (hash(run.seed) + run.encounter) % ROOMS.length;
     var room = Object.assign({}, ROOMS[roomIndex]);
     if (boss) room = { id: 'boss-' + run.enemy.id, type: 'boss', name: run.enemy.name + '・封印殿',
@@ -78,10 +85,12 @@
       enemies: [], obstacles: [], hazards: [], projectiles: [], effects: [], room: room, time: 0, realTime: 0,
       casts: 0, dodges: 0, dashes: 0, hitsTaken: 0, nextId: 1, roomClock: 2.5, roomPulse: 0, springClock: 0,
       slowTime: 0, focusActive: false, targetId: null, castRange: RANGE, wavesReleased: 1,
-      dashHeld: false, previousPhase: run.enemy.phase, lastPattern: null, patternCount: 0
+      dashHeld: false, previousPhase: run.enemy.phase, lastPattern: null, patternCount: 0,
+      introRemaining: boss ? 1.2 : 0, companions: [], echoQueue: []
     };
     if (room.id === 'pillars') a.obstacles = [rect('p1', 330, 130, 62, 66), rect('p2', 590, 130, 62, 66), rect('p3', 330, 355, 62, 66), rect('p4', 590, 355, 62, 66)];
     if (room.id === 'bridges') a.obstacles = [rect('wall1', 300, 170, 355, 40, 'wall'), rect('wall2', 300, 355, 355, 40, 'wall')];
+    if (room.id === 'mirrors') a.obstacles = [rect('prism1', 350, 150, 36, 46, 'prism'), rect('prism2', 590, 365, 36, 46, 'prism')];
     if (boss && run.enemy.id === 'witch') a.obstacles = [rect('mirror1', 410, 115, 44, 60), rect('mirror2', 410, 385, 44, 60)];
     if (room.id === 'embers') {
       hazard(a, { source: 'trap', x: 395, y: 190, r: 60, delay: 1.5, life: 100000, damage: 6, repeat: true, color: '#f08a55' });
@@ -104,7 +113,67 @@
       place(a, enemy, spots[i][0], spots[i][1]); a.enemies.push(enemy);
     }
     if (!run.difficulty) run.difficulty = 'standard';
+    syncCompanions(run, a);
+    if (boss) effect(a, 'boss-intro', a.enemies[0].x, a.enemies[0].y, { name: run.enemy.name, text: '封印解除', r: 130, life: 1.2, color: '#ffb27c' });
     updateTarget(a); return a;
+  }
+  function syncCompanions(run, a) {
+    var saved = Array.isArray(a.companions) ? a.companions : [];
+    a.companions = (Array.isArray(run.companions) ? run.companions : []).filter(function (c, index, list) {
+      return c && ['lantern', 'echo', 'sentinel'].indexOf(c.id) >= 0 && list.findIndex(function (other) { return other && other.id === c.id; }) === index;
+    }).slice(0, 3).map(function (c, i) {
+      var existing = saved.find(function (body) { return body.npcId === c.id; });
+      var body = Object.assign({ x: a.player.x - 36, y: a.player.y + (i - 1) * 26, r: 11, cooldown: c.id === 'echo' ? 0 : 2 + i, castFlash: 0 }, existing || {},
+        { id: 'companion-' + c.id, npcId: c.id, name: c.name, sprite: c.sprite || c.id, color: c.color || '#b9deff', role: c.role });
+      if (!Number.isFinite(body.x) || !Number.isFinite(body.y) || !validPosition(a, body, body.x, body.y)) place(a, body, a.player.x - 35, a.player.y);
+      return body;
+    });
+    if (!Array.isArray(a.echoQueue)) a.echoQueue = [];
+  }
+  function companionCast(a, companion, target, spellType, spellWord) {
+    companion.castFlash = 0.45;
+    effect(a, 'companion-cast', companion.x, companion.y, { fromX: companion.x, fromY: companion.y, targetX: target.x, targetY: target.y,
+      x2: target.x, y2: target.y, npcId: companion.npcId, spellType: spellType || 'attack', spellWord: spellWord || '', color: companion.color, life: 0.65 });
+  }
+  function advanceCompanions(run, a, dt) {
+    a.companions.forEach(function (c, index) {
+      var angle = Math.atan2(a.player.facingY, a.player.facingX) + Math.PI + (index - 1) * 0.7;
+      var destination = { x: a.player.x + Math.cos(angle) * 42, y: a.player.y + Math.sin(angle) * 42 };
+      var direction = unit(destination.x - c.x, destination.y - c.y), distance = dist(c, destination);
+      move(a, c, direction.x * Math.min(distance, 210 * dt), direction.y * Math.min(distance, 210 * dt));
+      // Reunite after a dash around a wall; companions never block actors or doors.
+      if (dist(c, a.player) > 185) place(a, c, a.player.x - 35, a.player.y);
+      c.castFlash = Math.max(0, c.castFlash - dt);
+      c.cooldown = Math.max(0, c.cooldown - dt);
+      if (run.status !== 'combat' || a.introRemaining > 0 || c.cooldown > 0) return;
+      if (c.npcId === 'lantern') {
+        var shield = Math.min(6, Math.max(0, 24 - run.player.shield));
+        c.cooldown = 8;
+        if (shield) { run.player.shield += shield; companionCast(a, c, a.player, 'shield'); effect(a, 'companion-shield', a.player.x, a.player.y, { r: 35, color: c.color, life: 0.7 }); }
+      } else if (c.npcId === 'sentinel') {
+        var target = targets(a, c).find(function (enemy) { return dist(enemy, c) <= 230; });
+        if (target) { c.cooldown = 4.5; companionCast(a, c, target, 'strike'); directDamage(run, a, target, 5 + Math.min(3, run.region)); }
+      }
+    });
+    a.echoQueue.forEach(function (echo) {
+      echo.delay -= dt;
+      if (echo.delay > 0 || echo.done || run.status !== 'combat') return;
+      echo.done = true;
+      var companion = a.companions.find(function (c) { return c.npcId === 'echo'; });
+      if (!companion) return;
+      if (echo.heal > 0 || echo.shield > 0) {
+        if (echo.heal > 0) Engine.healPlayer(run, echo.heal);
+        if (echo.shield > 0) run.player.shield += Math.min(echo.shield, Math.max(0, 90 - run.player.shield));
+        companionCast(a, companion, a.player, echo.spellType, echo.spellWord);
+      }
+      var target = targets(a, companion).find(function (enemy) { return enemy.id === echo.targetId && dist(enemy, companion) <= RANGE + enemy.r; }) ||
+        targets(a, companion).find(function (enemy) { return dist(enemy, companion) <= RANGE + enemy.r; });
+      if (!target || !(echo.damage > 0)) return;
+      var attackType = echo.spellType === 'heal' || echo.spellType === 'shield' ? 'attack' : echo.spellType;
+      companionCast(a, companion, target, attackType, echo.spellWord);
+      directDamage(run, a, target, echo.damage);
+    });
+    a.echoQueue = a.echoQueue.filter(function (echo) { return !echo.done && echo.delay > 0; });
   }
   function living(a) { return a.enemies.filter(function (e) { return e.alive && e.hp > 0; }); }
   function targets(a, origin) { return living(a).filter(function (e) { return e.active; }).sort(function (x, y) { return dist(x, origin || a.player) - dist(y, origin || a.player); }); }
@@ -112,7 +181,8 @@
   function hurtActor(a, actor, amount) {
     var actual = Math.min(actor.hp, amount); actor.hp -= actual; actor.hurt = 0.18;
     if (actor.hp <= 0) { actor.hp = 0; actor.alive = false; actor.telegraph = 0; actor.volley = null;
-      effect(a, 'death', actor.x, actor.y, { r: actor.r + 18, life: 0.65, color: '#a9e5d0' }); }
+      effect(a, 'death', actor.x, actor.y, { r: actor.r + 18, life: actor.kind === 'boss' ? 1.6 : 0.95, color: actor.kind === 'boss' ? '#ffbe83' : '#a9e5d0', boss: actor.kind === 'boss',
+        actor: { id: actor.id, npcId: actor.npcId, sprite: actor.sprite, kind: actor.kind, name: actor.name, x: actor.x, y: actor.y, r: actor.r, phase: actor.phase } }); }
     return actual;
   }
   function distribute(a, amount, first) {
@@ -132,11 +202,12 @@
   }
   function applyHit(run, a, amount, source) {
     var p = a.player;
-    if (p.invulnerable > 0 || run.status !== 'combat') return false;
+    if (p.invulnerable > 0 || a.introRemaining > 0 || run.status !== 'combat') return false;
     var result = Engine.damagePlayer(run, Math.max(1, Math.round(amount * difficulty(run).damage)), { drain: source && source.drain, name: source && source.source === 'trap' ? '地面陷阱' : run.enemy.name });
     if (!result.ok) return false;
     p.invulnerable = 0.75; a.hitsTaken += 1;
     effect(a, 'hit', p.x, p.y, { color: result.damage ? '#ff847a' : '#8ad6ff', life: 0.3, r: 22 });
+    if (run.status === 'lost') effect(a, 'death', p.x, p.y, { r: 34, life: 1.3, color: '#b8d5ff', actor: { id: 'player', kind: 'player', sprite: 'player', x: p.x, y: p.y, r: p.r } });
     if (result.restored > 0) {
       var recipient = a.enemies.find(function (e) { return e.id === source.ownerId; }) || living(a)[0];
       if (recipient) recipient.hp = Math.min(recipient.maxHp, recipient.hp + result.restored);
@@ -196,6 +267,35 @@
         mark({ kind: 'line', x: 70, y: 85, x2: 890, y2: 475, width: 60, delay: 1.4, life: 0.5 });
         mark({ kind: 'line', x: 70, y: 475, x2: 890, y2: 85, width: 60, delay: phase === 2 ? 1.65 : 2.2, life: 0.5 });
         if (phase === 2) mark({ kind: 'line', x: 70, y: 280, x2: 890, y2: 280, width: 48, delay: 2.1, life: 0.5 });
+      }
+    } else if (npc.id === 'lantern') {
+      if (turn % 2 === 0) {
+        [88, 168, phase === 2 ? 248 : 0].filter(Boolean).forEach(function (radius, index) {
+          mark({ kind: 'ring', x: boss.x, y: boss.y, r: radius, innerR: radius - 27, delay: 1.2 + index * 0.45, life: 0.42 });
+        });
+      } else {
+        for (var lantern = 0; lantern < (phase === 2 ? 4 : 3); lantern++) {
+          mark({ x: clamp(p.x + (lantern - 1) * 105, 100, 860), y: p.y, r: 48, delay: 1.25 + lantern * 0.3, life: 0.5 });
+        }
+        boss.volley = { delay: 1.3, radial: phase === 2 ? 16 : 10, rotation: turn * 0.41, damage: damage, color: npc.color, shape: 'lantern', speed: 110 };
+      }
+    } else if (npc.id === 'echo') {
+      if (turn % 2 === 0) {
+        // Echoes capture the player's location once, so walking beats the delayed copy.
+        mark({ kind: 'line', x: boss.x, y: boss.y, x2: p.x, y2: p.y, width: 42, delay: 1.2, life: 0.4 });
+        mark({ x: p.x, y: p.y, r: phase === 2 ? 90 : 65, delay: 1.95, life: 0.4 });
+      } else {
+        [-95, 95].forEach(function (offset, index) {
+          mark({ kind: 'line', x: 65, y: clamp(p.y + offset, 95, 455), x2: 895, y2: clamp(p.y - offset, 95, 455), width: phase === 2 ? 45 : 30, delay: 1.25 + index * 0.45, life: 0.45 });
+        });
+        if (phase === 2) mark({ x: p.x, y: p.y, r: 54, delay: 2.25, life: 0.4 });
+      }
+    } else if (npc.id === 'sentinel') {
+      if (turn % 2 === 0) {
+        [235, 480, 725].forEach(function (x, index) { mark({ kind: 'line', x: x, y: 70, x2: x, y2: 490, width: phase === 2 ? 62 : 42, delay: 1.15 + index * 0.3, life: 0.4 }); });
+      } else {
+        mark({ kind: 'line', x: boss.x, y: boss.y, x2: p.x, y2: p.y, width: phase === 2 ? 86 : 60, delay: 1.4, life: 0.5, damage: damage + 3 });
+        boss.volley = { delay: 1.45, radial: phase === 2 ? 18 : 12, rotation: turn * 0.27, damage: damage, color: npc.color, shape: 'paper', speed: 135 };
       }
     } else if (npc.id === 'cartographer') {
       if (turn % 2 === 0) {
@@ -290,6 +390,35 @@
       hazard(a, { kind: 'rect', source: 'trap', x: vertical ? 435 : 55, y: vertical ? 65 : 250,
         w: vertical ? 90 : 850, h: vertical ? 425 : 60, delay: 1.3, life: 0.4, damage: 10 + run.region * 2 });
     }
+    if (a.room.id === 'tempest' && a.roomClock <= 0) {
+      a.roomClock += 5.2; a.roomPulse += 1;
+      var fromLeft = a.roomPulse % 2 === 1;
+      hazard(a, { kind: 'rect', source: 'trap', x: fromLeft ? 65 : 520, y: 65, w: 375, h: 425,
+        delay: 1.5, life: 1.15, repeat: true, damage: 5 + run.region, pushX: fromLeft ? 95 : -95, color: '#89dbe8' });
+    }
+    if (a.room.id === 'meteor' && a.roomClock <= 0) {
+      a.roomClock += 4.3; a.roomPulse += 1;
+      for (var star = 0; star < 3; star++) {
+        var angle = a.roomPulse * 1.7 + star * Math.PI * 2 / 3;
+        hazard(a, { source: 'trap', x: clamp(a.player.x + Math.cos(angle) * star * 68, 100, 860), y: clamp(a.player.y + Math.sin(angle) * star * 68, 110, 450),
+          r: 46 + star * 5, delay: 1.3 + star * 0.35, life: 0.35, damage: 9 + run.region * 2, color: '#ffc27f' });
+      }
+    }
+    if (a.room.id === 'mirrors' && a.roomClock <= 0) {
+      a.roomClock += 5.4; a.roomPulse += 1;
+      var cross = a.roomPulse % 2 === 0;
+      [180, 375].forEach(function (y, index) {
+        hazard(a, { kind: 'line', source: 'trap', x: cross ? 280 + index * 390 : 65, y: cross ? 65 : y,
+          x2: cross ? 280 + index * 390 : 895, y2: cross ? 490 : y, width: 34, delay: 1.4 + index * 0.4, life: 0.6, damage: 9 + run.region * 2, color: '#c5a3ff' });
+      });
+    }
+    if (a.room.id === 'eclipse' && a.roomClock <= 0) {
+      a.roomClock += 6.2; a.roomPulse += 1;
+      [90, 180, 270].forEach(function (radius, index) {
+        hazard(a, { kind: 'ring', source: 'trap', x: 480, y: 280, r: radius, innerR: radius - 25,
+          delay: 1.25 + index * 0.6, life: 0.4, damage: 10 + run.region * 2, color: '#e0b4ff' });
+      });
+    }
     if (a.room.spring) {
       a.springClock = Math.max(0, a.springClock - dt);
       if (dist(a.player, a.room.spring) <= a.room.spring.r && a.springClock <= 0) {
@@ -322,7 +451,7 @@
     }
     if (e.kind === 'boss') {
       // Boss movement is slow and readable; the dangerous part is its telegraphed pattern.
-      if (d > 260) move(a, e, direction.x * 24 * dt * motionScale, direction.y * 24 * dt * motionScale);
+      if (d > 260) move(a, e, direction.x * (e.phase === 2 ? 34 : 24) * dt * motionScale, direction.y * (e.phase === 2 ? 34 : 24) * dt * motionScale);
       e.cooldown -= dt;
       if (e.cooldown <= 0 && d < 76) { e.cooldown = 3; hazard(a, { x: e.x, y: e.y, r: 67, delay: 0.9, damage: 10 + run.region * 3, source: 'boss', ownerId: e.id }); }
       return;
@@ -369,6 +498,8 @@
     a.hazards.forEach(function (h) {
       if (h.delay > 0) { h.delay = Math.max(0, h.delay - dt); return; }
       h.life -= dt;
+      if (h.pushX && contains(h, a.player) && a.player.dashTime <= 0) move(a, a.player, h.pushX * dt, 0);
+      if (!h.impactShown && !h.cosmetic) { h.impactShown = true; effect(a, 'impact', h.x, h.y, { r: h.r || 26, color: h.color, life: 0.4 }); }
       if (!h.cosmetic && (!h.hit || h.repeat) && contains(h, a.player)) {
         if (a.player.invulnerable > 0) countDodge(a, h);
         else if (applyHit(run, a, h.damage, h) && !h.repeat) h.hit = true;
@@ -405,6 +536,7 @@
     else p.focusEnergy = Math.min(100, p.focusEnergy + dt * 25);
     var worldDt = dt * (a.focusActive ? 0.18 : 1);
     a.realTime += dt; a.time += worldDt;
+    a.introRemaining = Math.max(0, (a.introRemaining || 0) - dt);
     run.elapsed += dt; run.stats.elapsed = run.elapsed; run.spell.elapsed += dt;
     p.invulnerable = Math.max(0, p.invulnerable - dt); p.dashCooldown = Math.max(0, p.dashCooldown - dt);
     var ix = Number(input.x) || 0, iy = Number(input.y) || 0, magnitude = Math.hypot(ix, iy);
@@ -432,8 +564,18 @@
     if (run.enemy.phase !== a.previousPhase) {
       a.previousPhase = run.enemy.phase;
       a.projectiles = []; a.hazards = a.hazards.filter(function (h) { return h.source === 'trap'; });
-      effect(a, 'phase', a.enemies[0].x, a.enemies[0].y, { r: 95, life: 0.9, color: '#ffd3a0' });
+      effect(a, 'phase', a.enemies[0].x, a.enemies[0].y, { name: run.enemy.name + ' · 第二階段', text: '第二階段 · 封印崩解', r: 120, life: 1.3, color: '#ffd3a0' });
+      if (run.enemy.kind === 'boss') {
+        var phaseBoss = a.enemies[0];
+        phaseBoss.volley = null;
+        [115, 215].forEach(function (radius, index) { hazard(a, { kind: 'ring', source: 'boss', ownerId: phaseBoss.id,
+          x: phaseBoss.x, y: phaseBoss.y, r: radius, innerR: radius - 25, delay: 1.3 + index * 0.5, life: 0.4,
+          damage: 9 + run.region * 2, color: '#ffd3a0' }); });
+        run.enemy.intent.remaining = Math.max(2.7, run.enemy.intent.remaining);
+      }
     }
+    advanceCompanions(run, a, worldDt);
+    if (run.status !== 'combat') { updateTarget(a); return a; }
     advanceRoom(run, a, worldDt);
     a.enemies.forEach(function (e) { if (run.status === 'combat') enemyAI(run, a, e, worldDt, motionScale); });
     run.enemy.intent.remaining = Math.max(0, run.enemy.intent.remaining - worldDt);
@@ -449,12 +591,23 @@
     if (!target) return { ok: false, message: '下一波敵人正在進場，利用空檔移動與恢復專注。' };
     if (dist(target, a.player) > RANGE + target.r) return { ok: false, message: '敵人超出咒語射程，先靠近再施法。' };
     var type = run.spell.type, word = run.spell.word, result = Engine.submit(run, text, { damageLimit: possible.reduce(function (sum, e) { return sum + e.hp; }, 0) });
-    if (!result.ok) return result;
+    if (!result.ok) {
+      if (run.status === 'lost') effect(a, 'death', a.player.x, a.player.y, { r: 34, life: 1.3, color: '#b8d5ff',
+        actor: { id: 'player', kind: 'player', sprite: 'player', x: a.player.x, y: a.player.y, r: a.player.r } });
+      return result;
+    }
     a.casts += 1;
     var facing = unit(target.x - a.player.x, target.y - a.player.y); a.player.facingX = facing.x; a.player.facingY = facing.y;
     effect(a, 'cast', a.player.x, a.player.y, { x2: target.x, y2: target.y, targetId: target.id,
-      spellType: type, color: type === 'heal' ? '#88e7bf' : type === 'shield' ? '#89d6ff' : type === 'signature' ? '#f8d294' : '#c2a3ff', life: 0.45 });
+      spellType: type, spellWord: word, color: type === 'heal' ? '#88e7bf' : type === 'shield' ? '#89d6ff' : type === 'signature' ? '#f8d294' : '#c2a3ff', life: 0.45 });
     distribute(a, result.damage || 0, target);
+    var echo = a.companions.find(function (c) { return c.npcId === 'echo' && c.cooldown <= 0; });
+    if (echo && run.status === 'combat') {
+      echo.cooldown = 2.5;
+      a.echoQueue.push({ delay: 0.65, targetId: target.id, spellType: type, spellWord: word,
+        damage: result.damage > 0 ? clamp(Math.round(result.damage * 0.3), 3, 12) : 0,
+        heal: clamp(Math.round((result.heal || 0) * 0.3), 0, 8), shield: clamp(Math.round((result.shield || 0) * 0.3), 0, 8) });
+    }
     if (has(run, 'starlace') && run.status === 'combat') {
       var chained = targets(a, target).find(function (e) { return e.id !== target.id && dist(e, target) <= 180 + e.r; });
       if (chained) { var extra = directDamage(run, a, chained, 8); result.damage += extra;

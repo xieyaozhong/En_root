@@ -178,10 +178,11 @@ assert.equal(healer.status, 'npc');
 assert.equal(Explore.act(healer, 'helpNpc').ok, false, 'NPC help is single-use');
 assert.equal(Explore.act(healer, 'challengeNpc', Engine.NPCS.healer.challengeWord).ok, false, 'help and challenge are exclusive');
 Explore.close(healer);
+assert.ok(Explore.ensure(healer).objects.some(o => o.id === 'npc-healer'), 'ordinary helped travelers remain at their meeting place');
 approach(healer, 'exit');
 assert.equal(Explore.interact(healer).ok, true);
 assert.equal(healer.status, 'route');
-for (const npcId of ['merchant', 'healer', 'smith', 'cartographer', 'ferryman']) {
+for (const npcId of Object.keys(Engine.NPCS)) {
   const state = npcId === 'merchant' ? room('shop') : room('npc', npcId);
   assert.equal(Explore.act(state, 'challengeNpc', Engine.NPCS[npcId].challengeWord).ok, false);
   openPerson(state);
@@ -193,5 +194,37 @@ for (const npcId of ['merchant', 'healer', 'smith', 'cartographer', 'ferryman'])
   assert.equal(state.enemy.npcId, npcId);
   assert.equal(Explore.ensure(state), null);
 }
+
+for (const npcId of ['lantern', 'echo', 'sentinel']) {
+  const recruitment = room('npc', npcId);
+  openPerson(recruitment);
+  assert.equal(Explore.act(recruitment, 'helpNpc').ok, true);
+  const beforeClose = Explore.ensure(recruitment);
+  assert.equal(beforeClose.dialogId, 'npc-' + npcId, 'recruitment keeps its result conversation open');
+  assert.ok(beforeClose.objects.some(o => o.id === 'npc-' + npcId), 'current conversation remains available for review');
+  assert.equal(beforeClose.companions.filter(c => c.npcId === npcId).length, 1);
+  assert.equal(Explore.close(recruitment).ok, true);
+  const afterClose = Explore.ensure(recruitment);
+  assert.deepEqual(afterClose.objects.map(o => o.id), ['exit'], 'closing a recruitment removes the stationary copy');
+  assert.equal(afterClose.companions.filter(c => c.npcId === npcId).length, 1, 'the recruited companion remains in the travelling party');
+  const afterReload = Explore.ensure(JSON.parse(JSON.stringify(recruitment)));
+  assert.deepEqual(afterReload.objects.map(o => o.id), ['exit'], 'resume cannot recreate a stationary recruited NPC');
+  approach(recruitment, 'exit');
+  assert.equal(Explore.interact(recruitment).ok, true);
+  assert.equal(recruitment.status, 'route');
+}
+
+// Recruited followers appear in safe rooms, follow without becoming an interaction target, and resume.
+const escort = run();
+escort.companions = ['lantern', 'echo', 'sentinel'].map(id => ({ id, name: Engine.NPCS[id].name, sprite: id, role: Engine.NPCS[id].companionRole, color: Engine.NPCS[id].color }));
+const escortArea = Explore.ensure(escort), escortX = escortArea.companions[0].x;
+for (let frame = 0; frame < 12; frame++) Explore.update(escort, .1, { x: 1 });
+assert.ok(escortArea.companions[0].x > escortX);
+assert.equal(escortArea.companions.length, 3);
+assert.ok(escortArea.companions.every(c => !escortArea.objects.some(o => o.id === c.id)), 'followers never block interaction targeting');
+const escortResume = JSON.parse(JSON.stringify(escort));
+Explore.update(escort, .1, { y: -1 }); Explore.update(escortResume, .1, { y: -1 });
+assert.deepEqual(escortResume, escort, 'safe-room followers resume without snapping to initial positions');
+escort.companions = []; Explore.ensure(escort); assert.equal(escortArea.companions.length, 0, 'removed companions cannot survive as stale save data');
 
 console.log('Exploration: movement, collision, proximity, route/loot/camp, shop/NPC dialogue, challenges, and save restoration passed.');

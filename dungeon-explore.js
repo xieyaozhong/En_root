@@ -22,7 +22,7 @@
     return Array.from({ length: length }, function (_, i) { return 200 + i * 560 / (length - 1); });
   }
   function getNpc(run) { return typeof Engine.getNpc === 'function' ? Engine.getNpc(run) : null; }
-  function buildObjects(run, npc) {
+  function buildObjects(run, npc, exploration) {
     if (run.status === 'route') {
       var positions = slots(run.routes.length);
       return run.routes.map(function (route, i) {
@@ -46,7 +46,7 @@
     ];
     var merchant = run.status === 'shop';
     var person = npc || { id: merchant ? 'merchant' : 'traveler', name: merchant ? '流浪商人' : '旅人', description: '靠近並交談。', color: '#e8c57b' };
-    return [
+    var people = [
       object('npc-' + person.id, merchant ? 'merchant' : 'npc', person.name, person.description, 440, 210, {
         r: 28, color: person.color, icon: merchant ? '◆' : '✦', npcId: person.id, sprite: person.sprite || person.id, action: 'dialog'
       }),
@@ -54,6 +54,9 @@
         r: 30, color: '#a5c9ff', icon: '➜', action: merchant ? 'leaveShop' : 'leaveNpc'
       })
     ];
+    var recruited = !merchant && person.companionRole && Array.isArray(run.companions) && run.companions.some(function (companion) { return companion.id === person.id; });
+    // Keep the current conversation available until it is closed, then show only the following actor.
+    return recruited && (!exploration || exploration.dialogId !== 'npc-' + person.id) ? people.slice(1) : people;
   }
   function roomKey(run, npc) {
     return [run.status, run.encounter, run.currentRoute && run.currentRoute.id || '', npc && npc.id || '',
@@ -68,6 +71,28 @@
     });
     exploration.nearbyId = best ? best.id : null;
     return best;
+  }
+  function syncCompanions(run, exploration) {
+    var previous = Array.isArray(exploration.companions) ? exploration.companions : [];
+    exploration.companions = (Array.isArray(run.companions) ? run.companions : []).filter(function (c, index, list) {
+      return c && ['lantern', 'echo', 'sentinel'].indexOf(c.id) >= 0 && list.findIndex(function (other) { return other && other.id === c.id; }) === index;
+    }).slice(0, 3).map(function (c, index) {
+      var old = previous.find(function (body) { return body.npcId === c.id; });
+      return Object.assign({}, old || {}, { id: 'companion-' + c.id, npcId: c.id, name: c.name, role: c.role, sprite: c.sprite || c.id,
+        color: c.color || '#b9deff', r: 11, x: clamp(finite(old && old.x, exploration.player.x - 35 + index * 28), 44, 916),
+        y: clamp(finite(old && old.y, exploration.player.y + 35), 72, 498) });
+    });
+  }
+  function followCompanions(exploration, dt) {
+    var player = exploration.player;
+    exploration.companions.forEach(function (c, index) {
+      var angle = Math.atan2(player.facingY, player.facingX) + Math.PI + (index - 1) * 0.7;
+      var dx = player.x + Math.cos(angle) * 42 - c.x, dy = player.y + Math.sin(angle) * 42 - c.y, distance = Math.hypot(dx, dy);
+      var step = Math.min(distance, 210 * dt);
+      if (distance > 0) { c.x += dx / distance * step; c.y += dy / distance * step; }
+      if (Math.hypot(c.x - player.x, c.y - player.y) > 185) { c.x = player.x - 30; c.y = player.y + 25; }
+      c.x = clamp(c.x, 44, 916); c.y = clamp(c.y, 72, 498);
+    });
   }
   function ensure(run) {
     if (!run || STATES.indexOf(run.status) < 0) return null;
@@ -95,7 +120,8 @@
     exploration.dashes = Math.max(0, finite(exploration.dashes, 0));
     if (!Array.isArray(exploration.obstacles)) exploration.obstacles = [];
     // Build actions from current engine state instead of trusting serialized UI data.
-    exploration.objects = buildObjects(run, npc);
+    exploration.objects = buildObjects(run, npc, exploration);
+    syncCompanions(run, exploration);
     if (!exploration.objects.some(function (target) { return target.id === exploration.dialogId && (target.kind === 'merchant' || target.kind === 'npc'); })) exploration.dialogId = null;
     nearObject(exploration);
     return exploration;
@@ -147,6 +173,7 @@
     player.dashTime = Math.max(0, player.dashTime - dt);
     player.moving = player.x !== beforeX || player.y !== beforeY;
     exploration.time += dt;
+    followCompanions(exploration, dt);
     nearObject(exploration);
     return exploration;
   }
