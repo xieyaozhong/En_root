@@ -4,6 +4,7 @@ const Engine = require('../dungeon-engine.js');
 const Arena = require('../dungeon-arena.js');
 function combat(seed = 31, encounter = 0, difficulty = 'standard') {
   const run = Engine.createRun({ word: 'robot', zh: '機器人', rarity: 'N' }, true, seed);
+  run.nodesPerRegion = 4; // Exercise compatibility with already-running twelve-room expeditions.
   run.difficulty = difficulty;
   run.encounter = encounter; run.region = Math.floor(encounter / 4);
   if (encounter % 4 === 3) run.routes = [{ id: 'boss', type: 'boss', name: '首領' }];
@@ -145,6 +146,7 @@ assert.deepEqual({ hp: legacySave.player.hp, enemyHp: legacySave.enemy.hp, spell
 
 for (const shield of [0, 30]) {
   const drain = combat(41, 7); noAttacks(drain);
+  drain.arena.introRemaining = 0;
   drain.enemy.hp -= 80; drain.arena.enemies[0].hp -= 80; drain.player.shield = shield;
   const enemyBefore = drain.enemy.hp, playerBefore = drain.player.hp;
   drain.arena.hazards.push({ id: 'drain-hit', kind: 'circle', x: drain.arena.player.x, y: drain.arena.player.y,
@@ -194,5 +196,122 @@ while (!['won', 'lost'].includes(campaign.status) && guard++ < 600) {
     assert.equal(sumHp(campaign), campaign.enemy.hp);
   }
 }
-assert.equal(campaign.status, 'won'); assert.equal(campaign.stats.bossesDefeated, 3); assert.equal(campaign.completedNodes, 12);
-console.log('Arena checks passed: movement/collision, dodge, cooldown, focus exhaustion, six room mechanics, three boss patterns, damage synchronization, save resume, spatial boons, difficulty, and full campaign.');
+assert.equal(campaign.status, 'won'); assert.equal(campaign.stats.bossesDefeated, 3); assert.equal(campaign.completedNodes, 18);
+
+// Each new chamber creates avoidable hazards after its visible warning, with a real safe location.
+assert.equal(Arena.ROOMS.length, 10);
+for (const id of ['tempest', 'meteor', 'mirrors', 'eclipse']) {
+  const run = roomRun(id); noAttacks(run); advance(run, 2.55);
+  const hazards = run.arena.hazards.filter(h => h.source === 'trap');
+  assert.ok(hazards.length > 0, `${id} produces spatial hazards`);
+  assert.ok(hazards.every(h => h.delay > 1 && h.damage > 0), `${id} always warns before dealing damage`);
+  const danger = hazards[0], safe = JSON.parse(JSON.stringify(run));
+  run.arena.player.x = danger.kind === 'rect' ? danger.x + 70 : danger.kind === 'ring' ? danger.x + danger.r - 8 : danger.x;
+  run.arena.player.y = danger.kind === 'rect' ? danger.y + 60 : danger.y;
+  safe.arena.player.x = id === 'meteor' ? 860 : id === 'tempest' ? 480 : id === 'mirrors' ? 480 : 480;
+  safe.arena.player.y = id === 'meteor' ? 450 : 280;
+  const xBefore = run.arena.player.x;
+  advance(run, 2.5); advance(safe, 2.5);
+  assert.ok(run.player.hp < run.player.maxHp, `${id} hurts a player who remains in the warning`);
+  assert.equal(safe.player.hp, safe.player.maxHp, `${id} leaves a reachable safe space`);
+  if (id === 'tempest') assert.ok(run.arena.player.x > xBefore, 'active wind pushes actors in the announced direction');
+}
+
+function recruit(run, ids) {
+  run.companions = ids.map(id => ({ id, name: Engine.NPCS[id].name, sprite: id, color: Engine.NPCS[id].color, role: Engine.NPCS[id].companionRole }));
+  Arena.ensure(run); noAttacks(run); return run;
+}
+const followers = recruit(roomRun('spring'), ['lantern', 'echo', 'sentinel']);
+const followerX = followers.arena.companions[0].x;
+advance(followers, 1.2, { x: 1 });
+assert.ok(followers.arena.companions[0].x > followerX, 'companions visibly follow moving players');
+assert.equal(new Set(followers.arena.companions.map(c => c.npcId)).size, 3);
+const companionSave = JSON.parse(JSON.stringify(followers));
+advance(followers, 0.5, { y: -1 }); advance(companionSave, 0.5, { y: -1 });
+assert.deepEqual(companionSave, followers, 'companions resume positions and cooldowns deterministically');
+
+const lantern = recruit(roomRun('spring'), ['lantern']);
+advance(lantern, 2.1); assert.equal(lantern.player.shield, 6, 'lantern grants an actual shield');
+lantern.player.shield = 23; lantern.arena.companions[0].cooldown = 0; advance(lantern, 0.1);
+assert.equal(lantern.player.shield, 24, 'lantern support cannot stack beyond its 24-point limit');
+lantern.player.shield = 70; lantern.arena.companions[0].cooldown = 0; advance(lantern, 0.1);
+assert.equal(lantern.player.shield, 70, 'lantern never lowers an existing stronger shield');
+
+const sentinel = recruit(roomRun('spring'), ['sentinel']);
+sentinel.arena.player.x = 580; sentinel.arena.player.y = 280;
+sentinel.arena.companions[0].x = 600; sentinel.arena.companions[0].y = 280;
+sentinel.arena.companions[0].cooldown = 0;
+const sentinelHp = sentinel.enemy.hp; advance(sentinel, .1);
+assert.equal(sentinel.enemy.hp, sentinelHp - 5, 'sentinel applies bounded damage through the combat engine');
+assert.equal(sumHp(sentinel), sentinel.enemy.hp);
+assert.ok(sentinel.arena.effects.some(e => e.kind === 'companion-cast' && Number.isFinite(e.targetX)));
+const followerFinisher = recruit(roomRun('spring'), ['sentinel']);
+followerFinisher.arena.enemies.forEach((enemy, i) => { enemy.hp = i ? 0 : 3; enemy.alive = !i; });
+followerFinisher.enemy.hp = 3;
+followerFinisher.arena.player.x = 580;
+followerFinisher.arena.companions[0].x = 600; followerFinisher.arena.companions[0].y = 280; followerFinisher.arena.companions[0].cooldown = 0;
+advance(followerFinisher, .1);
+assert.equal(followerFinisher.status, 'reward', 'a follower final blow still grants the normal encounter reward');
+assert.equal(sumHp(followerFinisher), 0);
+
+const mimic = recruit(roomRun('spring'), ['echo']);
+mimic.arena.player.x = 530; mimic.arena.player.y = 280;
+assert.equal(Arena.cast(mimic, 'incorrect').ok, false);
+assert.equal(mimic.arena.echoQueue.length, 0, 'incorrect spells never trigger a copied spell');
+const mimicResult = Arena.cast(mimic, mimic.spell.word);
+assert.ok(mimicResult.ok); assert.equal(mimic.arena.echoQueue.length, 1);
+const afterCastHp = mimic.enemy.hp, castsBeforeEcho = mimic.stats.casts;
+advance(mimic, .5); assert.equal(mimic.enemy.hp, afterCastHp, 'copy visibly waits before striking');
+advance(mimic, .2); assert.ok(mimic.enemy.hp < afterCastHp);
+assert.equal(sumHp(mimic), mimic.enemy.hp); assert.equal(mimic.stats.casts, castsBeforeEcho, 'copy never submits or recursively copies a spell');
+assert.equal(mimic.arena.echoQueue.length, 0);
+const mimickedHp = mimic.enemy.hp; advance(mimic, 1);
+assert.equal(mimic.enemy.hp, mimickedHp, 'one successful spell produces one delayed copy');
+
+for (const type of ['heal', 'shield']) {
+  const support = recruit(roomRun('spring'), ['echo']);
+  support.arena.player.x = 530; support.player.hp -= 55;
+  support.spell = { word: 'ward', name: '測試咒語', type, power: 20, elapsed: 0 };
+  const copied = Arena.cast(support, 'ward'), hpBeforeCopy = support.player.hp, shieldBeforeCopy = support.player.shield;
+  advance(support, .7);
+  if (type === 'heal') assert.equal(support.player.hp, hpBeforeCopy + Math.round(copied.heal * .3), 'echo copies bounded healing');
+  else assert.equal(support.player.shield, shieldBeforeCopy + Math.round(copied.shield * .3), 'echo copies bounded shields');
+  const copyEffects = support.arena.effects.filter(e => e.kind === 'companion-cast');
+  assert.equal(copyEffects.length, 2, 'hybrid spells separate support and offensive copied effects');
+  const supportFx = copyEffects.find(e => e.spellType === type), attackFx = copyEffects.find(e => e.spellType === 'attack');
+  assert.ok(supportFx && attackFx);
+  assert.equal(supportFx.targetX, support.arena.player.x); assert.equal(supportFx.targetY, support.arena.player.y, 'copied healing or shield targets the player');
+  assert.notEqual(attackFx.targetX, support.arena.player.x, 'offensive component targets an enemy with an attack effect');
+  assert.equal(attackFx.spellWord, 'ward', 'offensive copy preserves the original spell word for elemental effects');
+}
+const emptyEcho = recruit(roomRun('spring'), ['echo']);
+emptyEcho.arena.player.x = 530; emptyEcho.enemy.shield = 70;
+emptyEcho.spell = { word: 'ward', name: '無傷咒語', type: 'shield', power: 20, elapsed: 0 };
+const blockedCopy = Arena.cast(emptyEcho, 'ward'); assert.equal(blockedCopy.damage, 0);
+advance(emptyEcho, .7);
+const emptyEffects = emptyEcho.arena.effects.filter(e => e.kind === 'companion-cast');
+assert.equal(emptyEffects.length, 1, 'zero-damage copied spell emits only its real support effect');
+assert.equal(emptyEffects[0].spellType, 'shield'); assert.equal(emptyEffects[0].targetX, emptyEcho.arena.player.x);
+const noOpEcho = recruit(roomRun('spring'), ['echo']);
+noOpEcho.arena.player.x = 530; noOpEcho.enemy.shield = 70;
+noOpEcho.spell = { word: 'spark', name: '無傷咒語', type: 'attack', power: 8, elapsed: 0 };
+assert.equal(Arena.cast(noOpEcho, 'spark').damage, 0); advance(noOpEcho, .7);
+assert.equal(noOpEcho.arena.effects.filter(e => e.kind === 'companion-cast').length, 0, 'zero-damage attack copy produces no fake enemy impact');
+
+const entrance = combat(4, 3); noAttacks(entrance);
+entrance.arena.hazards.push({ kind: 'circle', x: entrance.arena.player.x, y: entrance.arena.player.y, r: 100, delay: 0, life: 3, damage: 5, repeat: true });
+advance(entrance, 1.1); assert.equal(entrance.player.hp, entrance.player.maxHp, 'boss entrance cannot silently hurt the player');
+advance(entrance, .3); assert.ok(entrance.player.hp < entrance.player.maxHp, 'combat resumes after entrance immunity');
+const killed = roomRun('spring'); killed.player.power = 999; killed.arena.player.x = 540;
+Arena.cast(killed, killed.spell.word);
+assert.equal(killed.status, 'reward');
+assert.ok(killed.arena.effects.filter(e => e.kind === 'death').every(e => e.actor && e.actor.sprite && e.maxLife >= .9), 'dead actors remain as persistent visual snapshots');
+const playerDeath = roomRun('spring'); noAttacks(playerDeath); playerDeath.player.hp = 1;
+playerDeath.arena.hazards.push({ kind: 'circle', x: playerDeath.arena.player.x, y: playerDeath.arena.player.y, r: 50, delay: 0, life: .5, damage: 5 });
+advance(playerDeath, .1);
+assert.ok(playerDeath.arena.effects.some(e => e.kind === 'death' && e.actor.kind === 'player'), 'player defeat has its own death animation snapshot');
+const typoDeath = roomRun('spring'); typoDeath.player.hp = 1; typoDeath.arena.player.x = 530;
+assert.equal(Arena.cast(typoDeath, 'not-a-spell').ok, false);
+assert.equal(typoDeath.status, 'lost');
+assert.ok(typoDeath.arena.effects.some(e => e.kind === 'death' && e.actor.kind === 'player'), 'fatal spell mistakes also produce the player death snapshot');
+console.log('Arena checks passed: movement, ten room mechanics, boss phases, three follower roles, copied spells, death snapshots, save resume, and full eighteen-room campaign.');

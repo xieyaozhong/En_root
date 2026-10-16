@@ -107,7 +107,7 @@ class Element {
 }
 
 async function harness(active = null) {
-  const listeners = { document: {}, window: {} }, frames = [], calls = { updates:0, consumes:0, saves:0 }, doc = {};
+  const listeners = { document: {}, window: {} }, frames = [], calls = { updates:0, consumes:0, saves:0, sounds:[] }, doc = {};
   const documentRoot = new Element('root', doc); documentRoot.innerHTML = html;
   doc.body = documentRoot.querySelector('body'); doc.activeElement = doc.body; doc.hidden = false;
   doc.getElementById = id => documentRoot.querySelector('#' + id);
@@ -117,7 +117,8 @@ async function harness(active = null) {
   doc.dispatchEvent = event => {for(const fn of listeners.document[event.type] || [])fn(event);return !event.defaultPrevented;};
   let time = 1, run = active?.run || null, audioScene;
   class Audio {
-    setVolume() {} setScene(scene) { audioScene = scene; } async setEnabled(value) { return value; } sfx() {}
+    setVolume() {} setScene(scene) { audioScene = scene; } async setEnabled(value) { return value; } sfx(kind) {calls.sounds.push(kind);}
+    getTrackInfo() {return {name:audioScene?.boss?'Boss '+audioScene.bossId:'Forest',kind:audioScene?.boss?'boss':'exploration'};}
   }
   class Renderer { draw() {} burst() {} }
   const Storage = {
@@ -163,6 +164,7 @@ async function harness(active = null) {
   const h = await harness();
   h.$('difficultySelect').value = 'story'; h.$('difficultySelect').onchange({target:h.$('difficultySelect')});
   const run = await h.combat(); assert.equal(run.difficulty, 'story'); assert.equal(h.calls.consumes, 0, 'practice never consumes cards');
+  assert.equal(h.$('floorLabel').textContent,'01 / 18','new campaign length appears on the HUD');
   assert.equal(h.doc.activeElement, h.$('arena'), 'battle focuses the movement surface');
   const p = run.arena.player, startX = p.x;
   await h.key('KeyD'); h.tick(.1); assert.ok(p.x > startX, 'WASD reaches arena update');
@@ -319,6 +321,15 @@ async function harness(active = null) {
   merchant.$('npcChallengeInput').value='debt';merchant.$('npcChallengeForm').onsubmit({preventDefault(){}});
   assert.equal(merchant.run.status,'combat');assert.equal(merchant.run.enemy.npcId,'merchant');
   assert.equal(merchant.doc.activeElement,merchant.$('arena'),'typed NPC challenge returns control to battle');
+  assert.equal(merchant.audioScene.bossId,'merchant','NPC identity selects an independent score');
+  assert.equal(merchant.$('bossName').textContent,Engine.NPCS.merchant.name);
+  assert.equal(merchant.$('bossHealthBar').style.width,'100%');
+  await merchant.click('soundButton');
+  Engine.damageEnemy(merchant.run,Math.ceil(merchant.run.enemy.maxHp*.51),1);merchant.tick(.1);
+  assert.equal(merchant.audioScene.phase,2);assert.equal(merchant.$('bossBanner').dataset.phase,'2');
+  assert.ok(merchant.$('trackCaption').textContent.includes('狂怒變奏'));
+  assert.equal(merchant.calls.sounds.filter(s=>s==='bossPhase').length,1);
+  merchant.tick(.1);assert.equal(merchant.calls.sounds.filter(s=>s==='bossPhase').length,1,'phase cue fires once');
 
   const helper=await harness(encounter('healer'));await helper.click('continueRun');helper.tick(.1);
   helper.run.player.hp=30;helper.run.exploration.player.x=440;helper.run.exploration.player.y=270;helper.tick(.1);
@@ -327,6 +338,22 @@ async function harness(active = null) {
   await helper.key('Escape');assert.equal(helper.run.exploration.dialogId,null);assert.equal(helper.$('pauseOverlay').hidden,true);
   helper.run.exploration.player.x=795;helper.run.exploration.player.y=400;helper.tick(.1);await helper.key('KeyE');
   assert.equal(helper.run.status,'route');assert.equal(helper.run.encounter,1,'walking to NPC exit advances exactly one node');
+
+  for(const npcId of ['lantern','echo','sentinel']){
+    const ally=await harness(encounter(npcId));await ally.click('continueRun');
+    ally.run.exploration.player.x=440;ally.run.exploration.player.y=270;ally.tick(.1);await ally.key('KeyE');
+    assert.equal(ally.$('actionPanel').querySelector('[data-action="helpNpc"]').textContent,'邀請同行');
+    await ally.$('actionPanel').querySelector('[data-action="helpNpc"]').onclick();
+    assert.equal(ally.run.companions[0].id,npcId);
+    assert.equal(ally.$('partyStrip').hidden,false);assert.ok(ally.$('partyStrip').textContent.includes(Engine.NPCS[npcId].name.split('・').pop()));
+    assert.equal(ally.$('npcChallengeForm'),null,'recruiting commits to a peaceful encounter');
+    await ally.key('Escape');
+    ally.run.exploration.player.x=795;ally.run.exploration.player.y=400;ally.tick(.1);await ally.key('KeyE');
+    const snapshot=JSON.parse(JSON.stringify({run:ally.run,receipt:{id:'ally-entry',word:'robot'}}));
+    const restored=await harness(snapshot);await restored.click('continueRun');
+    assert.equal(restored.calls.consumes,0);assert.equal(restored.run.companions[0].id,npcId);
+    assert.equal(restored.run.exploration.companions[0].npcId,npcId,'companion actor reappears after resume');
+  }
 
   const formal = await harness(); const formalRun = await formal.combat(false);
   assert.equal(formal.calls.consumes,1,'formal admission consumes once');
@@ -339,5 +366,17 @@ async function harness(active = null) {
   await resumed.click('resumeButton'); const before = resumed.run.arena.player.x;
   await resumed.key('KeyD'); resumed.tick(.1); resumed.tick(.1);
   assert.ok(resumed.run.arena.player.x > before,'resumed save accepts movement');
+  const legacy=JSON.parse(JSON.stringify(saved));delete legacy.run.nodesPerRegion;delete legacy.run.companions;
+  const legacyUI=await harness(legacy);await legacyUI.click('continueRun');
+  assert.equal(legacyUI.$('floorLabel').textContent,'01 / 12','untagged saves keep original campaign length');
+  assert.equal(legacyUI.$('partyStrip').hidden,true);
+  const ending=await harness();await ending.combat();
+  ending.run.player.hp=1;ending.run.arena.player.x=420;await ending.click('chantButton');
+  ending.input('incorrect');await ending.$('spellForm').onsubmit({preventDefault(){}});
+  assert.equal(ending.run.status,'lost');
+  ending.doc.hidden=true;await ending.dispatch('document','visibilitychange');
+  ending.doc.hidden=false;await ending.dispatch('document','visibilitychange');
+  assert.equal(ending.$('pauseOverlay').hidden,true,'returning to a completed run never traps results behind an unusable pause screen');
+  assert.equal(ending.$('actionPanel').inert,false);assert.ok(ending.$('returnLobby'));
   console.log('UI integration checks passed: practice/formal admission, analog joystick and keyboard movement/dash, QTE typing/correction/composition/casting, long-press guards, pause/reset, NPC interactions, and saved-run resume.');
 })().catch(error => {console.error(error); process.exitCode = 1;});

@@ -52,6 +52,72 @@
   ];
   // Region order follows DungeonEngine: forest, library, then the throne.
   const THEMES = [COMPOSITIONS[1], COMPOSITIONS[0], COMPOSITIONS[2]];
+  // Each opponent has a separately written motif, harmony, percussion pattern,
+  // and timbre. These are original scores, not sped-up exploration tracks.
+  const BOSS_SCORES = {
+    thorn: {
+      name: '荊冠行刑曲', tonic: 38, tempo: 112, scale: [0, 1, 3, 5, 7, 8, 10], wave: 'sawtooth', cutoff: 1650,
+      harmony: [0, 0, 1, -2, 0, 3, 1, 0], kick: [0, 3, 8, 10], snare: [4, 12], pulse: [0, 0, 4, 1],
+      motifs: [[0, 0, 7, null, 1, 0, 4, null], [7, 6, 4, 1, 0, null, 0, 1], [3, 7, 8, 7, 4, 3, 1, null], [1, 0, null, 4, 1, 0, null, null]]
+    },
+    witch: {
+      name: '鏡月的雙重倒影', tonic: 42, tempo: 106, scale: [0, 2, 3, 6, 7, 9, 11], wave: 'sine', cutoff: 4200,
+      harmony: [0, 3, -1, 2, 0, 4, 2, -1], kick: [0, 7, 10], snare: [6, 14], pulse: [7, 2, 6, 3],
+      motifs: [[12, null, 8, 5, null, 8, 12, 11], [6, 9, null, 12, 9, null, 6, 5], [10, 7, 10, null, 13, 10, 7, null], [11, null, 8, 6, 5, 8, null, 0]]
+    },
+    king: {
+      name: '無名王的末日加冕', tonic: 33, tempo: 124, scale: [0, 2, 3, 5, 7, 8, 11], wave: 'square', cutoff: 2100,
+      harmony: [0, -2, 3, 4, 0, 3, -2, 4], kick: [0, 4, 8, 11, 14], snare: [4, 12], pulse: [0, 7, 4, 7],
+      motifs: [[7, 7, null, 11, 10, 7, 6, 4], [5, null, 9, 8, 7, 5, 4, null], [10, 12, 14, null, 12, 10, 7, 5], [8, 6, 4, 6, 7, null, 0, null]]
+    },
+    merchant: {
+      name: '契金與骰子的華爾滋', tonic: 45, tempo: 130, scale: [0, 2, 3, 5, 7, 8, 11], wave: 'square', cutoff: 3100,
+      harmony: [0, 2, 4, 1, 3, -1, 4, 0], kick: [0, 6, 12], snare: [3, 9, 15], pulse: [0, 4, 7, 2],
+      motifs: [[7, null, 11, 8, null, 6, 7, 9], [4, 8, 6, null, 10, 8, 6, 4], [9, 12, null, 11, 8, 5, null, 8], [6, 3, 6, 8, 7, null, 4, 0]]
+    },
+    healer: {
+      name: '白燼祈禱的逆流', tonic: 41, tempo: 102, scale: [0, 2, 4, 5, 7, 8, 10], wave: 'triangle', cutoff: 2400,
+      harmony: [0, 3, 1, -1, 0, 5, 3, -1], kick: [0, 8, 13], snare: [6, 14], pulse: [0, 2, 5, 4],
+      motifs: [[0, 4, null, 7, 9, null, 7, 5], [8, null, 5, 3, 1, 3, 5, null], [7, 10, 12, null, 10, 7, 8, 5], [4, null, 2, 1, 4, 2, 0, null]]
+    },
+    smith: {
+      name: '千錘的熔爐節拍', tonic: 36, tempo: 118, scale: [0, 2, 3, 5, 6, 8, 10], wave: 'sawtooth', cutoff: 1500,
+      harmony: [0, 0, 4, 1, -2, 0, 4, 0], kick: [0, 2, 8, 10, 14], snare: [4, 7, 12], pulse: [0, 0, 1, 4],
+      motifs: [[0, 7, 0, 7, null, 8, 4, null], [1, 1, 8, null, 4, 1, 0, 4], [4, 11, 8, 4, 11, 8, 4, null], [7, 4, 1, 0, 1, 4, 0, null]]
+    },
+    cartographer: {
+      name: '永無終點的星圖', tonic: 46, tempo: 126, scale: [0, 2, 4, 6, 7, 9, 10], wave: 'triangle', cutoff: 3600,
+      harmony: [0, 2, 4, 6, 1, 3, 5, 0], kick: [0, 5, 10, 14], snare: [7, 15], pulse: [0, 3, 6, 2],
+      motifs: [[0, 3, 6, 9, 12, null, 9, 6], [2, 5, 8, 11, null, 8, 5, 2], [7, 11, 8, 12, 9, null, 6, 10], [5, 8, 4, 7, 3, 6, 2, 0]]
+    },
+    ferryman: {
+      name: '冥河最後一趟船', tonic: 34, tempo: 98, scale: [0, 1, 3, 5, 7, 8, 10], wave: 'sine', cutoff: 1700,
+      harmony: [0, -2, 0, 1, 3, -2, 1, 0], kick: [0, 8], snare: [5, 13], pulse: [0, 4, 1, 4],
+      motifs: [[7, null, null, 5, 4, null, 1, 0], [5, null, 7, null, 8, 7, 5, null], [3, 4, null, 7, 4, null, 1, 3], [1, null, 0, null, 4, 1, 0, null]]
+    },
+    lantern: {
+      name: '引路燈的失控火花', tonic: 43, tempo: 134, scale: [0, 2, 4, 5, 7, 9, 11], wave: 'triangle', cutoff: 3800,
+      harmony: [0, 4, 3, 1, 5, 3, 4, 0], kick: [0, 6, 8, 14], snare: [4, 12, 15], pulse: [0, 4, 2, 7],
+      motifs: [[7, 9, 7, 11, null, 9, 12, 11], [8, 5, null, 10, 8, 5, 7, null], [12, 9, 7, 9, 12, 14, 12, 9], [11, 8, 6, null, 7, 9, 7, 0]]
+    },
+    echo: {
+      name: '回聲的逆寫咒語', tonic: 39, tempo: 122, scale: [0, 2, 3, 5, 7, 9, 10], wave: 'sine', cutoff: 4600,
+      harmony: [0, 2, -1, 3, 3, -1, 2, 0], kick: [0, 3, 7, 11], snare: [5, 13], pulse: [0, 7, 2, 5],
+      motifs: [[0, 4, 7, 9, 9, 7, 4, 0], [8, null, 5, 3, 3, 5, null, 8], [7, 10, null, 12, 12, null, 10, 7], [9, 7, 4, 1, 1, 4, 7, 0]]
+    },
+    sentinel: {
+      name: '碎誓守衛的最後進軍', tonic: 35, tempo: 114, scale: [0, 2, 3, 5, 7, 8, 10], wave: 'square', cutoff: 1800,
+      harmony: [0, 0, 3, -2, 4, 3, -2, 0], kick: [0, 4, 8, 12], snare: [2, 6, 10, 14], pulse: [0, 4, 0, 7],
+      motifs: [[7, null, 7, 4, 5, 7, null, 11], [8, 5, 3, null, 5, 8, 7, 5], [11, null, 10, 8, 7, 10, 8, null], [7, 5, 4, 2, 4, 7, 0, null]]
+    }
+  };
+  const REGION_BOSSES = ['thorn', 'witch', 'king'];
+  const bossKey = value => {
+    const id = typeof value === 'string' ? value.replace(/^npc-/, '') : '';
+    return Object.prototype.hasOwnProperty.call(BOSS_SCORES, id) ? id : '';
+  };
+  const scoreFor = scene => scene.boss ? BOSS_SCORES[scene.bossId] || BOSS_SCORES[REGION_BOSSES[scene.region]] : THEMES[scene.region];
+  const tempoFor = (scene, score) => score.tempo + (scene.boss ? scene.phase === 2 ? 16 : 0 : scene.combat ? 16 : 0);
   const MAX_VOICES = 96;
   const LOOKAHEAD = 0.12;
   const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
@@ -62,7 +128,7 @@
       this._enabled = false;
       this._disposed = false;
       this._volume = 0.55;
-      this._scene = { region: 0, combat: false, boss: false, paused: false, focus: false };
+      this._scene = { region: 0, combat: false, boss: false, bossId: '', phase: 1, paused: false, focus: false };
       this._context = null;
       this._nodes = [];
       this._voices = new Set();
@@ -81,7 +147,15 @@
     get enabled() { return this._enabled; }
     get volume() { return this._volume; }
     get supported() { return !!(global.AudioContext || global.webkitAudioContext); }
-    get themeName() { return THEMES[this._scene.region].name; }
+    get themeName() { return scoreFor(this._scene).name; }
+
+    getTrackInfo() {
+      const scene = this._scene, score = scoreFor(scene);
+      const id = scene.boss ? (BOSS_SCORES[scene.bossId] ? scene.bossId : REGION_BOSSES[scene.region]) : null;
+      return Object.freeze({ id: id ? 'boss-' + id : 'region-' + scene.region, name: score.name,
+        kind: scene.boss ? 'boss' : 'exploration', bossId: id, tempo: tempoFor(scene, score),
+        phase: scene.boss ? scene.phase : 1, bars: 32 });
+    }
 
     // Call directly from the sound toggle's click/tap handler. Construction,
     // scene changes, and sound effects never create or resume an audio context.
@@ -118,11 +192,14 @@
       for (const key of ['combat', 'boss', 'paused', 'focus']) {
         if (typeof scene[key] === 'boolean') next[key] = scene[key];
       }
+      if (typeof scene.bossId === 'string' || scene.bossId === null) next.bossId = bossKey(scene.bossId);
+      if (previous.bossId !== next.bossId || (!previous.boss && next.boss)) next.phase = 1;
+      if (Number.isFinite(scene.phase)) next.phase = scene.phase >= 2 ? 2 : 1;
       this._scene = next;
       // Focus means the player's limited chanting mode, not browser focus.
       // Keep the soundtrack playing while moving; soften it during typing.
       if (previous.focus !== next.focus && this._music) this._ramp(this._music.gain, next.focus ? 0.40 : 0.72, 0.12);
-      if (previous.region !== next.region) {
+      if (scoreFor(previous) !== scoreFor(next) || (next.boss && previous.phase !== next.phase)) {
         this._step = 0;
         this._nextTime = this._context ? this._context.currentTime + 0.055 : 0;
         this._stopVoices('music');
@@ -139,13 +216,15 @@
 
     sfx(kind) {
       if (!this._canPlay() || !this._playing) return false;
-      const aliases = { attack: 'cast', damage: 'hit', shield: 'heal', signature: 'cast' };
+      const aliases = { attack: 'cast', damage: 'hit', shield: 'heal', signature: 'cast',
+        boss_intro: 'bossIntro', boss_phase: 'bossPhase', boss_death: 'bossDeath', player_death: 'playerDeath' };
       kind = aliases[kind] || kind;
-      if (!['cast', 'dash', 'hit', 'heal', 'win', 'loot', 'error'].includes(kind)) return false;
+      if (!['cast', 'dash', 'hit', 'heal', 'win', 'loot', 'error', 'bossIntro', 'bossPhase', 'bossDeath', 'playerDeath', 'echo'].includes(kind)) return false;
       const now = this._context.currentTime + 0.008;
-      if (this._lastSfx[kind] !== undefined && now - this._lastSfx[kind] < (kind === 'win' ? 0.8 : 0.07)) return false;
+      const dramatic = ['win', 'bossIntro', 'bossPhase', 'bossDeath', 'playerDeath'].includes(kind);
+      if (this._lastSfx[kind] !== undefined && now - this._lastSfx[kind] < (dramatic ? 0.8 : 0.07)) return false;
       this._lastSfx[kind] = now;
-      const root = THEMES[this._scene.region].tonic + 24;
+      const root = scoreFor(this._scene).tonic + 24;
       if (kind === 'cast') {
         this._tone(root + 7, now, 0.10, { channel: 'sfx', wave: 'square', gain: 0.065, slide: root + 19, cutoff: 3600 });
         this._tone(root + 12, now + 0.035, 0.16, { channel: 'sfx', wave: 'triangle', gain: 0.06 });
@@ -161,6 +240,22 @@
       } else if (kind === 'win') {
         [0, 7, 12, 15, 19, 24].forEach((note, i) => this._tone(root + note, now + i * 0.105, 0.42, { channel: 'sfx', wave: 'triangle', gain: 0.08 }));
         [0, 3, 7].forEach(note => this._tone(root + note, now + 0.52, 0.85, { channel: 'sfx', wave: 'sine', gain: 0.045, attack: 0.025 }));
+      } else if (kind === 'bossIntro' || kind === 'bossPhase') {
+        const enraged = kind === 'bossPhase';
+        this._noise(now, 0.55, 0.08, enraged ? 2100 : 1100, 'sfx', 'lowpass');
+        [0, 1, 7].forEach((note, i) => this._tone(root - 24 + note, now + i * 0.045, 0.75, {
+          channel: 'sfx', wave: 'sawtooth', gain: 0.035, cutoff: 850, slide: root - 25 + note }));
+        (enraged ? [0, 7, 12, 13] : [7, 3, 0]).forEach((note, i) => this._tone(root + note, now + 0.12 + i * 0.1, 0.4, {
+          channel: 'sfx', wave: 'triangle', gain: 0.05, cutoff: 1800 }));
+      } else if (kind === 'bossDeath' || kind === 'playerDeath') {
+        const fallen = kind === 'playerDeath';
+        this._noise(now, fallen ? 0.6 : 0.9, 0.085, 1000, 'sfx', 'lowpass');
+        this._tone(root - 12, now, 0.8, { channel: 'sfx', wave: 'sawtooth', gain: 0.055, cutoff: 850, slide: root - 36 });
+        (fallen ? [12, 7, 3, 0, -1] : [19, 15, 12, 7, 0]).forEach((note, i) => this._tone(root + note, now + i * 0.11, 0.45, {
+          channel: 'sfx', wave: fallen ? 'triangle' : 'sine', gain: 0.05, pan: i % 2 ? 0.15 : -0.15 }));
+      } else if (kind === 'echo') {
+        [0, 0.1, 0.2].forEach((delay, i) => this._tone(root + 12 + i * 7, now + delay, 0.25, {
+          channel: 'sfx', wave: 'sine', gain: 0.065 / (i + 1), pan: i % 2 ? 0.3 : -0.3, slide: root + 19 + i * 7 }));
       } else {
         this._tone(root, now, 0.12, { channel: 'sfx', wave: 'triangle', gain: 0.075 });
         this._tone(root - 1, now + 0.13, 0.17, { channel: 'sfx', wave: 'triangle', gain: 0.065 });
@@ -352,12 +447,68 @@
       if (this._nextTime < now - 0.2) this._nextTime = now + 0.035;
       let scheduled = 0;
       while (this._nextTime < now + LOOKAHEAD && scheduled++ < 16) {
-        const theme = THEMES[this._scene.region];
-        const tempo = theme.tempo + (this._scene.boss ? 28 : this._scene.combat ? 16 : 0);
+        const theme = scoreFor(this._scene);
+        const tempo = tempoFor(this._scene, theme);
         const sixteenth = 60 / tempo / 4;
-        this._playStep(theme, this._step, this._nextTime, sixteenth);
+        if (this._scene.boss) this._playBossStep(theme, this._step, this._nextTime, sixteenth);
+        else this._playStep(theme, this._step, this._nextTime, sixteenth);
         this._step = (this._step + 1) % 512; // Four eight-bar movements.
         this._nextTime += sixteenth;
+      }
+    }
+
+    _playBossStep(score, step, when, unit) {
+      const bar = Math.floor(step / 16), tick = step % 16, movement = Math.floor(bar / 8);
+      const root = score.harmony[bar % score.harmony.length], enraged = this._scene.phase === 2;
+      const degree = (note, octave) => this._degree(score, note, octave);
+      // A low sustained chord and independently patterned bass make the room
+      // feel heavier without increasing the overall output level.
+      if (tick === 0) {
+        [root, root + 2, root + 4].forEach((note, i) => this._tone(degree(note, 1), when, unit * 15.5, {
+          wave: 'triangle', gain: 0.014, attack: 0.055, cutoff: 1000,
+          detune: i === 1 ? 4 : -2, pan: (i - 1) * 0.2, release: unit * 3
+        }));
+      }
+      if (tick % 4 === 0 || (enraged && tick % 4 === 2)) {
+        const note = root + score.pulse[Math.floor(tick / 4)];
+        this._tone(degree(note, 0), when, unit * (enraged ? 1.5 : 2.8), {
+          wave: 'triangle', gain: 0.075, cutoff: 700, release: unit * 0.7
+        });
+      }
+      if (tick % 2 === 0) {
+        const motif = score.motifs[bar % score.motifs.length];
+        const note = motif[tick / 2];
+        if (note !== null) {
+          const reprise = movement === 3 && tick < 8 ? 7 : 0;
+          this._tone(degree(note + reprise, 2), when, unit * (tick === 14 ? 1.8 : 1.55), {
+            wave: score.wave, gain: score.wave === 'sine' || score.wave === 'triangle' ? 0.065 : 0.034,
+            cutoff: score.cutoff, pan: -0.16, release: unit * 0.65
+          });
+          // The second movement answers the melody; phase two keeps that
+          // countervoice active through the entire loop.
+          if (movement === 2 || enraged) this._tone(degree(note - 7, 2), when + unit * 0.65, unit * 1.1, {
+            wave: 'sine', gain: 0.023, cutoff: 2800, pan: 0.26, release: unit * 0.6
+          });
+        }
+      }
+      if (tick % 2 === 1 || enraged) {
+        this._tone(degree(root + score.pulse[tick % 4], 2), when, unit * 0.62, {
+          wave: 'square', gain: enraged ? 0.013 : 0.01, cutoff: score.cutoff * 0.65,
+          pan: 0.2, release: unit * 0.3
+        });
+      }
+      if (score.kick.includes(tick) || (enraged && tick === 15)) {
+        this._tone(41, when, 0.18, { wave: 'sine', gain: 0.13, slide: 25, release: 0.14 });
+      }
+      if (score.snare.includes(tick)) {
+        this._noise(when, 0.13, 0.055, score.cutoff * 0.7);
+        this._tone(50, when, 0.08, { wave: 'triangle', gain: 0.03, slide: 43 });
+      }
+      if (tick % 2 === 0 || enraged) this._noise(when, tick % 4 === 2 ? 0.065 : 0.035, tick % 2 ? 0.008 : 0.018, 6200);
+      if (bar % 8 === 7 && tick >= 13) {
+        this._tone(46 - (tick - 13) * 2, when, unit * 0.75, {
+          wave: 'sine', gain: 0.065, slide: 34 - (tick - 13) * 2
+        });
       }
     }
 
@@ -428,5 +579,8 @@
   }
 
   DungeonAudio.THEMES = Object.freeze(THEMES.map(theme => Object.freeze({ name: theme.name, bars: 32, tempo: theme.tempo })));
+  DungeonAudio.BOSS_THEMES = Object.freeze(Object.keys(BOSS_SCORES).map(id => Object.freeze({
+    id: 'boss-' + id, bossId: id, name: BOSS_SCORES[id].name, tempo: BOSS_SCORES[id].tempo, bars: 32
+  })));
   global.DungeonAudio = DungeonAudio;
 })(window);

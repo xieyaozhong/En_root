@@ -17,6 +17,7 @@
   let chanting = false, dashQueued = false, chosenDifficulty = 'standard';
   const heldKeys = new Set(), keyTimes = new Map(), tapPulses = new Map();
   let joystick=null, previousTyped='', qtePulseUntil=0, castFeedbackUntil=0;
+  let partySignature='', presentationRun=null, presentedCombat='', presentedPhase=0, presentedStatus='', lastEchoEffect='';
   const directionKeys = {KeyW:'up',ArrowUp:'up',KeyS:'down',ArrowDown:'down',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
   const difficultyNames = {story:'故事',standard:'標準',veteran:'試煉'};
   const explorationStatuses = ['route','shop','npc','camp','reward'];
@@ -29,7 +30,33 @@
     if(audioEnabled)soundtrack.sfx(['attack','shield','signature'].includes(kind)?'cast':kind==='damage'?'hit':kind);
   }
   function syncAudio() {
-    soundtrack.setScene({region:run?.region || 0,combat:run?.status==='combat',boss:run?.enemy?.kind==='boss' && run?.status==='combat',paused:paused || document.hidden,focus:chanting});
+    const isBoss=run?.enemy?.kind==='boss' && run?.status==='combat';
+    soundtrack.setScene({region:run?.region || 0,combat:run?.status==='combat',boss:isBoss,bossId:isBoss?(run.enemy.npcId || run.enemy.id):null,phase:run?.enemy?.phase || 1,paused:paused || document.hidden,focus:chanting});
+    const track=soundtrack.getTrackInfo?.();
+    if($('trackCaption'))$('trackCaption').textContent=track?`♫ ${track.name}${isBoss?' · 首領專屬'+(run.enemy.phase===2?' · 狂怒變奏':''):''}${audioEnabled?'':' · 點「配樂」開啟'}`:'';
+  }
+  function presentation() {
+    if(presentationRun!==run){presentationRun=run;presentedCombat='';presentedPhase=0;presentedStatus='';lastEchoEffect='';}
+    if(!run)return;
+    const key=run.arena?.key || `${run.encounter}:${run.enemy?.id}`,isBoss=run.enemy?.kind==='boss';
+    if(run.status==='combat'){
+      if(presentedCombat!==key){presentedCombat=key;presentedPhase=run.enemy.phase || 1;if(isBoss)tone('bossIntro');syncAudio();}
+      else if(presentedPhase!==run.enemy.phase){presentedPhase=run.enemy.phase;if(isBoss)tone('bossPhase');syncAudio();}
+      const echo=(run.arena?.effects || []).filter(f=>f.kind==='companion-cast' && (f.npcId==='echo' || f.role==='mimic')).at(-1);
+      if(echo && lastEchoEffect!==key+echo.id){lastEchoEffect=key+echo.id;tone('echo');}
+    }
+    if(presentedStatus!==run.status){
+      if(run.status==='lost')tone('playerDeath');
+      else if(presentedStatus==='combat' && ['reward','won'].includes(run.status) && isBoss)tone('bossDeath');
+      presentedStatus=run.status;
+    }
+  }
+  function renderParty() {
+    const companions=run?.companions || [],key=JSON.stringify(companions);
+    $('partyStrip').hidden=!companions.length;
+    if(key===partySignature)return;partySignature=key;
+    const roles={support:'守護',mimic:'模仿施法',guard:'迎擊'};
+    $('partyStrip').innerHTML='<span class="party-label">同行夥伴</span>'+companions.map(c=>`<span class="party-member" data-role="${esc(c.role)}" title="${esc(Engine.NPCS[c.id]?.helpDescription || '')}">${esc(Engine.NPCS[c.id]?.icon || '✦')} ${esc(c.name.split('・').pop())}<small>${esc(roles[c.role] || '同行')}</small></span>`).join('');
   }
   function clearMovement() {
     heldKeys.clear();keyTimes.clear();tapPulses.clear();dashQueued=false;joystick?.reset();
@@ -134,8 +161,8 @@
     $('modeLabel').textContent = '以單字喚醒魔法'; $('floorLabel').textContent = '尚未出發'; $('chapterLabel').textContent = 'CHAPTER I'; $('regionLabel').textContent = names[0];
     $('arenaCaption').hidden = false; $('arenaCaption').textContent='✧ 古老的文字，正在等待回聲。'; $('hpText').textContent = '120 / 120'; $('hpBar').style.width = '100%';
     $('shieldText').textContent = '0'; $('goldText').textContent = '0'; $('comboText').textContent = '× 0';
-    $('actionPanel').innerHTML = `<div class="action-heading"><h3>走位、閃避，讓文字化為力量</h3><span class="pill">動作遠征</span></div><p>穿過彈幕與地面陷阱，在敵人的破綻中詠唱。走近傳送門選路、與旅人交談，決定接受善意或展開挑戰。</p><div class="onboarding"><div><em>01 / MOVE</em><b>自由移動</b>WASD 或方向鍵<br>繞過敵人與掩體</div><div><em>02 / DASH</em><b>衝刺閃避</b>空白鍵瞬間位移<br>穿過危險彈幕</div><div><em>03 / CHANT</em><b>專注詠唱</b>Enter 放慢時間<br>打字釋放魔法</div></div>`;
-    renderDeparture(); journey();updateArenaHUD();syncAudio();
+    $('actionPanel').innerHTML = `<div class="action-heading"><h3>走位、閃避，讓文字化為力量</h3><span class="pill">動作遠征</span></div><p>穿越 18 個節點，在敵人的破綻中詠唱。邀請燈靈、回聲學徒與紙甲衛士同行，或向旅人提出首領挑戰。</p><div class="onboarding"><div><em>01 / MOVE</em><b>自由移動</b>WASD 或方向鍵<br>繞過敵人與掩體</div><div><em>02 / DASH</em><b>衝刺閃避</b>空白鍵瞬間位移<br>穿過危險彈幕</div><div><em>03 / CHANT</em><b>專注詠唱</b>Enter 放慢時間<br>打字釋放魔法</div></div>`;
+    renderDeparture(); journey();renderParty();updateArenaHUD();syncAudio();presentation();
   }
   function renderDeparture() {
     const collection = Storage.listOwned(cards), owned = collection.ok ? collection.cards : [];
@@ -190,6 +217,7 @@
     } finally {busy=false;}
   }
   function syncPause() {
+    if(run && ['won','lost'].includes(run.status) && !persistenceBroken)paused=false;
     $('pauseOverlay').hidden = !run || !paused;
     $('pauseButton').textContent = paused ? '▷' : 'Ⅱ'; $('pauseButton').setAttribute('aria-label',paused?'繼續遊戲':'暫停遊戲');
     $('resumeButton').disabled = persistenceBroken;
@@ -230,7 +258,7 @@
       const helped=!!run.npc?.helped;
       area.innerHTML=`<div class="action-heading"><div><span class="eyebrow">${esc(npc.title || '旅途相逢')}</span><h3>${esc(npc.name)}</h3></div><button id="conversationClose" class="secondary">Esc · 返回走位</button></div><p>${esc(npc.description)}</p>`+
         (run.status==='shop'?`<div class="shop-caption">${run.player.gold} 金幣 · 走到出口可離開商店</div>${choiceMarkup(run.shop || [],'buy')}`:
-        `<div class="npc-help"><b>${helped?'已接受幫助': '旅人的善意'}</b><p>${esc(npc.helpDescription)}</p><button class="primary" data-action="helpNpc" ${helped?'disabled':''}>${helped?'本次幫助已領取':'接受幫助'}</button></div>`)+
+        `<div class="npc-help"><b>${helped?(npc.companionRole?'已加入隊伍':'已接受幫助'):npc.companionRole?'邀請旅伴':'旅人的善意'}</b><p>${esc(npc.helpDescription)}</p><button class="primary" data-action="helpNpc" ${helped?'disabled':''}>${helped?(npc.companionRole?'正在同行':'本次幫助已領取'):(npc.companionRole?'邀請同行':'接受幫助')}</button></div>`)+
         (helped?'<p class="npc-peace">已選擇和平相助，這次相逢不再發起挑戰。返回場景後，走到出口繼續。</p>':
         `<form id="npcChallengeForm" class="npc-challenge" autocomplete="off"><div><b>挑戰 ${esc(npc.name)}</b><p>${esc(npc.challengeDescription || '將立即進入雙階段 Boss 戰；失敗會結束本次冒險。')}</p><p>勝利專屬戰利品：<strong>${esc(npc.lootName)}</strong></p><label for="npcChallengeInput">輸入 <code>${esc(npc.challengeWord)}</code>，向對方宣戰</label></div><div class="challenge-input-row"><input id="npcChallengeInput" name="challenge" aria-label="挑戰文字" placeholder="${esc(npc.challengeWord)}" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" maxlength="40"><button type="submit" class="secondary danger">發起 Boss 挑戰</button></div></form>`);
       $('conversationClose').onclick=closeConversation;
@@ -266,7 +294,7 @@
       renderExploration(area);
     } else {
       const won = run.status === 'won', stats=run.stats || {};
-      area.innerHTML = `<div class="action-heading"><h3 class="end-title">${won ? '三道封印，已被你解開。' : '火光熄滅，文字仍在。'}</h3></div><p>${won ? '你穿越了符文地牢。這段旅程的每個字，都成了你的力量。' : '這次冒險結束了。帶著記住的咒語，下次再走得更遠。'}${run.practice ? '（練習模式）' : ''}</p><div class="end-stats"><div><b>${Math.min(12,run.encounter+1)}</b><span>抵達關卡</span></div><div><b>${stats.casts ?? stats.correct ?? 0}</b><span>成功施法</span></div><div><b>${run.relics.length}</b><span>獲得遺物</span></div></div><button class="primary" id="returnLobby">回到地牢入口</button>`;
+      area.innerHTML = `<div class="action-heading"><h3 class="end-title">${won ? '三道封印，已被你解開。' : '火光熄滅，文字仍在。'}</h3></div><p>${won ? '你穿越了符文地牢。這段旅程的每個字，都成了你的力量。' : '這次冒險結束了。帶著記住的咒語，下次再走得更遠。'}${run.practice ? '（練習模式）' : ''}</p><div class="end-stats"><div><b>${Math.min(Engine.getCampaignLength(run),run.encounter+1)}</b><span>抵達關卡</span></div><div><b>${stats.casts ?? stats.correct ?? 0}</b><span>成功施法</span></div><div><b>${run.relics.length}</b><span>獲得遺物</span></div></div><button class="primary" id="returnLobby">回到地牢入口</button>`;
       $('returnLobby').onclick = exitRun;
       settleRun();
     }
@@ -316,7 +344,9 @@
     $('intentTime').textContent=Math.max(0,intent.remaining).toFixed(1)+' 秒';
     $('intentBar').style.width=Math.max(0,Math.min(100,intent.remaining/intent.duration*100))+'%';
     $('bossBanner').hidden=enemy.kind!=='boss';
-    $('bossBanner').textContent=`${enemy.name} · 第 ${enemy.phase || 1} 階段 · HP ${Math.ceil(enemy.hp)} / ${enemy.maxHp}${enemy.shield?' · 護盾 '+enemy.shield:''}`;
+    $('bossName').textContent=enemy.name;$('bossPhase').textContent=enemy.phase===2?'Ⅱ · 狂怒覺醒':'Ⅰ · 封印守衛';
+    $('bossHealth').textContent=`${Math.ceil(enemy.hp)} / ${enemy.maxHp}${enemy.shield?' · 護盾 '+enemy.shield:''}`;
+    $('bossHealthBar').style.width=Math.max(0,enemy.hp/enemy.maxHp*100)+'%';$('bossBanner').dataset.phase=String(enemy.phase || 1);
     $('arenaCaption').textContent=`敵群生命 ${Math.ceil(enemy.hp)} / ${enemy.maxHp}${enemy.shield?' · 護盾 '+enemy.shield:''} · 咒語鎖定最近的敵人`;
     updateArenaHUD();
   }
@@ -349,10 +379,10 @@
     $('modeLabel').textContent=(run.practice?'練習':'正式')+' · '+(difficultyNames[run.difficulty] || '標準');
     $('chapterLabel').textContent='CHAPTER '+['I','II','III'][Math.min(2,run.region)];
     $('regionLabel').textContent=run.regionName || names[run.region];
-    $('floorLabel').textContent=String(Math.min(12,run.encounter+1)).padStart(2,'0')+' / 12';
+    $('floorLabel').textContent=String(Math.min(Engine.getCampaignLength(run),run.encounter+1)).padStart(2,'0')+' / '+Engine.getCampaignLength(run);
     $('arenaCaption').hidden=false;
     if(run.status!=='combat') {$('bossBanner').hidden=true;$('arenaCaption').textContent={route:'命運的岔路，在你眼前展開。',reward:'那些微光，是留給旅人的禮物。',camp:'在火焰熄滅以前，歇息片刻。',shop:'走近商人交談，或前往出口繼續。',npc:'善意與挑戰，都從一句話開始。',won:'文字的力量，讓世界再次甦醒。',lost:'下一次，你會帶著更多知識回來。'}[run.status] || '';}
-    renderVitals();renderAction();renderSidebar();renderLog();journey();syncPause();updateArenaHUD();syncAudio();
+    renderVitals();renderAction();renderSidebar();renderLog();renderParty();journey();syncPause();updateArenaHUD();syncAudio();presentation();
   }
   async function settleRun() {
     if(finished)return true;
@@ -360,7 +390,7 @@
     if(run.practice){finished=true;return true;}
     if(persistenceBroken)return false;
     settlementPromise=(async()=>{
-      const result=await Storage.finishRun(receipt.id,{won:run.status==='won',shards:0,floor:Math.min(12,run.encounter+1)},run);
+      const result=await Storage.finishRun(receipt.id,{won:run.status==='won',shards:0,floor:Math.min(Engine.getCampaignLength(run),run.encounter+1)},run);
       if(!result.ok){storageFailure(result);return false;}
       finished=true;return true;
     })();
@@ -389,14 +419,14 @@
   }
   function help() {
     if(run){paused=true;syncPause();}
-    openDialog('<h2>移動、閃避、詠唱</h2><ol><li><b>WASD／方向鍵移動：</b>繞過石柱、與近戰敵人保持距離。手機拖曳左側搖桿，360 度移動；輕推慢走、推遠加速，放開即停止。</li><li><b>Space 衝刺：</b>沿移動方向快速位移，短暫免疫碰撞傷害，冷卻 1.4 秒；不能穿越牆壁。</li><li><b>Enter 詠唱：</b>時間放慢，依序輸入戰場提示的字母：下一鍵會亮起，打對變綠、打錯標紅；完成後再按 Enter 施法。施法後自動返回走位，也可按 Esc 取消詠唱。</li><li><b>專注會耗盡：</b>詠唱時消耗專注，離開詠唱即可恢復。專注歸零後敵人恢復正常速度。</li><li><b>看清預警：</b>紅色地面標記會在短暫延遲後造成傷害。用走位離開，或衝刺穿過彈幕。</li><li><b>靠近再施法：</b>咒語自動鎖定射程內最近的敵人；每五次成功施法輪到卡片奧義。</li></ol><h3>走近互動與旅途 NPC</h3><p>探索時用 WASD 或方向鍵走近傳送門、祭壇、營火或 NPC，按 E／Enter 互動；手機點「E · 互動」。商店也要先走近商人才能購物。交談時按 Esc 返回場景，走到出口繼續。</p><p>旅途中可能遇見療癒師、鍛造師、製圖師與擺渡人。交談後可接受一次幫助，或輸入畫面指定文字發起雙階段 Boss 挑戰。商人同樣可被挑戰；擊敗必得專屬遺物。接受幫助後，本次相遇不能再挑戰。</p><h3>房間與遺物</h3><p>穿過三個區域、12 個節點。掩體、熔岩、機關與追擊者會改變走位策略。戰利品三選一，移速、連鎖、衝刺與緩速遺物可以搭配。</p><h3>配樂、暫停與接續</h3><p>點「配樂」開啟原創區域音樂，Boss 戰會增加節奏。按 Esc 暫停；切換分頁也會自動暫停。正式冒險會保存位置與進度，重新整理可接續。</p><h3>卡片與難度</h3><p>正式入場消耗 1 張收藏卡；練習免費。故事難度降低空間傷害，試煉提高傷害與彈速。失敗不退卡；道具、金幣與遺物只屬於本次冒險。</p>');
+    openDialog('<h2>移動、閃避、詠唱</h2><ol><li><b>WASD／方向鍵移動：</b>繞過石柱、與近戰敵人保持距離。手機拖曳左側搖桿，360 度移動；輕推慢走、推遠加速，放開即停止。</li><li><b>Space 衝刺：</b>沿移動方向快速位移，短暫免疫碰撞傷害，冷卻 1.4 秒；不能穿越牆壁。</li><li><b>Enter 詠唱：</b>時間放慢，依序輸入戰場提示的字母：下一鍵會亮起，打對變綠、打錯標紅；完成後再按 Enter 施法。施法後自動返回走位，也可按 Esc 取消詠唱。</li><li><b>專注會耗盡：</b>詠唱時消耗專注，離開詠唱即可恢復。專注歸零後敵人恢復正常速度。</li><li><b>看清預警：</b>紅色地面標記會在短暫延遲後造成傷害。用走位離開，或衝刺穿過彈幕。</li><li><b>靠近再施法：</b>咒語自動鎖定射程內最近的敵人；每五次成功施法輪到卡片奧義。</li></ol><h3>走近互動與旅途 NPC</h3><p>探索時用 WASD 或方向鍵走近傳送門、祭壇、營火或 NPC，按 E／Enter 互動；手機點「E · 互動」。商店也要先走近商人才能購物。交談時按 Esc 返回場景，走到出口繼續。</p><p>旅途中可能遇見療癒師、鍛造師、製圖師、擺渡人，以及三位可招募的旅伴：燈旅精靈提供護盾、回聲學徒延遲模仿成功咒語、紙甲衛士主動迎擊。同行夥伴會跟隨走位，隨進度保存，只存在於本趟遠征。交談後可接受一次幫助，或輸入畫面指定文字發起雙階段 Boss 挑戰。商人同樣可被挑戰；擊敗必得專屬遺物。接受幫助後，本次相遇不能再挑戰。</p><h3>房間與遺物</h3><p>新遠征穿過三個區域、18 個節點，每區第六節點為首領。舊存檔保留原有 12 節點進度。新增機關房間與原有掩體、熔岩、援軍各有不同走位策略。戰利品三選一，移速、連鎖、衝刺與緩速遺物可以搭配。</p><h3>配樂、暫停與接續</h3><p>點「配樂」開啟原創音樂。三位主線 Boss 與八位 NPC 首領各有獨立主題曲，第二階段切換狂怒變奏。登場、攻擊與死亡都有對應特效；系統「減少動畫」設定會抑制震動。按 Esc 暫停；切換分頁也會自動暫停。正式冒險會保存位置與進度，重新整理可接續。</p><h3>卡片與難度</h3><p>正式入場消耗 1 張收藏卡；練習免費。故事難度降低空間傷害，試煉提高傷害與彈速。失敗不退卡；道具、金幣與遺物只屬於本次冒險。</p>');
   }
   function codex() {
     if(run){paused=true;syncPause();}
     const relics=catalogValues(Engine.RELICS),items=catalogValues(Engine.ITEMS),regions=catalogValues(Engine.REGIONS);
     const bossTactics=['棘冠典獄長交替施放追蹤落點與環形震波。生命低於一半後，落點與震波數量增加；離開紅色預警再詠唱。','鏡月女巫發射放射彈幕，並以光束封鎖移動路線。第二階段出現交叉光束，利用彈幕間隙走位。','失名之王輪替星環彈幕、突刺與末頁湮滅。大範圍攻擊保留安全帶，第二階段增加彈數與落點，保留衝刺迎接連續攻勢。'];
-    const roomGuide='<h3>六種戰鬥房間</h3><div class="room-codex">'+Arena.ROOMS.map(room=>`<div class="codex-item"><b>${esc(room.name)}</b><p>${esc(room.description)}</p></div>`).join('')+'</div>';
-    openDialog(`<h2>地牢見聞錄</h2><h3>三道封印的守護者</h3>${regions.map((region,i)=>`<div class="codex-item" style="margin-bottom:10px"><b>0${i+1} · ${esc(region.boss?.name || bosses[i])}</b><p>${esc(bossTactics[i])}</p></div>`).join('')}${roomGuide}<h3>旅途中的五位角色</h3><div class="codex-grid">${catalogValues(Engine.NPCS).map(npc=>`<div class="codex-item"><b>${esc(npc.name)} · ${esc(npc.title)}</b><p>${esc(npc.helpDescription)}</p><p>挑戰文字：${esc(npc.challengeWord)}<br>特殊戰利品：${esc(npc.lootName)}</p></div>`).join('')}</div><h3>旅途中的遺物</h3><div class="codex-grid">${relics.map(item=>`<div class="codex-item"><b>${esc(item.name)}</b><p>${esc(item.description)}</p></div>`).join('')}</div><h3>消耗道具</h3><div class="codex-grid">${items.map(item=>`<div class="codex-item"><b>${esc(item.name)}</b><p>${esc(item.description)}</p></div>`).join('')}</div>`);
+    const roomGuide='<h3>'+Arena.ROOMS.length+' 種戰鬥房間</h3><div class="room-codex">'+Arena.ROOMS.map(room=>`<div class="codex-item"><b>${esc(room.name)}</b><p>${esc(room.description)}</p></div>`).join('')+'</div>';
+    openDialog(`<h2>地牢見聞錄</h2><h3>三道封印的守護者</h3>${regions.map((region,i)=>`<div class="codex-item" style="margin-bottom:10px"><b>0${i+1} · ${esc(region.boss?.name || bosses[i])}</b><p>${esc(bossTactics[i])}</p></div>`).join('')}${roomGuide}<h3>旅途中的八位角色</h3><div class="codex-grid">${catalogValues(Engine.NPCS).map(npc=>`<div class="codex-item"><b>${esc(npc.name)} · ${esc(npc.title)}</b><p>${esc(npc.helpDescription)}</p><p>挑戰文字：${esc(npc.challengeWord)}<br>特殊戰利品：${esc(npc.lootName)}</p></div>`).join('')}</div><h3>旅途中的遺物</h3><div class="codex-grid">${relics.map(item=>`<div class="codex-item"><b>${esc(item.name)}</b><p>${esc(item.description)}</p></div>`).join('')}</div><h3>消耗道具</h3><div class="codex-grid">${items.map(item=>`<div class="codex-item"><b>${esc(item.name)}</b><p>${esc(item.description)}</p></div>`).join('')}</div>`);
   }
   $('pauseButton').onclick=togglePause;$('resumeButton').onclick=togglePause;$('helpButton').onclick=help;$('codexButton').onclick=codex;
   $('closeDialog').onclick=()=>$('infoDialog').close();
@@ -433,7 +463,7 @@
   }));
   $('arena').onpointerdown=()=>{if(chanting)setChant(false);$('arena').focus({preventScroll:true});};
   window.addEventListener('blur',()=>{clearMovement();if(navigable()){paused=true;syncPause();persist();}});
-  document.addEventListener('visibilitychange',()=>{if(document.hidden && run){paused=true;syncPause();persist();}});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden && navigable()){paused=true;syncPause();persist();}});
   window.addEventListener('pagehide',()=>{if(run && !run.practice)persist();});
   window.addEventListener('pageshow',async event=>{
     if(!event.persisted || !run || run.practice)return;
@@ -459,6 +489,7 @@
       if(saveClock>1.5){saveClock=0;persist();}
     }
     if(time-lastPaint>80){lastPaint=time;if(run){renderVitals();if(explorationStatuses.includes(run.status))renderAction();liveCombat();updateArenaHUD();renderLog();}}
+    if(!paused)presentation();
     renderer.draw({run,focus:chanting,paused,reducedMotion},time);
     requestAnimationFrame(frame);
   }
