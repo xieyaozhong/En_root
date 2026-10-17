@@ -35,7 +35,6 @@
 /* A stable touch dock: spelling never invokes the software keyboard or covers the arena. */
 .touch-actions{display:none}.touch-layout .touch-controls:not([hidden]){display:grid;grid-template-columns:112px minmax(0,1fr);align-items:center;gap:12px;max-width:none;width:100%;margin:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#141c24;border:1px solid #424b58;border-top:0}
 .touch-layout.chanting-mode .touch-controls:not([hidden]){display:grid!important}
-.touch-layout.in-run .game-column{position:sticky;top:0;align-self:start;z-index:1;background:var(--bg)}
 .touch-layout .touch-controls:not([hidden]){padding-top:7px;padding-bottom:calc(7px + env(safe-area-inset-bottom))}
 .touch-layout .touch-actions{display:flex;flex-direction:column;gap:6px;min-width:0}
 .touch-spell-preview{display:flex;flex-direction:column;gap:3px;min-height:36px}.touch-spell-preview b{font:600 1.03rem/1.2 ui-monospace,monospace;overflow-wrap:anywhere;letter-spacing:.035em}.touch-spell-preview small{color:#b1b7ca;font-size:.64rem}.touch-spell-preview .correct{color:#bce896}.touch-spell-preview .current{color:#f5d99b}
