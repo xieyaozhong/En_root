@@ -106,8 +106,18 @@ class Element {
   close() { this.open = false; }
 }
 
-async function harness(active = null) {
-  const listeners = { document: {}, window: {} }, frames = [], calls = { updates:0, consumes:0, saves:0, sounds:[] }, doc = {};
+async function harness(active = null, options = {}) {
+  const listeners = { document: {}, window: {} }, frames = [], calls = { updates:0, castAttempts:0, consumes:0, saves:0, sounds:[] }, doc = {};
+  const media = {width:options.width ?? 1280,coarse:options.coarse ?? false}, mediaQueries = new Map();
+  const matchesMedia = query => query.split(',').some(part => {
+    const width = part.match(/max-width:\s*(\d+)px/);
+    return width ? media.width <= Number(width[1]) : /pointer:\s*coarse/.test(part) ? media.coarse : false;
+  });
+  const matchMedia = query => {
+    if (!mediaQueries.has(query)) mediaQueries.set(query, {media:query,matches:matchesMedia(query),listeners:[],
+      addEventListener(type, listener){if(type==='change')this.listeners.push(listener);}});
+    return mediaQueries.get(query);
+  };
   const documentRoot = new Element('root', doc); documentRoot.innerHTML = html;
   doc.body = documentRoot.querySelector('body'); doc.activeElement = doc.body; doc.hidden = false;
   doc.getElementById = id => documentRoot.querySelector('#' + id);
@@ -128,13 +138,14 @@ async function harness(active = null) {
   };
   const win = {
     DungeonEngine: {...Engine, createRun: (card, practice) => run = Engine.createRun(card, practice, 31)}, DungeonStorage: Storage,
-    DungeonArena: {...Arena, update: (...args) => { calls.updates++; calls.lastInput={...args[2]}; return Arena.update(...args); }, ensure: next => {run = next; return Arena.ensure(next);}},
+    DungeonArena: {...Arena, update: (...args) => { calls.updates++; calls.lastInput={...args[2]}; return Arena.update(...args); },
+      cast: (...args) => { calls.castAttempts++; return Arena.cast(...args); }, ensure: next => {run = next; return Arena.ensure(next);}},
     DungeonExplore: Explore, DungeonJoystick: Joystick, DungeonChant: Chant,
     DungeonArenaRenderer: Renderer, DungeonAudio: Audio, ENROOT_CARDS: [{word:'robot',zh:'機器人',rarity:'N'}],
     addEventListener: (name, callback) => (listeners.window[name] ||= []).push(callback)
   };
   vm.runInNewContext(source, {window:win, document:doc, navigator:{}, HTMLElement:Element,
-    matchMedia: () => ({matches:false}), performance:{now:() => time}, requestAnimationFrame: fn => frames.push(fn), console});
+    matchMedia, performance:{now:() => time}, requestAnimationFrame: fn => frames.push(fn), console});
   await Promise.resolve(); await Promise.resolve();
   const $ = doc.getElementById;
   const dispatch = async (target, name, values = {}) => {
@@ -143,7 +154,11 @@ async function harness(active = null) {
   const key = async (code, type = 'keydown', target = doc.activeElement) => dispatch('document', type,
     {code,key:code.startsWith('Key') ? code.slice(3).toLowerCase() : code === 'Space' ? ' ' : code,target,repeat:false});
   const tick = (seconds = .05) => { time += seconds * 1000; const frame = frames.shift(); assert.ok(frame, 'animation loop remains scheduled'); frame(time); };
-  const click = async id => { const el = $(id); assert.ok(el, id + ' exists'); el.focus(); await el.onclick?.({target:el,detail:1,preventDefault(){}}); };
+  const click = async id => {
+    const el = $(id); assert.ok(el, id + ' exists');
+    if(['touchCast','touchInteract'].includes(id) || el.classList.contains('rune-key')) return touchTap(el);
+    el.focus(); await el.onclick?.({target:el,detail:1,preventDefault(){}});
+  };
   const combat = async (practice = true) => {
     await click(practice ? 'practiceRun' : 'startRun');
     const choice = run.exploration.objects.find(o => o.args[0] === 'battle');
@@ -153,11 +168,24 @@ async function harness(active = null) {
     return run;
   };
   const fire = (el, type, values = {}) => {const event=makeEvent(type,{target:el,...values});el.dispatchEvent(event);return event;};
+  const touchTap = (el, values = {}) => {
+    const pointer={pointerId:99,pointerType:'touch',button:0,isPrimary:false,...values};
+    const press=fire(el,'pointerdown',pointer);
+    fire(el,'pointerup',pointer);fire(el,'click',{...pointer,detail:1});return press;
+  };
   const pointer = (id, type, x = 80, y = 80) => {
     return fire($('moveJoystick'),type,{pointerId:id,pointerType:'touch',button:0,clientX:x,clientY:y});
   };
   const input = (value, options = {}) => {const el=$('spellInput');el.value=value;return fire(el,'input',{inputType:'insertText',...options});};
-  return {$,doc,calls,click,combat,key,tick,pointer,dispatch,fire,input,get run(){return run;},get audioScene(){return audioScene;}};
+  const resize = async (width, coarse = media.coarse) => {
+    media.width=width;media.coarse=coarse;
+    for(const query of mediaQueries.values()){
+      const matches=matchesMedia(query.media);
+      if(matches!==query.matches){query.matches=matches;for(const listener of query.listeners)await listener({matches,media:query.media});}
+    }
+    await dispatch('window','resize');
+  };
+  return {$,doc,calls,click,combat,key,tick,pointer,dispatch,fire,touchTap,input,resize,get run(){return run;},get audioScene(){return audioScene;}};
 }
 
 (async () => {
@@ -264,9 +292,11 @@ async function harness(active = null) {
   h.pointer(12,'pointerdown',140,140);h.pointer(12,'pointermove',145,145);h.pointer(12,'pointerup');
   assert.deepEqual({x:stick.dataset.x,y:stick.dataset.y},heldVector,'a second finger cannot steal or release the movement pointer');
   p.dashCooldown = 0; p.dashTime = 0;
-  await h.click('touchDash'); h.tick(.05);
+  assert.equal(h.fire(h.$('touchDash'),'pointerdown',{pointerId:12,pointerType:'touch',button:0}).defaultPrevented,true);
+  h.tick(.05);
   assert.ok(p.dashX < 0 && p.dashY < 0, 'touch dash preserves held direction');
   assert.equal(stick.hasPointerCapture(11),true,'dash button leaves the movement finger captured');
+  await h.click('touchDash');h.tick(.05);assert.equal(h.calls.lastInput.dash,false,'synthetic click following pointerdown does not queue a second dash');
   h.pointer(11,'pointercancel');assert.equal(stick.hasPointerCapture(11),false);
   for(let i=0;i<6;i++) h.tick(.05);
   const touchStop = {x:p.x,y:p.y}; h.tick(.1); assert.equal(p.x,touchStop.x); assert.equal(p.y,touchStop.y, 'pointer cancellation releases movement');
@@ -291,6 +321,173 @@ async function harness(active = null) {
   }
   await h.key('Enter'); h.doc.hidden = true; await h.dispatch('document','visibilitychange');
   assert.equal(h.$('spellInput').readOnly,true); assert.equal(h.audioScene.paused,true, 'hidden tab pauses both input and music');
+
+  function quietCombat(next) {
+    next.enemy.intent.remaining=10000;
+    next.arena.enemies.forEach(enemy=>{enemy.cooldown=10000;});
+  }
+  function nearEnemy(next) {
+    const target=next.arena.enemies.find(enemy=>enemy.active && enemy.hp>0);
+    assert.ok(target,'fixture retains a live target');
+    next.arena.player.x=target.x;next.arena.player.y=target.y+60;
+  }
+  function touchSequence(ui, word) {
+    let lastButton, prefix='';
+    for(const chunk of Chant.touchSequence(word)) {
+      const button=ui.$('touchRuneKeys').querySelectorAll('[data-rune]').find(button=>button.dataset.rune===chunk);
+      assert.ok(button,'every required rune chunk is offered');
+      assert.equal(button.disabled,false,'required rune is enabled during chanting');
+      const pointer={pointerId:91,pointerType:'touch',button:0,isPrimary:false};
+      const attempts=ui.calls.castAttempts;
+      assert.equal(ui.fire(button,'pointerdown',pointer).defaultPrevented,true,'a non-primary rune pointer owns its press');
+      prefix+=chunk;
+      if(prefix!==word)assert.equal(ui.$('spellInput').value,prefix,'the second finger enters a chunk before pointerup or click');
+      else assert.equal(ui.calls.castAttempts,attempts+1,'the final press attempts its one automatic cast immediately');
+      const afterPress={text:ui.$('spellInput').value,attempts:ui.calls.castAttempts,casts:ui.run.arena.casts,chant:ui.doc.body.classList.contains('chanting-mode')};
+      ui.fire(button,'pointerup',pointer);ui.fire(button,'click',{...pointer,detail:1});
+      assert.deepEqual({text:ui.$('spellInput').value,attempts:ui.calls.castAttempts,casts:ui.run.arena.casts,chant:ui.doc.body.classList.contains('chanting-mode')},afterPress,'each compatibility click is ignored without duplicating rune progress');
+      lastButton=button;
+    }
+    return lastButton;
+  }
+  const mobile=await harness(null,{width:390});const mobileRun=await mobile.combat();quietCombat(mobileRun);
+  assert.ok(mobile.doc.body.classList.contains('touch-layout'),'narrow screens select the touch layout');
+  assert.equal(mobile.$('spellInput').readOnly,true,'mobile never exposes an editable system-keyboard field');
+  assert.equal(mobile.$('touchControls').closest('.arena'),null,'the touch controls are outside the battlefield');
+  assert.equal(mobile.$('touchRuneKeys').closest('#touchControls'),mobile.$('touchControls'));
+  assert.equal(mobile.$('touchSpellName').textContent,mobileRun.spell.word,'the full English word remains visible');
+  assert.ok(mobile.$('touchSpellMeaning').textContent.includes(mobileRun.spell.zh),'translation remains available to learn');
+  const mobilePlayer=mobileRun.arena.player;
+  mobile.pointer(31,'pointerdown',120,80);mobile.tick(.05);
+  const mobileStick=mobile.$('moveJoystick');assert.equal(mobileStick.hasPointerCapture(31),true);
+  const chantPointer={pointerId:90,pointerType:'touch',button:0,isPrimary:false};
+  const chantPress=mobile.fire(mobile.$('touchCast'),'pointerdown',chantPointer);assert.equal(chantPress.defaultPrevented,true);
+  assert.ok(mobile.doc.body.classList.contains('chanting-mode'),'a non-primary second finger starts chanting before click');
+  mobile.fire(mobile.$('touchCast'),'pointerup',chantPointer);mobile.fire(mobile.$('touchCast'),'click',{...chantPointer,detail:1});
+  assert.ok(mobile.doc.body.classList.contains('chanting-mode'),'the compatibility click cannot toggle chanting back off');
+  assert.equal(mobile.$('spellInput').readOnly,true);assert.notEqual(mobile.doc.activeElement,mobile.$('spellInput'));
+  assert.equal(mobile.$('spellInput').focusCount,0,'touch chanting never attempts to focus the editor');
+  assert.equal(mobile.$('chantQte').hidden,true,'mobile chanting does not cover the battlefield with a QTE');
+  assert.equal(mobile.$('touchControls').hidden,false,'the thumb controls remain present while chanting');
+  assert.equal(mobileStick.hasPointerCapture(31),true,'chanting preserves the left movement finger');
+  const chantAt={x:mobilePlayer.x,y:mobilePlayer.y,energy:mobilePlayer.focusEnergy};mobile.tick(.1);
+  assert.equal(mobilePlayer.x,chantAt.x);assert.equal(mobilePlayer.y,chantAt.y,'focus freezes locomotion while the held gesture remains captured');
+  assert.ok(mobilePlayer.focusEnergy<chantAt.energy);
+  const mobileWord=mobileRun.spell.word, chunks=Chant.touchSequence(mobileWord);
+  const wrongRune=mobile.$('touchRuneKeys').querySelectorAll('[data-rune]').find(button=>button.dataset.rune!==chunks[0]);
+  assert.ok(wrongRune,'fixture has a wrong rune choice');
+  const hpBeforeWrong=mobileRun.player.hp,mistakesBeforeWrong=mobileRun.stats.mistakes;
+  mobile.touchTap(wrongRune);
+  assert.equal(mobile.$('spellInput').value,'','wrong mobile choices do not append invalid text');
+  assert.equal(mobileRun.player.hp,hpBeforeWrong);assert.equal(mobileRun.stats.mistakes,mistakesBeforeWrong);
+  assert.equal(mobile.calls.castAttempts,0,'a wrong chunk never submits a damaging incorrect spell');
+  assert.ok(mobile.$('touchChantHint').textContent.includes('點亮起的符文'));
+  nearEnemy(mobileRun);
+  const firstOldRune=mobile.$('touchRuneKeys').querySelectorAll('[data-rune]')[0];
+  const finalOldRune=touchSequence(mobile,mobileWord);
+  assert.equal(mobileRun.arena.casts,1,'completing the mobile sequence auto-casts');
+  assert.equal(mobile.calls.castAttempts,1,'one complete sequence sends exactly one cast');
+  assert.equal(mobile.doc.body.classList.contains('chanting-mode'),false,'success immediately restores movement');
+  assert.equal(mobile.$('spellInput').value,'','the next spell starts with an empty buffer');
+  assert.equal(mobile.$('spellInput').readOnly,true);assert.equal(mobile.$('spellInput').focusCount,0);
+  assert.equal(mobileStick.hasPointerCapture(31),true,'successful casting preserves the still-held movement finger');
+  const afterAutoCastX=mobilePlayer.x;mobile.tick(.05);
+  assert.ok(mobilePlayer.x>afterAutoCastX,'the held direction resumes without lifting and dragging again');
+  mobile.touchTap(finalOldRune);
+  assert.equal(mobile.calls.castAttempts,1,'a trailing click cannot cast the next spell');
+  await mobile.click('touchCast');mobile.touchTap(firstOldRune);
+  assert.equal(mobile.$('spellInput').value,'','old rune elements cannot enter text into a newly started spell');
+  assert.equal(mobile.calls.castAttempts,1);
+  mobile.pointer(31,'pointercancel');assert.equal(mobileStick.hasPointerCapture(31),false);
+  mobile.tick(.05);assert.equal(mobile.calls.lastInput.x,0,'cancelled touch pointers leave no stale direction');
+
+  mobile.pointer(32,'pointerdown',40,80);await mobile.click('touchCast');
+  mobilePlayer.dashCooldown=0;mobilePlayer.dashTime=0;
+  const dashesBeforeTouch=mobileRun.arena.dashes;
+  const dashPress=mobile.fire(mobile.$('touchDash'),'pointerdown',{pointerId:33,pointerType:'touch',button:0});
+  assert.equal(dashPress.defaultPrevented,true);
+  assert.equal(mobile.doc.body.classList.contains('chanting-mode'),false,'touch dash cancels chanting on press');
+  mobile.tick(.05);
+  assert.equal(mobileRun.arena.dashes,dashesBeforeTouch+1,'second finger dashes before its pointerup or click');
+  assert.ok(mobilePlayer.dashX<0,'dash keeps the left thumb direction');
+  assert.equal(mobileStick.hasPointerCapture(32),true,'the dash finger cannot release the movement finger');
+  mobile.fire(mobile.$('touchDash'),'pointerup',{pointerId:33,pointerType:'touch',button:0});
+  mobile.fire(mobile.$('touchDash'),'click',{detail:1});mobile.tick(.05);
+  assert.equal(mobile.calls.lastInput.dash,false,'the compatibility click does not repeat the press action');
+  mobile.pointer(32,'pointercancel');
+  for(let i=0;i<6;i++)mobile.tick(.05);
+  mobilePlayer.dashCooldown=0;mobilePlayer.dashTime=0;
+  mobile.fire(mobile.$('touchDash'),'click',{detail:0});mobile.tick(.05);
+  assert.equal(mobileRun.arena.dashes,dashesBeforeTouch+2,'keyboard-generated activation still triggers dash');
+  for(let i=0;i<6;i++)mobile.tick(.05);
+
+  mobile.pointer(34,'pointerdown',120,80);await mobile.click('touchCast');await mobile.click('pauseButton');
+  assert.equal(mobileStick.hasPointerCapture(34),false,'pause clears capture even during a mobile chant');
+  assert.equal(mobile.$('touchControls').inert,true);
+  const pausedMobile=mobile.calls.castAttempts;
+  mobile.touchTap(mobile.$('touchRuneKeys').querySelectorAll('[data-rune]')[0]);
+  assert.equal(mobile.calls.castAttempts,pausedMobile,'paused rune events cannot submit spells');
+  await mobile.click('resumeButton');mobile.tick(.05);assert.equal(mobile.calls.lastInput.x,0);
+  mobile.pointer(35,'pointerdown',120,80);await mobile.resize(430);
+  assert.equal(mobileStick.hasPointerCapture(35),false,'resizing within the mobile breakpoint clears old joystick geometry');
+  mobile.tick(.05);assert.equal(mobile.calls.lastInput.x,0);
+  mobile.pointer(36,'pointerdown',120,80);await mobile.resize(1024,false);
+  assert.equal(mobileStick.hasPointerCapture(36),false,'changing to desktop releases mobile pointer capture');
+  assert.equal(mobile.doc.body.classList.contains('touch-layout'),false);
+  await mobile.click('chantButton');assert.equal(mobile.$('spellInput').readOnly,false,'desktop editor becomes usable after a layout change');
+  assert.equal(mobile.doc.activeElement,mobile.$('spellInput'));
+  await mobile.resize(390,false);
+  assert.equal(mobile.$('spellInput').readOnly,true);assert.notEqual(mobile.doc.activeElement,mobile.$('spellInput'));
+  assert.equal(mobile.doc.body.classList.contains('chanting-mode'),false,'layout changes cancel a pending chant');
+  const tablet=await harness(null,{width:1100,coarse:true});
+  assert.ok(tablet.doc.body.classList.contains('touch-layout'),'wide touch devices also receive the thumb layout');
+
+  const keyboardTouch=await harness(null,{width:390});const keyboardTouchRun=await keyboardTouch.combat();quietCombat(keyboardTouchRun);nearEnemy(keyboardTouchRun);
+  keyboardTouch.fire(keyboardTouch.$('touchCast'),'click',{detail:0});
+  assert.ok(keyboardTouch.doc.body.classList.contains('chanting-mode'),'keyboard activation can open the touch chant controls');
+  const keyboardWord=keyboardTouchRun.spell.word;
+  let keyboardPrefix='';
+  for(const chunk of Chant.touchSequence(keyboardWord)){
+    const button=keyboardTouch.$('touchRuneKeys').querySelectorAll('[data-rune]').find(button=>button.dataset.rune===chunk);
+    keyboardTouch.fire(button,'click',{detail:0});keyboardPrefix+=chunk;
+    if(keyboardPrefix!==keyboardWord)assert.equal(keyboardTouch.$('spellInput').value,keyboardPrefix,'keyboard-generated clicks enter rune chunks');
+  }
+  assert.equal(keyboardTouchRun.arena.casts,1);assert.equal(keyboardTouch.calls.castAttempts,1,'keyboard rune completion still auto-casts once');
+
+  for(const activation of ['pointer','keyboard']){
+    const touchRoute=await harness(null,{width:390});await touchRoute.click('practiceRun');
+    const door=touchRoute.run.exploration.objects.find(object=>object.args[0]==='battle');
+    touchRoute.run.exploration.player.x=door.x;touchRoute.run.exploration.player.y=door.y+50;touchRoute.tick(.1);
+    assert.equal(touchRoute.$('touchInteract').disabled,false);
+    if(activation==='pointer'){
+      const secondFinger={pointerId:92,pointerType:'touch',button:0,isPrimary:false};
+      assert.equal(touchRoute.fire(touchRoute.$('touchInteract'),'pointerdown',secondFinger).defaultPrevented,true);
+      assert.equal(touchRoute.run.status,'combat','a non-primary interaction press enters the nearby room immediately');
+      touchRoute.fire(touchRoute.$('touchInteract'),'click',{...secondFinger,detail:1});
+    }else touchRoute.fire(touchRoute.$('touchInteract'),'click',{detail:0});
+    assert.equal(touchRoute.run.status,'combat',activation+' interaction enters exactly one room');
+    assert.equal(touchRoute.run.encounter,0);
+  }
+
+  for(const reason of ['range','wave']) {
+    const retry=await harness(null,{width:390,coarse:true});const next=await retry.combat();quietCombat(next);
+    const readyWord=next.spell.word;
+    next.arena.player.x=52;next.arena.player.y=70;
+    next.arena.enemies.forEach(enemy=>{enemy.x=850;enemy.y=430;if(reason==='wave'){enemy.active=false;enemy.spawnAt=10000;}});
+    await retry.click('touchCast');const staleRune=touchSequence(retry,readyWord);
+    assert.equal(next.arena.casts,0,reason+' fixture correctly rejects the first attempt');
+    assert.equal(retry.calls.castAttempts,1);
+    assert.equal(retry.$('spellInput').value,readyWord,reason+' failure preserves the fully prepared word');
+    assert.equal(retry.doc.body.classList.contains('chanting-mode'),false,reason+' failure returns to movement');
+    assert.equal(retry.$('touchCast').textContent,'施放已備咒語');
+    retry.touchTap(staleRune);
+    for(let i=0;i<4;i++)retry.tick(.05);
+    assert.equal(retry.calls.castAttempts,1,'ready spells do not retry automatically each frame or from stale rune clicks');
+    next.arena.enemies[0].active=true;next.arena.enemies[0].spawnAt=0;nearEnemy(next);
+    await retry.click('touchCast');
+    assert.equal(next.arena.casts,1,reason+' prepared word can be retried without retyping');
+    assert.equal(retry.calls.castAttempts,2);assert.equal(retry.$('spellInput').value,'');
+  }
 
   const walking=await harness();await walking.click('practiceRun');walking.tick(.1);
   assert.equal(walking.$('interactButton').disabled,true,'remote route selection is unavailable');
@@ -378,5 +575,5 @@ async function harness(active = null) {
   ending.doc.hidden=false;await ending.dispatch('document','visibilitychange');
   assert.equal(ending.$('pauseOverlay').hidden,true,'returning to a completed run never traps results behind an unusable pause screen');
   assert.equal(ending.$('actionPanel').inert,false);assert.ok(ending.$('returnLobby'));
-  console.log('UI integration checks passed: practice/formal admission, analog joystick and keyboard movement/dash, QTE typing/correction/composition/casting, long-press guards, pause/reset, NPC interactions, and saved-run resume.');
+  console.log('UI integration checks passed: admission, desktop QTE, mobile rune auto-casting and retries, simultaneous joystick/dash/chant, gesture cancellation and responsive layout changes, long-press guards, NPC interactions, and saved-run resume.');
 })().catch(error => {console.error(error); process.exitCode = 1;});

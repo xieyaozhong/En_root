@@ -12,6 +12,20 @@
     return value == null ? '' : String(value).toLowerCase();
   }
 
+  function touchSequence(word) {
+    var letters = Array.from(normalize(word));
+    if (!letters.length) return [];
+    var size = Math.ceil(letters.length / 4), sequence = [];
+    for (var i = 0; i < letters.length; i += size) sequence.push(letters.slice(i, i + size).join(''));
+    return sequence;
+  }
+
+  function touchKeys(word) {
+    var keys = touchSequence(word).filter(function (key, index, sequence) { return sequence.indexOf(key) === index; });
+    // Rotate once so the buttons stay stable across redraws without duplicating repeated chunks.
+    return keys.length > 1 ? keys.slice(1).concat(keys[0]) : keys;
+  }
+
   function analyze(word, typed) {
     var target = Array.from(normalize(word));
     var input = Array.from(normalize(typed));
@@ -54,5 +68,5 @@
     return Object.assign({ kind: kind }, result);
   }
 
-  return { analyze: analyze, feedback: feedback };
+  return { analyze: analyze, feedback: feedback, touchSequence: touchSequence, touchKeys: touchKeys };
 });
