@@ -137,12 +137,56 @@ for(const id of ['tempest','meteor','mirrors','eclipse']){
 }
 assert.equal(roomSignatures.size,4,'four new room themes have different visible decoration');
 const palette={light:'#d7f4e5',glow:'#8ecabb',void:'#101929',hot:'#f7b6a3'};
-const spellSignatures=new Set();
-for(const [spellType,spellWord] of [['attack','fire'],['attack','frost'],['attack','storm'],['attack','rune'],['signature','robot'],['heal','bloom'],['shield','ward']]){
+const spellSignatures=new Set(),spellGeometry=new Map();
+const skillFixtures=[['attack','fire'],['attack','frost'],['attack','storm'],['attack','wind'],['attack','rune'],['signature','robot'],['heal','bloom'],['shield','ward']];
+const geometry=calls=>JSON.stringify(calls.map(({name,args})=>({name,args})));
+for(const [spellType,spellWord] of skillFixtures){
   ctx.calls=[];renderer.effect(ctx,{kind:'cast',x:210,y:275,x2:630,y2:310,spellType,spellWord,life:.4,maxLife:.6},palette,0,true);
-  spellSignatures.add(JSON.stringify(ctx.calls));assert.equal(ctx.depth,0);
+  spellSignatures.add(JSON.stringify(ctx.calls));spellGeometry.set(spellWord,geometry(ctx.calls));assert.equal(ctx.depth,0);
+  assert.ok(ctx.calls.length<400,'one skill uses a bounded number of primitive drawing commands');
+  assert.ok(!ctx.calls.some(call=>call.name==='fillRect'&&call.args[2]>80&&call.args[3]>80),'skills never use a screen-covering flash or filled panel');
+  let filledPath=[];
+  for(const call of ctx.calls){
+    if(call.name==='beginPath')filledPath=[];
+    if(call.name==='moveTo'||call.name==='lineTo')filledPath.push(call.args);
+    if(call.name==='fill'&&filledPath.length){
+      const xs=filledPath.map(point=>point[0]),ys=filledPath.map(point=>point[1]);
+      assert.ok(Math.max(...xs)-Math.min(...xs)<=100&&Math.max(...ys)-Math.min(...ys)<=100,'filled silhouettes are local, so long spell trails cannot cover a hazard zone');
+    }
+    if(call.name==='ellipse'||call.name==='arc')assert.ok(call.args[2]<=50,'skill rings stay local to their caster/target');
+    if(call.name==='fillRect')assert.ok(call.args[2]<=20&&call.args[3]<=20,'pixel accents remain small enough to preserve warning geometry');
+  }
 }
-assert.equal(spellSignatures.size,7,'fire, frost, storm, rune, signature, heal and shield have distinct spell effects');
+assert.equal(spellSignatures.size,8,'fire, frost, thunder, wind, rune, signature, heal and shield have distinct spell effects');
+assert.equal(new Set(spellGeometry.values()).size,8,'skill silhouettes differ even when all colour and opacity information is removed');
+assert.ok(JSON.parse(spellGeometry.get('wind')).some(call=>call.name==='quadraticCurveTo'),'wind has flowing curved ribbons rather than a renamed lightning beam');
+assert.ok(!JSON.parse(spellGeometry.get('storm')).some(call=>call.name==='quadraticCurveTo'),'lightning keeps its angular bolt silhouette');
+for(const [spellType,spellWord] of skillFixtures){
+  const base={kind:'cast',x:210,y:275,x2:630,y2:310,spellType,spellWord,maxLife:.6};
+  ctx.calls=[];renderer.effect(ctx,{...base,life:.5},palette,0,true);const first=geometry(ctx.calls);
+  ctx.calls=[];renderer.effect(ctx,{...base,life:.15},palette,4,true);
+  assert.equal(geometry(ctx.calls),first,'reduced motion freezes '+spellWord+' geometry while allowing opacity to fade');
+  ctx.calls=[];renderer.effect(ctx,{...base,life:.5},palette,0,false);const moving=geometry(ctx.calls);
+  ctx.calls=[];renderer.effect(ctx,{...base,life:.15},palette,4,false);
+  assert.notEqual(geometry(ctx.calls),moving,'normal '+spellWord+' effect visibly develops during its lifetime');
+}
+for(const word of ['wind','gust','gale','air']){
+  ctx.calls=[];renderer.effect(ctx,{kind:'cast',x:210,y:275,x2:630,y2:310,spellType:'attack',spellWord:word,life:.4,maxLife:.6},palette,0,true);
+  assert.equal(geometry(ctx.calls),spellGeometry.get('wind'),'wind vocabulary uses the same distinctive air effect');
+}
+ctx.calls=[];renderer.effect(ctx,{kind:'cast',x:210,y:275,x2:630,y2:310,spellType:'signature',spellWord:'wind',life:.4,maxLife:.6},palette,0,true);
+assert.equal(geometry(ctx.calls),spellGeometry.get('robot'),'signature priority survives elemental card words');
+ctx.calls=[];renderer.effect(ctx,{kind:'cast',x:210,y:275,x2:630,y2:310,spellType:'attack',spellWord:'justice',life:.4,maxLife:.6},palette,0,true);
+assert.equal(geometry(ctx.calls),spellGeometry.get('rune'),'generic card words containing ice are not accidentally converted to frost');
+const particleCount=renderer.particles.length,trailCount=renderer.trail.length,deathCount=renderer.deathScenes.length;
+for(let i=0;i<120;i++){
+  const [spellType,spellWord]=skillFixtures[i%skillFixtures.length];ctx.calls=[];
+  renderer.effect(ctx,{kind:'cast',x:210,y:275,x2:630,y2:310,spellType,spellWord,life:.4,maxLife:.6},palette,i/60,false);
+}
+assert.equal(renderer.particles.length,particleCount,'repeated skill draws allocate no persistent particle emitters');
+assert.equal(renderer.trail.length,trailCount);assert.equal(renderer.deathScenes.length,deathCount);
+ctx.calls=[];renderer.effect(ctx,{kind:'cast',x:210,y:275,x2:630,y2:310,spellType:'attack',spellWord:'fire',life:0,maxLife:.6},palette,0,false);
+assert.equal(ctx.calls.length,0,'expired skill effects draw nothing');
 for(const spellType of ['heal','shield']){
   ctx.calls=[];renderer.effect(ctx,{kind:'companion-cast',npcId:'echo',fromX:200,fromY:350,targetX:480,targetY:300,spellType,life:.5,maxLife:.6},palette,0,true);
   assert.ok(ctx.calls.some(call=>call.name==='ellipse'&&call.args[0]===480&&call.args[1]===280),'copied support spell surrounds its player target');
@@ -188,4 +232,4 @@ assert.ok(ctx.calls.some(call=>call.name==='fillText'&&call.args[0]==='回聲學
 assert.ok(ctx.calls.some(call=>call.name==='fillRect'&&call.args[0]===24&&call.args[1]===52),'boss pressure frame remains outside collision bounds');
 for(const shape of ['coin','paper','lantern','crystal'])renderer.projectile(ctx,{shape,x:400,y:200,r:6,vx:1,vy:1},palette,0,true);
 assert.equal(ctx.depth,0);
-console.log('Renderer checks passed: eight NPC silhouettes/Boss forms, followers, echo origins, seven spell effects, four room themes, boss entrances, death persistence/expiration, player death, reduced motion, exact hazard geometry, balanced Canvas state.');
+console.log('Renderer checks passed: eight NPC silhouettes/Boss forms, followers, echo origins, eight distinct skill silhouettes and animation, bounded effects, four room themes, boss entrances, death persistence/expiration, player death, reduced motion, exact hazard geometry, balanced Canvas state.');

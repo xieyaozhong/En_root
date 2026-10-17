@@ -7,6 +7,9 @@
   const renderer = new window.DungeonArenaRenderer($('arena'));
   const soundtrack = new window.DungeonAudio();
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const touchMedia = matchMedia('(max-width: 780px), (pointer: coarse)');
+  let touchLayout = touchMedia.matches, touchSpell = null, touchMissUntil = 0;
+  document.body.classList.toggle('touch-layout',touchLayout);
   const names = Engine.REGIONS.map(region=>region.name);
   const bosses = ['棘冠典獄長', '鏡月女巫', '失名之王'];
   const spellTypes = {attack:'攻擊咒', heal:'治癒咒', shield:'護盾咒', signature:'卡片奧義'};
@@ -70,15 +73,54 @@
   }
   function setChant(value) {
     if(!run || run.status!=='combat' || paused || persistenceBroken)value=false;
-    chanting=!!value;clearMovement();
+    chanting=!!value;
+    if(touchLayout && !paused && !persistenceBroken && run?.status==='combat'){heldKeys.clear();keyTimes.clear();tapPulses.clear();dashQueued=false;}
+    else clearMovement();
     const input=$('spellInput');
-    if(input){input.readOnly=!chanting;input.placeholder=chanting?'輸入英文，Enter 施法…':'按 Enter 開始詠唱…';if(chanting && document.activeElement!==input)input.focus({preventScroll:true});if(!chanting && document.activeElement===input)input.blur();}
+    if(input){input.readOnly=touchLayout || !chanting;input.placeholder=chanting?'輸入英文，Enter 施法…':'按 Enter 開始詠唱…';if(chanting && !touchLayout && document.activeElement!==input)input.focus({preventScroll:true});if((!chanting || touchLayout) && document.activeElement===input)input.blur();}
     $('actionPanel').classList.toggle('is-chanting',chanting);
     $('chantButton').textContent=chanting?'Esc · 返回走位':'Enter · 詠唱';
     previousTyped=input?.value || '';paintLetters();
     syncAudio();updateArenaHUD();
   }
-  function revealMovement(){if(matchMedia('(max-width: 780px)').matches)$('gameSurface').scrollIntoView({block:'start'});}
+  function bindTouchPress(button, action) {
+    // Secondary touch pointers do not reliably produce compatibility clicks.
+    button.onpointerdown=event=>{if(event.button!=null && event.button!==0)return;event.preventDefault();action();};
+    button.onclick=event=>{if(event.detail===0)action();};
+  }
+  function paintTouchSpell() {
+    const combat=run?.status==='combat',spell=run?.spell;
+    $('touchSpellPreview').hidden=!combat;$('touchRuneKeys').hidden=!combat;$('touchCast').hidden=!combat;
+    $('touchInteract').hidden=combat || !navigable();
+    if(!combat){touchSpell=null;$('touchChantHint').textContent='靠近角色或傳送門，再按互動';return;}
+    const input=$('spellInput'),typed=input?.value || '',state=Chant.analyze(spell.word,typed);
+    if(touchSpell!==spell){
+      touchSpell=spell;touchMissUntil=0;
+      $('touchRuneKeys').innerHTML=Chant.touchKeys(spell.word).map(key=>`<button type="button" class="rune-key" data-rune="${esc(key)}" aria-label="符文 ${esc(key)}">${esc(key.replace(/ /g,'␣'))}</button>`).join('');
+      $('touchRuneKeys').querySelectorAll('button').forEach(button=>{bindTouchPress(button,()=>tapRune(button.dataset.rune,spell));});
+    }
+    const next=Chant.touchSequence(spell.word).find((_,i,sequence)=>sequence.slice(0,i).join('').length===typed.length);
+    $('touchSpellName').innerHTML=state.letters.map(letter=>`<span class="${letter.state}">${esc(letter.char)}</span>`).join('');$('touchSpellMeaning').textContent=(spellTypes[spell.type] || '魔法')+' · '+(spell.zh || '');
+    $('touchRuneKeys').querySelectorAll('button').forEach(button=>{
+      button.disabled=!chanting || paused;
+      button.classList.toggle('next',chanting && button.dataset.rune===next);
+      button.classList.toggle('entered',!!typed && typed.includes(button.dataset.rune));
+      button.setAttribute('aria-label','符文 '+button.dataset.rune+(chanting && button.dataset.rune===next?' · 下一組':''));
+    });
+    $('touchCast').textContent=state.complete?'施放已備咒語':chanting?'返回走位':'詠唱';
+    $('touchCast').disabled=paused;
+    if(performance.now()>=touchMissUntil){
+      $('touchRuneKeys').classList.remove('rune-miss');
+      $('touchChantHint').textContent=state.complete?'咒語已備妥，靠近敵人後點施放':chanting?(run.arena?.player.focusEnergy<=0?'專注耗盡！點「'+(next || '')+'」或衝刺':'點亮起的「'+(next || '')+'」 · '+state.matched+'/'+state.letters.length+' 字母'):'點詠唱 → '+Chant.touchSequence(spell.word).length+' 組符文，自動施放';
+    }
+    $('touchRuneKeys').dataset.progress=String(state.matched);
+  }
+  function tapRune(key, spell) {
+    if(!touchLayout || !chanting || paused || busy || persistenceBroken || run?.status!=='combat' || run.spell!==spell)return;
+    const input=$('spellInput'),candidate=input.value+key;
+    if(!Chant.analyze(spell.word,candidate).wrong){input.value=candidate;touchMissUntil=0;paintLetters(true);if(Chant.analyze(spell.word,candidate).complete)cast();}
+    else {touchMissUntil=performance.now()+650;$('touchRuneKeys').classList.add('rune-miss');$('touchChantHint').textContent='順序差一點，點亮起的符文即可';tone('error');}
+  }
   function requestDash() {
     if(!navigable() || paused || persistenceBroken || inConversation())return;
     if(chanting)setChant(false);dashQueued=true;$('arena').focus({preventScroll:true});
@@ -86,11 +128,13 @@
   function updateArenaHUD() {
     const active=!!navigable(),combat=run?.status==='combat';
     $('arenaHUD').hidden=!active;$('movementBar').hidden=!active;$('touchControls').hidden=!active;
-    $('chantQte').hidden=!combat || !chanting || paused;
+    $('chantQte').hidden=touchLayout || !combat || !chanting || paused;
     if($('inlineQte'))$('inlineQte').hidden=!combat || !chanting || paused;
     document.body.classList.toggle('chanting-mode',combat && chanting);
+    document.body.classList.toggle('exploring',explorationStatuses.includes(run?.status));
     $('castFeedback').hidden=!combat || paused || performance.now()>=castFeedbackUntil;
     $('focusFlag').hidden=true;$('focusAbility').hidden=!combat;$('chantButton').hidden=!combat;$('interactButton').hidden=!active || combat;
+    paintTouchSpell();
     if(!active || !world())return;
     const arena=world(),player=arena.player;
     if(combat){
@@ -103,9 +147,12 @@
       $('roomBadge').title='走近場景中的角色或物件，按 E 互動';
       $('enemyCount').textContent=inConversation()?'交談中 · Esc 返回':target?'E · '+target.name:'靠近發光物件';
       $('interactButton').disabled=!target || inConversation();$('interactButton').textContent=target?'E · 互動':'E · 請先靠近';
+      $('touchInteract').disabled=!target || inConversation();$('touchInteract').textContent=target?'互動':'先靠近';
       $('arena').dataset.nearby=target?.id || '';
     }
     $('dashLabel').textContent=player.dashCooldown>0?player.dashCooldown.toFixed(1)+'s':'就緒';
+    $('touchDash').textContent=player.dashCooldown>0?player.dashCooldown.toFixed(1)+'s':'衝刺';
+    $('touchDash').setAttribute('aria-label',player.dashCooldown>0?'衝刺冷卻中':'衝刺');
     $('dashBar').style.width=Math.max(0,100*(1-player.dashCooldown/1.4))+'%';
     $('focusBar').style.width=(player.focusEnergy || 0)+'%';$('focusLabel').textContent=Math.round(player.focusEnergy || 0)+'%';
     $('focusFlag').textContent=arena.focusActive?'詠唱中 · 時間放慢':'專注耗盡 · 返回走位可恢復';
@@ -287,7 +334,8 @@
       $('spellForm').onsubmit = event => {event.preventDefault();cast();};
       $('spellInput').oninput = event=>{if(!event.isComposing)paintLetters(true);};
       $('spellInput').oncompositionend=()=>paintLetters(true);
-      $('spellInput').onfocus=()=>{if(!chanting)setChant(true);};
+      $('spellInput').readOnly=touchLayout || !chanting;
+      $('spellInput').onfocus=()=>{if(touchLayout){$('spellInput').blur();return;}if(!chanting)setChant(true);};
       previousTyped='';paintLetters();
       liveCombat();
     } else if (explorationStatuses.includes(run.status)) {
@@ -322,6 +370,7 @@
       if(state.kind==='wrong')tone('error');else if(state.kind==='ready')tone('heal');
     }
     previousTyped=typed;
+    paintTouchSpell();
   }
   function cast() {
     if(!run || run.status!=='combat' || paused || busy || persistenceBroken)return;
@@ -332,9 +381,9 @@
     notify(result.message || (result.ok?'咒語施放成功。':'拼寫還差一點，請修正後再試。'),!result.ok);
     if(result.ok){
       $('castFeedback').textContent=result.fast?'✦ 迅捷施法！':'✦ 施法成功！';castFeedbackUntil=performance.now()+850;
-      setChant(false);renderer.burst(type);tone(type);actionSignature='';render();$('arena').focus({preventScroll:true});revealMovement();
+      setChant(false);renderer.burst(type);tone(type);actionSignature='';render();$('arena').focus({preventScroll:true});
     }
-    else {tone('error');$('spellInput')?.setAttribute('aria-invalid','true'); if(run.status!=='combat'){setChant(false);render();}else if(result.message?.includes('射程')){setChant(false);$('arena').focus({preventScroll:true});}else renderVitals();}
+    else {tone('error');$('spellInput')?.setAttribute('aria-invalid','true'); if(run.status!=='combat'){setChant(false);render();}else if(result.message?.includes('射程') || result.message?.includes('下一波')){setChant(false);$('arena').focus({preventScroll:true});}else renderVitals();}
     persist();
   }
   function liveCombat() {
@@ -419,7 +468,7 @@
   }
   function help() {
     if(run){paused=true;syncPause();}
-    openDialog('<h2>移動、閃避、詠唱</h2><ol><li><b>WASD／方向鍵移動：</b>繞過石柱、與近戰敵人保持距離。手機拖曳左側搖桿，360 度移動；輕推慢走、推遠加速，放開即停止。</li><li><b>Space 衝刺：</b>沿移動方向快速位移，短暫免疫碰撞傷害，冷卻 1.4 秒；不能穿越牆壁。</li><li><b>Enter 詠唱：</b>時間放慢，依序輸入戰場提示的字母：下一鍵會亮起，打對變綠、打錯標紅；完成後再按 Enter 施法。施法後自動返回走位，也可按 Esc 取消詠唱。</li><li><b>專注會耗盡：</b>詠唱時消耗專注，離開詠唱即可恢復。專注歸零後敵人恢復正常速度。</li><li><b>看清預警：</b>紅色地面標記會在短暫延遲後造成傷害。用走位離開，或衝刺穿過彈幕。</li><li><b>靠近再施法：</b>咒語自動鎖定射程內最近的敵人；每五次成功施法輪到卡片奧義。</li></ol><h3>走近互動與旅途 NPC</h3><p>探索時用 WASD 或方向鍵走近傳送門、祭壇、營火或 NPC，按 E／Enter 互動；手機點「E · 互動」。商店也要先走近商人才能購物。交談時按 Esc 返回場景，走到出口繼續。</p><p>旅途中可能遇見療癒師、鍛造師、製圖師、擺渡人，以及三位可招募的旅伴：燈旅精靈提供護盾、回聲學徒延遲模仿成功咒語、紙甲衛士主動迎擊。同行夥伴會跟隨走位，隨進度保存，只存在於本趟遠征。交談後可接受一次幫助，或輸入畫面指定文字發起雙階段 Boss 挑戰。商人同樣可被挑戰；擊敗必得專屬遺物。接受幫助後，本次相遇不能再挑戰。</p><h3>房間與遺物</h3><p>新遠征穿過三個區域、18 個節點，每區第六節點為首領。舊存檔保留原有 12 節點進度。新增機關房間與原有掩體、熔岩、援軍各有不同走位策略。戰利品三選一，移速、連鎖、衝刺與緩速遺物可以搭配。</p><h3>配樂、暫停與接續</h3><p>點「配樂」開啟原創音樂。三位主線 Boss 與八位 NPC 首領各有獨立主題曲，第二階段切換狂怒變奏。登場、攻擊與死亡都有對應特效；系統「減少動畫」設定會抑制震動。按 Esc 暫停；切換分頁也會自動暫停。正式冒險會保存位置與進度，重新整理可接續。</p><h3>卡片與難度</h3><p>正式入場消耗 1 張收藏卡；練習免費。故事難度降低空間傷害，試煉提高傷害與彈速。失敗不退卡；道具、金幣與遺物只屬於本次冒險。</p>');
+    openDialog('<h2>移動、閃避、詠唱</h2><ol><li><b>WASD／方向鍵移動：</b>繞過石柱、與近戰敵人保持距離。手機拖曳左側搖桿，360 度移動；輕推慢走、推遠加速，放開即停止。</li><li><b>Space 衝刺：</b>沿移動方向快速位移，短暫免疫碰撞傷害，冷卻 1.4 秒；不能穿越牆壁。</li><li><b>Enter 詠唱：</b>時間放慢，依序輸入戰場提示的字母：下一鍵會亮起，打對變綠、打錯標紅；完成後再按 Enter 施法。施法後自動返回走位，也可按 Esc 取消詠唱。</li><li><b>手機符文施法：</b>點「詠唱」，依亮起的順序點 2～4 組符文，完成自動施放；不會開啟系統鍵盤。拖動搖桿或按衝刺立即返回走位，已輸入字母保留。射程外會保留完整咒語，靠近後點「施放已備咒語」。</li><li><b>專注會耗盡：</b>詠唱時消耗專注，離開詠唱即可恢復。專注歸零後敵人恢復正常速度。</li><li><b>看清預警：</b>紅色地面標記會在短暫延遲後造成傷害。用走位離開，或衝刺穿過彈幕。</li><li><b>靠近再施法：</b>咒語自動鎖定射程內最近的敵人；每五次成功施法輪到卡片奧義。</li></ol><h3>走近互動與旅途 NPC</h3><p>探索時用 WASD 或方向鍵走近傳送門、祭壇、營火或 NPC，按 E／Enter 互動；手機點「互動」。商店也要先走近商人才能購物。交談時按 Esc 返回場景，走到出口繼續。</p><p>旅途中可能遇見療癒師、鍛造師、製圖師、擺渡人，以及三位可招募的旅伴：燈旅精靈提供護盾、回聲學徒延遲模仿成功咒語、紙甲衛士主動迎擊。同行夥伴會跟隨走位，隨進度保存，只存在於本趟遠征。交談後可接受一次幫助，或輸入畫面指定文字發起雙階段 Boss 挑戰。商人同樣可被挑戰；擊敗必得專屬遺物。接受幫助後，本次相遇不能再挑戰。</p><h3>房間與遺物</h3><p>新遠征穿過三個區域、18 個節點，每區第六節點為首領。舊存檔保留原有 12 節點進度。新增機關房間與原有掩體、熔岩、援軍各有不同走位策略。戰利品三選一，移速、連鎖、衝刺與緩速遺物可以搭配。</p><h3>配樂、暫停與接續</h3><p>點「配樂」開啟原創音樂。三位主線 Boss 與八位 NPC 首領各有獨立主題曲，第二階段切換狂怒變奏。登場、攻擊與死亡都有對應特效；系統「減少動畫」設定會抑制震動。按 Esc 暫停；切換分頁也會自動暫停。正式冒險會保存位置與進度，重新整理可接續。</p><h3>卡片與難度</h3><p>正式入場消耗 1 張收藏卡；練習免費。故事難度降低空間傷害，試煉提高傷害與彈速。失敗不退卡；道具、金幣與遺物只屬於本次冒險。</p>');
   }
   function codex() {
     if(run){paused=true;syncPause();}
@@ -434,9 +483,13 @@
   $('soundButton').onclick=async()=>{const next=!audioEnabled;const ok=await soundtrack.setEnabled(next);audioEnabled=next && ok!==false;$('soundButton').textContent='配樂：'+(audioEnabled?'開':'關');$('soundButton').setAttribute('aria-pressed',String(audioEnabled));if(next && !audioEnabled)notify('瀏覽器尚未允許播放配樂，請再按一次配樂按鈕。',true);syncAudio();returnToArena();};
   soundtrack.setVolume(.45);$('musicVolume').oninput=event=>soundtrack.setVolume(Number(event.target.value)/100);
   $('musicVolume').onchange=returnToArena;
-  $('chantButton').onclick=()=>{setChant(!chanting);if(!chanting){$('arena').focus({preventScroll:true});revealMovement();}};
+  $('chantButton').onclick=()=>{setChant(!chanting);if(!chanting)$('arena').focus({preventScroll:true});};
   $('interactButton').onclick=interact;
-  $('touchDash').onclick=requestDash;
+  bindTouchPress($('touchInteract'),interact);
+  bindTouchPress($('touchCast'),()=>{if(!touchLayout)return;if(run?.status==='combat' && Chant.analyze(run.spell.word,$('spellInput')?.value).complete)cast();else setChant(!chanting);});
+  bindTouchPress($('touchDash'),requestDash);
+  touchMedia.addEventListener?.('change',event=>{clearMovement();setChant(false);touchLayout=event.matches;document.body.classList.toggle('touch-layout',touchLayout);touchSpell=null;actionSignature='';if(run)render();else updateArenaHUD();});
+  window.addEventListener('resize',()=>{clearMovement();if(touchLayout && chanting)setChant(false);});
   $('expandButton').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('gameSurface').requestFullscreen();}catch(_){notify('此瀏覽器不支援全螢幕，仍可直接遊玩。');}returnToArena();};
   document.addEventListener('keydown',event=>{
     if(event.isComposing || $('infoDialog').open)return;
@@ -455,7 +508,7 @@
   joystick=new window.DungeonJoystick($('moveJoystick'),{
     canStart:()=>!!navigable() && !paused && !persistenceBroken && !inConversation() && !$('infoDialog').open,
     onStart:()=>{if(chanting)setChant(false);else clearMovement();$('arena').focus({preventScroll:true});},
-    onChange:vector=>{$('moveJoystick').dataset.x=vector.x.toFixed(3);$('moveJoystick').dataset.y=vector.y.toFixed(3);}
+    onChange:vector=>{if(touchLayout && chanting && (vector.x || vector.y))setChant(false);$('moveJoystick').dataset.x=vector.x.toFixed(3);$('moveJoystick').dataset.y=vector.y.toFixed(3);}
   });
   ['contextmenu','selectstart','dragstart'].forEach(type=>document.addEventListener(type,event=>{
     const target=event.target;

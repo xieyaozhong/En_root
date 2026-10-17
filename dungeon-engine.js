@@ -37,7 +37,8 @@
     { word: 'bloom', zh: '綻放', name: '花息術', type: 'heal', power: 15 },
     { word: 'ward', zh: '守護', name: '結界術', type: 'shield', power: 17 },
     { word: 'stone', zh: '石頭', name: '石壁術', type: 'shield', power: 16 },
-    { word: 'storm', zh: '風暴', name: '風暴術', type: 'attack', power: 19 }
+    { word: 'storm', zh: '風暴', name: '風暴術', type: 'attack', power: 19 },
+    { word: 'wind', zh: '風', name: '風刃術', type: 'attack', power: 17 }
   ];
   // Spatial boons also appear in the existing reward/shop pools. Old turn-based
   // saves retain their original behavior until the arena is lazily created.

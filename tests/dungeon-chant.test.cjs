@@ -88,8 +88,35 @@ assert.equal(data.complete, true);
 assert.ok(data.letters.every(letter => Object.keys(letter).join(',') === 'char,state'), 'character objects contain text data only');
 assert.equal(Chant.analyze('spark', hostile).extra, hostile.slice(5));
 
+assert.deepEqual(Chant.touchSequence(''), []);
+assert.deepEqual(Chant.touchKeys(null), []);
+assert.deepEqual(Chant.touchSequence('A'), ['a']);
+assert.deepEqual(Chant.touchSequence('ICE'), ['i', 'c', 'e']);
+assert.deepEqual(Chant.touchSequence('fire'), ['f', 'i', 'r', 'e']);
+assert.deepEqual(Chant.touchSequence('storm'), ['st', 'or', 'm']);
+assert.deepEqual(Chant.touchSequence('abracadabra'), ['abr', 'aca', 'dab', 'ra']);
+assert.deepEqual(Chant.touchSequence('ABABABAB'), ['ab', 'ab', 'ab', 'ab']);
+assert.deepEqual(Chant.touchKeys('ABABABAB'), ['ab'], 'repeated chunks share a single reusable touch key');
+assert.deepEqual(Chant.touchKeys('fire'), ['i', 'r', 'e', 'f'], 'key order uses a fixed rotation rather than render-time randomness');
+assert.deepEqual(Chant.touchKeys('ABACABAC'), ['ac', 'ab'], 'deduplication precedes the stable rotation');
+assert.deepEqual(Chant.touchSequence('🌟火-冰 風'), ['🌟火', '-冰', ' 風'], 'Unicode characters, punctuation and spaces remain intact');
+for (const word of ['A', 'ICE', 'fire', 'storm', 'abracadabra', 'ABABABAB', 'will-o-wisp', 'ice storm', '🌟火-冰 風', '  Ice  ', hostile, 'x'.repeat(101)]) {
+  const sequence = Chant.touchSequence(word), keys = Chant.touchKeys(word), count = Array.from(word.toLowerCase()).length;
+  assert.equal(sequence.join(''), word.toLowerCase(), 'touch input round-trips every character of the normalized spell');
+  assert.ok(sequence.length >= 1 && sequence.length <= 4);
+  assert.ok(sequence.every(chunk => typeof chunk === 'string' && Array.from(chunk).length <= Math.ceil(count / 4)));
+  assert.deepEqual([...new Set(keys)].sort(), [...new Set(sequence)].sort(), 'every sequence chunk is available exactly once as text data');
+  assert.deepEqual(Chant.touchKeys(word), keys, 'rebuilding keys never changes their order');
+  let typed = '';
+  for (const chunk of sequence) { typed += chunk; assert.equal(Chant.analyze(word, typed).wrong, false); }
+  assert.equal(Chant.analyze(word, typed).complete, true, 'touch chunks use the same completion rules as keyboard input');
+}
+
 const context = { window: {} };
 vm.runInNewContext(fs.readFileSync(require.resolve('../dungeon-chant.js'), 'utf8'), context);
 assert.equal(typeof context.window.DungeonChant.analyze, 'function', 'UMD supports the static browser page');
 assert.equal(context.window.DungeonChant.analyze('rune', 'rune').complete, true);
-console.log('dungeon-chant: letter hints, prefix feedback, correction, paste and text safety passed');
+assert.equal(typeof context.window.DungeonChant.touchSequence, 'function');
+assert.equal(context.window.DungeonChant.touchSequence('FIRE').join(''), 'fire');
+assert.equal(context.window.DungeonChant.touchKeys('storm').join('|'), 'or|m|st');
+console.log('dungeon-chant: letter hints, prefix feedback, correction, paste, deterministic touch chunks and text safety passed');
