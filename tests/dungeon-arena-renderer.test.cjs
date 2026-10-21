@@ -140,6 +140,31 @@ const palette={light:'#d7f4e5',glow:'#8ecabb',void:'#101929',hot:'#f7b6a3'};
 const spellSignatures=new Set(),spellGeometry=new Map();
 const skillFixtures=[['attack','fire'],['attack','frost'],['attack','storm'],['attack','wind'],['attack','rune'],['signature','robot'],['heal','bloom'],['shield','ward']];
 const geometry=calls=>JSON.stringify(calls.map(({name,args})=>({name,args})));
+// Character poses are read-only visual state. Focusing raises the staff without
+// moving the player, changing the collision radius or animating reduced motion.
+const poseRun=sample(72),poseActor=poseRun.arena.player;
+ctx.calls=[];renderer.mage(ctx,poseActor,palette,0,true,poseRun);const idleMage=geometry(ctx.calls);
+poseRun.arena.focusActive=true;const focusedState=JSON.stringify(poseRun);
+ctx.calls=[];renderer.mage(ctx,poseActor,palette,0,true,poseRun);const castingMage=geometry(ctx.calls);
+assert.notEqual(castingMage,idleMage,'chanting has a distinct raised-staff pose');
+assert.equal(JSON.stringify(poseRun),focusedState,'drawing a casting pose never changes the player or run');
+ctx.calls=[];renderer.mage(ctx,poseActor,palette,99,true,poseRun);
+assert.equal(geometry(ctx.calls),castingMage,'reduced motion keeps the mage pose still');
+assert.ok(ctx.calls.length<500,'layered mage stays within a bounded mobile rendering budget');
+const beastGeometry=new Set();
+for(const id of ['bat','raven','ghost']){
+  ctx.calls=[];renderer.legacy.enemy.call(renderer.legacy,ctx,0,0,{id},0,palette,true,0);const first=geometry(ctx.calls);
+  beastGeometry.add(first);ctx.calls=[];renderer.legacy.enemy.call(renderer.legacy,ctx,0,0,{id},99,palette,true,0);
+  assert.equal(geometry(ctx.calls),first,'reduced motion freezes '+id+' wings and body geometry');
+}
+assert.equal(beastGeometry.size,3,'bat membranes, raven feathers and ghost shroud have distinct silhouettes');
+for(const id of ['slime','eye','bat','raven','ghost','knight','thorn','witch','king']){
+  const boss=['thorn','witch','king'].includes(id);ctx.globalAlpha=.24;ctx.calls=[];
+  renderer.legacy.enemy.call(renderer.legacy,ctx,0,0,{id,boss},0,palette,true,0);
+  assert.ok(ctx.calls.every(call=>call.alpha<=.24),'spawn/death opacity survives all '+id+' material and glow details');
+  assert.equal(ctx.globalAlpha,.24,'sprite restores its caller opacity');assert.equal(ctx.depth,0);
+}
+ctx.globalAlpha=1;
 for(const [spellType,spellWord] of skillFixtures){
   ctx.calls=[];renderer.effect(ctx,{kind:'cast',x:210,y:275,x2:630,y2:310,spellType,spellWord,life:.4,maxLife:.6},palette,0,true);
   spellSignatures.add(JSON.stringify(ctx.calls));spellGeometry.set(spellWord,geometry(ctx.calls));assert.equal(ctx.depth,0);

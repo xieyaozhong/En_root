@@ -13,7 +13,24 @@
   const names = Engine.REGIONS.map(region=>region.name);
   const bosses = ['棘冠典獄長', '鏡月女巫', '失名之王'];
   const spellTypes = {attack:'攻擊咒', heal:'治癒咒', shield:'護盾咒', signature:'卡片奧義'};
-  const icons = {battle:'⚔', elite:'✦', boss:'♜', treasure:'◇', camp:'♨', shop:'¤', attack:'ϟ', heal:'✚', shield:'⛨', signature:'✦'};
+  const icon = name => window.DungeonIcons?.icon(name) || '';
+  const itemIcons = {potion:'potion',bomb:'bomb',hourglass:'hourglass',barrier:'shield',focus:'ink'};
+  const npcIcons = {merchant:'shop',healer:'heal',smith:'attack',cartographer:'route',ferryman:'camp',lantern:'companion',echo:'spell',sentinel:'shield'};
+  function spellIcon(spell) {
+    if(['heal','shield','signature'].includes(spell.type))return spell.type;
+    const word=String(spell.word || '').toLowerCase();
+    return /^(fire|spark|flame|blaze)$/.test(word)?'fire':/^(frost|ice|freeze|snow)$/.test(word)?'ice':
+      /^(storm|thunder|lightning|bolt)$/.test(word)?'lightning':/^(wind|gust|gale|air)$/.test(word)?'wind':'attack';
+  }
+  function iconLabel(id, name, label) {
+    const element=$(id), key=name+':'+label;
+    if(!element || element.dataset.iconLabel===key)return;
+    element.dataset.iconLabel=key;
+    element.innerHTML=icon(name)+'<span>'+esc(label)+'</span>';
+  }
+  document.querySelectorAll('[data-ui-icon]').forEach(element=>{element.innerHTML=icon(element.dataset.uiIcon);});
+  iconLabel('soundButton','music','配樂：關');
+  iconLabel('chantButton','spell','Enter · 詠唱');
   let run = null, receipt = null, saved = null, selectedWord = '', paused = false, busy = false, finished = false;
   let lastTime = 0, lastPaint = 0, saveClock = 0, audioEnabled = false, sessionHeld = false, persistenceBroken = false;
   let logSignature = '', sidebarSignature = '', actionSignature = '', settlementPromise = null, releaseSession = null;
@@ -59,7 +76,7 @@
     $('partyStrip').hidden=!companions.length;
     if(key===partySignature)return;partySignature=key;
     const roles={support:'守護',mimic:'模仿施法',guard:'迎擊'};
-    $('partyStrip').innerHTML='<span class="party-label">同行夥伴</span>'+companions.map(c=>`<span class="party-member" data-role="${esc(c.role)}" title="${esc(Engine.NPCS[c.id]?.helpDescription || '')}">${esc(Engine.NPCS[c.id]?.icon || '✦')} ${esc(c.name.split('・').pop())}<small>${esc(roles[c.role] || '同行')}</small></span>`).join('');
+    $('partyStrip').innerHTML='<span class="party-label">同行夥伴</span>'+companions.map(c=>`<span class="party-member" data-role="${esc(c.role)}" title="${esc(Engine.NPCS[c.id]?.helpDescription || '')}">${icon(npcIcons[c.id] || 'companion')}${esc(c.name.split('・').pop())}<small>${esc(roles[c.role] || '同行')}</small></span>`).join('');
   }
   function clearMovement() {
     heldKeys.clear();keyTimes.clear();tapPulses.clear();dashQueued=false;joystick?.reset();
@@ -79,7 +96,7 @@
     const input=$('spellInput');
     if(input){input.readOnly=touchLayout || !chanting;input.placeholder=chanting?'輸入英文，Enter 施法…':'按 Enter 開始詠唱…';if(chanting && !touchLayout && document.activeElement!==input)input.focus({preventScroll:true});if((!chanting || touchLayout) && document.activeElement===input)input.blur();}
     $('actionPanel').classList.toggle('is-chanting',chanting);
-    $('chantButton').textContent=chanting?'Esc · 返回走位':'Enter · 詠唱';
+    iconLabel('chantButton',chanting?'dash':'spell',chanting?'Esc · 返回走位':'Enter · 詠唱');
     previousTyped=input?.value || '';paintLetters();
     syncAudio();updateArenaHUD();
   }
@@ -96,6 +113,8 @@
     const input=$('spellInput'),typed=input?.value || '',state=Chant.analyze(spell.word,typed);
     if(touchSpell!==spell){
       touchSpell=spell;touchMissUntil=0;
+      $('touchSpellIcon').innerHTML=icon(spellIcon(spell));
+      $('touchSpellPreview').dataset.element=spellIcon(spell);
       $('touchRuneKeys').innerHTML=Chant.touchKeys(spell.word).map(key=>`<button type="button" class="rune-key" data-rune="${esc(key)}" aria-label="符文 ${esc(key)}">${esc(key.replace(/ /g,'␣'))}</button>`).join('');
       $('touchRuneKeys').querySelectorAll('button').forEach(button=>{bindTouchPress(button,()=>tapRune(button.dataset.rune,spell));});
     }
@@ -107,7 +126,7 @@
       button.classList.toggle('entered',!!typed && typed.includes(button.dataset.rune));
       button.setAttribute('aria-label','符文 '+button.dataset.rune+(chanting && button.dataset.rune===next?' · 下一組':''));
     });
-    $('touchCast').textContent=state.complete?'施放已備咒語':chanting?'返回走位':'詠唱';
+    iconLabel('touchCast',chanting && !state.complete?'dash':'spell',state.complete?'施放已備咒語':chanting?'返回走位':'詠唱');
     $('touchCast').disabled=paused;
     if(performance.now()>=touchMissUntil){
       $('touchRuneKeys').classList.remove('rune-miss');
@@ -146,12 +165,12 @@
       $('roomBadge').textContent={route:'命運路口',shop:'遊商驛站',npc:'旅途相逢',camp:'星燈營地',reward:'戰利品祭壇'}[run.status];
       $('roomBadge').title='走近場景中的角色或物件，按 E 互動';
       $('enemyCount').textContent=inConversation()?'交談中 · Esc 返回':target?'E · '+target.name:'靠近發光物件';
-      $('interactButton').disabled=!target || inConversation();$('interactButton').textContent=target?'E · 互動':'E · 請先靠近';
-      $('touchInteract').disabled=!target || inConversation();$('touchInteract').textContent=target?'互動':'先靠近';
+      $('interactButton').disabled=!target || inConversation();iconLabel('interactButton','companion',target?'E · 互動':'E · 請先靠近');
+      $('touchInteract').disabled=!target || inConversation();iconLabel('touchInteract','companion',target?'互動':'先靠近');
       $('arena').dataset.nearby=target?.id || '';
     }
     $('dashLabel').textContent=player.dashCooldown>0?player.dashCooldown.toFixed(1)+'s':'就緒';
-    $('touchDash').textContent=player.dashCooldown>0?player.dashCooldown.toFixed(1)+'s':'衝刺';
+    iconLabel('touchDash','dash',player.dashCooldown>0?player.dashCooldown.toFixed(1)+'s':'衝刺');
     $('touchDash').setAttribute('aria-label',player.dashCooldown>0?'衝刺冷卻中':'衝刺');
     $('dashBar').style.width=Math.max(0,100*(1-player.dashCooldown/1.4))+'%';
     $('focusBar').style.width=(player.focusEnergy || 0)+'%';$('focusLabel').textContent=Math.round(player.focusEnergy || 0)+'%';
@@ -189,7 +208,7 @@
     const result = await Storage.saveRun(run, receipt.id);
     if (!result.ok) storageFailure(result);
   }
-  function panel(title, content, extra='') { return `<section class="side-panel ${extra}"><div class="panel-title"><h2>${title}</h2></div>${content}</section>`; }
+  function panel(title, content, extra='') { return `<section class="side-panel ${extra}"><div class="panel-title"><h2>${icon(title==='冒險行囊'?'bag':'spell')}${title}</h2></div>${content}</section>`; }
   function catalogValues(value) { return Array.isArray(value) ? value : Object.values(value || {}); }
   function journey() {
     $('journeyStops').innerHTML = names.map((name,i) => `<div class="journey-stop ${i === (run?.region || 0) ? 'current' : ''} ${run && (i < run.region || run.status === 'won') ? 'cleared' : ''}"><span class="journey-number">0${i+1}</span><div><strong>${esc(name)}</strong><small>${esc(bosses[i])}</small></div><span>${run && i < run.region ? '已突破' : '封印 '+(i+1)}</span></div>`).join('');
@@ -198,6 +217,9 @@
     const art = window.ENROOT_PIXEL_ART ? window.ENROOT_PIXEL_ART(card, 'large') : '';
     const rank = {N:0,R:1,SR:2,SSR:3,UR:4}[card.rarity] || 0;
     return `<div class="entry-card"><span class="rarity-label">${esc(card.rarity)}</span><div class="card-art">${art}</div>${owned ? '' : '<div class="preview-card-note">練習用借閱卡</div>'}<strong>${esc(card.word)}</strong><div class="translation">${esc(card.zh)}</div><div class="entry-effect">奧義咒語 · ${esc(card.word)}<br>生命 +${rank*3} · 奧義基礎威力 +${rank}</div></div>`;
+  }
+  function renderWelcome() {
+    $('actionPanel').innerHTML = `<div class="action-heading"><h3>走位、閃避，讓文字化為力量</h3><span class="pill">動作遠征</span></div><p>穿越 18 個節點，在敵人的破綻中詠唱。邀請燈靈、回聲學徒與紙甲衛士同行，或向旅人提出首領挑戰。</p><div class="onboarding"><div><em>01 / MOVE</em><b>${icon('route')}自由移動</b>${touchLayout?'拖曳左側搖桿':'WASD 或方向鍵'}<br>繞過敵人與掩體</div><div><em>02 / DASH</em><b>${icon('dash')}衝刺閃避</b>${touchLayout?'點衝刺瞬間位移':'空白鍵瞬間位移'}<br>穿過危險彈幕</div><div><em>03 / CHANT</em><b>${icon('spell')}專注詠唱</b>${touchLayout?'點詠唱放慢時間<br>依序點符文施法':'Enter 放慢時間<br>打字釋放魔法'}</div></div>`;
   }
   function lobby() {
     if(releaseSession){releaseSession();releaseSession=null;sessionHeld=false;}
@@ -208,7 +230,7 @@
     $('modeLabel').textContent = '以單字喚醒魔法'; $('floorLabel').textContent = '尚未出發'; $('chapterLabel').textContent = 'CHAPTER I'; $('regionLabel').textContent = names[0];
     $('arenaCaption').hidden = false; $('arenaCaption').textContent='✧ 古老的文字，正在等待回聲。'; $('hpText').textContent = '120 / 120'; $('hpBar').style.width = '100%';
     $('shieldText').textContent = '0'; $('goldText').textContent = '0'; $('comboText').textContent = '× 0';
-    $('actionPanel').innerHTML = `<div class="action-heading"><h3>走位、閃避，讓文字化為力量</h3><span class="pill">動作遠征</span></div><p>穿越 18 個節點，在敵人的破綻中詠唱。邀請燈靈、回聲學徒與紙甲衛士同行，或向旅人提出首領挑戰。</p><div class="onboarding"><div><em>01 / MOVE</em><b>自由移動</b>WASD 或方向鍵<br>繞過敵人與掩體</div><div><em>02 / DASH</em><b>衝刺閃避</b>空白鍵瞬間位移<br>穿過危險彈幕</div><div><em>03 / CHANT</em><b>專注詠唱</b>Enter 放慢時間<br>打字釋放魔法</div></div>`;
+    renderWelcome();
     renderDeparture(); journey();renderParty();updateArenaHUD();syncAudio();presentation();
   }
   function renderDeparture() {
@@ -216,7 +238,7 @@
     if (!owned.some(c => c.word === selectedWord)) selectedWord = owned[0]?.word || '';
     const card = owned.find(c => c.word === selectedWord) || cards.find(c=>c.word === 'predict') || cards[0];
     const active = saved?.active;
-    $('sidebar').innerHTML = `<section class="side-panel departure"><div class="panel-title"><h2>${active ? '尚未結束的冒險' : '選擇入場卡片'}</h2><span>${owned.reduce((n,c)=>n+c.count,0)} 張收藏</span></div>${owned.length ? `<label for="entrySelect">從已抽到的卡片中選擇</label><select id="entrySelect" ${active ? 'disabled' : ''}>${owned.map(c=>`<option value="${esc(c.word)}" ${c.word===selectedWord?'selected':''}>${esc(c.word)} · ${esc(c.rarity)} · ×${c.count}</option>`).join('')}</select>` : '<div class="empty-inventory">還沒有收藏卡片。<br><a href="index.html">完成 10 題，抽取第一張卡</a>，或先免費練習。</div>'}${entryCard(active ? cards.find(c=>c.word===active.receipt.word)||card : card, owned.length>0)}<p class="entry-note">${active ? '你的進度已保存。接續冒險不會再次消耗卡片。' : '正式入場將消耗所選卡片 1 張。<br>失敗不退還；每次冒險重新生成路線。'}</p>${active ? '<button id="continueRun" class="primary wide">接續冒險</button><button id="abandonSaved" class="secondary wide">結束這次冒險</button>' : `<button id="startRun" class="primary wide" ${!owned.length || !collection.ok ? 'disabled' : ''}>消耗 1 張 · 踏入地牢</button><button id="practiceRun" class="secondary wide">免費練習 · 不消耗卡片</button>`}<div class="save-note">${active ? '進度已保存' : '正式冒險自動保存 · 隨時回來繼續'}</div></section><section class="side-panel tip-panel"><div class="eyebrow">A WORD OF ADVICE</div><p>普通卡也能走到最後。把重複抽到的卡片帶進地牢，讓每一張收藏都有新的旅程。</p></section>`;
+    $('sidebar').innerHTML = `<section class="side-panel departure"><div class="panel-title"><h2>${icon('spell')}${active ? '尚未結束的冒險' : '選擇入場卡片'}</h2><span>${owned.reduce((n,c)=>n+c.count,0)} 張收藏</span></div>${owned.length ? `<label for="entrySelect">從已抽到的卡片中選擇</label><select id="entrySelect" ${active ? 'disabled' : ''}>${owned.map(c=>`<option value="${esc(c.word)}" ${c.word===selectedWord?'selected':''}>${esc(c.word)} · ${esc(c.rarity)} · ×${c.count}</option>`).join('')}</select>` : '<div class="empty-inventory">還沒有收藏卡片。<br><a href="index.html">完成 10 題，抽取第一張卡</a>，或先免費練習。</div>'}${entryCard(active ? cards.find(c=>c.word===active.receipt.word)||card : card, owned.length>0)}<p class="entry-note">${active ? '你的進度已保存。接續冒險不會再次消耗卡片。' : '正式入場將消耗所選卡片 1 張。<br>失敗不退還；每次冒險重新生成路線。'}</p>${active ? '<button id="continueRun" class="primary wide">接續冒險</button><button id="abandonSaved" class="secondary wide">結束這次冒險</button>' : `<button id="startRun" class="primary wide" ${!owned.length || !collection.ok ? 'disabled' : ''}>消耗 1 張 · 踏入地牢</button><button id="practiceRun" class="secondary wide">免費練習 · 不消耗卡片</button>`}<div class="save-note">${active ? '進度已保存' : '正式冒險自動保存 · 隨時回來繼續'}</div></section><section class="side-panel tip-panel"><div class="eyebrow">A WORD OF ADVICE</div><p>普通卡也能走到最後。把重複抽到的卡片帶進地牢，讓每一張收藏都有新的旅程。</p></section>`;
     if (!collection.ok) notify(collection.error,true);
     const tip=$('sidebar').querySelector('.tip-panel p');
     if(tip)tip.textContent='紅色標記是即將落下的攻擊。走出範圍或衝刺穿過彈幕，等安全時再按 Enter 詠唱。點上方「配樂」可開啟區域音樂。';
@@ -266,7 +288,7 @@
   function syncPause() {
     if(run && ['won','lost'].includes(run.status) && !persistenceBroken)paused=false;
     $('pauseOverlay').hidden = !run || !paused;
-    $('pauseButton').textContent = paused ? '▷' : 'Ⅱ'; $('pauseButton').setAttribute('aria-label',paused?'繼續遊戲':'暫停遊戲');
+    iconLabel('pauseButton',paused?'play':'pause',''); $('pauseButton').setAttribute('aria-label',paused?'繼續遊戲':'暫停遊戲');
     $('resumeButton').disabled = persistenceBroken;
     if (run) $('pauseButton').hidden = ['won','lost'].includes(run.status);
     const input = $('spellInput'); if (input) input.disabled = paused;
@@ -314,11 +336,11 @@
       const labels={route:['選一扇門，走向下一段旅程','走近傳送門，按 E 或 Enter 進入。'],shop:['商人正在攤位等你','走近商人交談、購物或輸入挑戰文字；走到出口繼續。'],npc:['路上遇見了一位旅人','走近對方按 E 交談。接受幫助，或用指定文字發起挑戰。'],reward:['戰利品就在眼前','走近一座祭壇，按 E 領取；每次只能選一項。'],camp:['星燈照亮了營地','走近營火休息，或前往木偶磨練。兩者只能選一項。']};
       const [title,detail]=labels[run.status];
       const trophy=run.status==='reward' && run.npc?.defeated ? Engine.RELICS[Engine.NPCS[run.npc.id]?.lootId] : null;
-      area.innerHTML=`<div class="action-heading"><h3>${esc(title)}</h3><span class="pill">走近 · E 互動</span></div><p>${esc(detail)}</p>${trophy?`<div class="special-loot"><span>✦ NPC 專屬遺物 · 已裝備</span><strong>${esc(trophy.name)}</strong><p>${esc(trophy.description)}</p></div>`:''}<div class="nearby-card ${target?'in-range':''}"><span>${target?'◇ 可互動':'↟ 前往場景中的標記'}</span><strong>${esc(target?.name || '移動角色，探索這個房間')}</strong><p>${esc(target?.description || 'WASD／方向鍵移動，Space 衝刺。手機拖曳搖桿移動，再按互動按鈕。')}</p></div><div class="scene-directory" aria-label="場景中的互動物件">${(scene?.objects || []).map(object=>`<span>${esc(object.icon || '◇')} ${esc(object.name)}</span>`).join('')}</div>`;
+      area.innerHTML=`<div class="action-heading"><h3>${esc(title)}</h3><span class="pill">走近 · E 互動</span></div><p>${esc(detail)}</p>${trophy?`<div class="special-loot"><span>✦ NPC 專屬遺物 · 已裝備</span><strong>${esc(trophy.name)}</strong><p>${esc(trophy.description)}</p></div>`:''}<div class="nearby-card ${target?'in-range':''}"><span>${target?'◇ 可互動':'↟ 前往場景中的標記'}</span><strong>${esc(target?.name || '移動角色，探索這個房間')}</strong><p>${esc(target?.description || 'WASD／方向鍵移動，Space 衝刺。手機拖曳搖桿移動，再按互動按鈕。')}</p></div><div class="scene-directory" aria-label="場景中的互動物件">${(scene?.objects || []).map(object=>`<span>${icon(npcIcons[object.npcId] || object.routeType || (object.kind==='reward'?'treasure':object.kind==='exit'?'route':object.kind))}${esc(object.name)}</span>`).join('')}</div>`;
     }
   }
   function choiceMarkup(list, method) {
-    return `<div class="choices">${list.map((item,i)=>`<button class="choice" data-action="${method}" data-choice="${esc(item.id == null ? i : item.id)}" ${item.sold || (method==='buy' && item.price>run.player.gold)?'disabled':''}><span class="choice-icon">${esc(icons[item.type] || icons[item.kind] || item.icon || '◇')}</span><strong>${esc(item.name || item.title || item.label || '神祕路線')}</strong><small>${esc(item.description || item.detail || '')}${method==='buy' && item.price != null ? `<br><span class="price">${item.sold?'已售出':item.price+' 金幣'}</span>`:''}</small></button>`).join('')}</div>`;
+    return `<div class="choices">${list.map((item,i)=>`<button class="choice" data-action="${method}" data-choice="${esc(item.id == null ? i : item.id)}" ${item.sold || (method==='buy' && item.price>run.player.gold)?'disabled':''}><span class="choice-icon">${icon(itemIcons[item.id] || item.type || item.kind || 'relic')}</span><strong>${esc(item.name || item.title || item.label || '神祕路線')}</strong><small>${esc(item.description || item.detail || '')}${method==='buy' && item.price != null ? `<br><span class="price">${item.sold?'已售出':item.price+' 金幣'}</span>`:''}</small></button>`).join('')}</div>`;
   }
   function renderAction() {
     if(explorationStatuses.includes(run.status))Explore.ensure(run);
@@ -330,7 +352,7 @@
     area.classList.toggle('combat-panel',run.status==='combat');area.classList.toggle('is-chanting',chanting && run.status==='combat');
     if (run.status === 'combat') {
       const spell = run.spell, enemy = run.enemy;
-      area.innerHTML = `<div class="enemy-intent"><span id="enemyIntent"></span><b id="intentTime"></b></div><div class="meter enemy-meter"><i id="intentBar"></i></div><div class="spell-row"><div><div class="spell-word" id="spellWord">${esc(spell.word)}</div><div class="spell-meaning">${esc(spell.zh || '')}</div></div><div class="spell-type">${esc(spellTypes[spell.type]||'魔法咒語')}<br><small>${esc(spell.description||'')}</small></div></div><div id="inlineQte" class="inline-qte" hidden><div class="qte-top"><b>✦ 咒語連鎖</b><span id="inlineQteTime"></span></div><div class="qte-letters" id="inlineQteLetters" aria-hidden="true"></div><p id="inlineQteHint" role="status" aria-live="polite"></p></div><form class="spell-form" id="spellForm" autocomplete="off"><input id="spellInput" name="spell" aria-label="輸入咒語" placeholder="按 Enter 開始詠唱…" ${chanting?'':'readonly'} autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" enterkeyhint="send" maxlength="80"><button class="primary" type="submit">施法 ↵</button></form>`;
+      area.innerHTML = `<div class="enemy-intent"><span id="enemyIntent"></span><b id="intentTime"></b></div><div class="meter enemy-meter"><i id="intentBar"></i></div><div class="spell-row" data-element="${spellIcon(spell)}"><span class="spell-emblem">${icon(spellIcon(spell))}</span><div class="spell-copy"><div class="spell-word" id="spellWord">${esc(spell.word)}</div><div class="spell-meaning">${esc(spell.zh || '')}</div></div><div class="spell-type">${esc(spellTypes[spell.type]||'魔法咒語')}<br><small>${esc(spell.description||'')}</small></div></div><div id="inlineQte" class="inline-qte" hidden><div class="qte-top"><b>✦ 咒語連鎖</b><span id="inlineQteTime"></span></div><div class="qte-letters" id="inlineQteLetters" aria-hidden="true"></div><p id="inlineQteHint" role="status" aria-live="polite"></p></div><form class="spell-form" id="spellForm" autocomplete="off"><input id="spellInput" name="spell" aria-label="輸入咒語" placeholder="按 Enter 開始詠唱…" ${chanting?'':'readonly'} autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" enterkeyhint="send" maxlength="80"><button class="primary" type="submit">施法 ↵</button></form>`;
       $('spellForm').onsubmit = event => {event.preventDefault();cast();};
       $('spellInput').oninput = event=>{if(!event.isComposing)paintLetters(true);};
       $('spellInput').oncompositionend=()=>paintLetters(true);
@@ -411,7 +433,7 @@
     const queue=run.queue || [];
     const inventory=run.inventory || [];
     const relics=run.relics || [];
-    $('sidebar').innerHTML = panel('接下來的咒語',`<div class="queue-list">${queue.length?queue.map(spell=>`<div class="queue-item"><span class="queue-icon">${icons[spell.type] || '✦'}</span><div><b>${esc(spell.word)}</b><small>${esc(spell.zh)} · ${esc(spellTypes[spell.type]||'魔法')}</small></div></div>`).join(''):'<p>進入戰鬥後，咒語會在這裡浮現。</p>'}</div>`) + panel('冒險行囊',`<div class="bag-items">${inventory.filter(item=>item.count>0).map(item=>`<button class="bag-item" data-item="${esc(item.id)}" ${((item.id!=='potion' && run.status!=='combat') || ['won','lost'].includes(run.status) || paused)?'disabled':''} title="${esc(item.description)}"><span>${esc(item.icon||'◇')}</span><span><b>${esc(item.name)}</b><small>${esc(item.description)}</small></span><span class="quantity">×${item.count}</span></button>`).join('') || '<p>行囊空了。到商店或寶箱找找補給。</p>'}</div><p class="card-effect">點擊道具使用；藥水可在探索時補血。</p>${relics.length?`<div class="panel-title" style="margin:20px 0 8px"><h3>已裝備遺物</h3><span>自動生效</span></div>${relics.map(item=>`<span class="relic-tag" title="${esc(item.description)}">${esc(item.name||item.id)}</span>`).join('')}`:''}`) + `<section class="side-panel"><div class="panel-title"><h2>旅途紀錄</h2><span>${run.practice?'練習':'自動保存'}</span></div><div id="logList"></div><button class="quiet-button danger" id="abandonRun">結束這次冒險</button></section>`;
+    $('sidebar').innerHTML = panel('接下來的咒語',`<div class="queue-list">${queue.length?queue.map(spell=>`<div class="queue-item"><span class="queue-icon" data-element="${spellIcon(spell)}">${icon(spellIcon(spell))}</span><div><b>${esc(spell.word)}</b><small>${esc(spell.zh)} · ${esc(spellTypes[spell.type]||'魔法')}</small></div></div>`).join(''):'<p>進入戰鬥後，咒語會在這裡浮現。</p>'}</div>`) + panel('冒險行囊',`<div class="bag-items">${inventory.filter(item=>item.count>0).map(item=>`<button class="bag-item" data-item="${esc(item.id)}" ${((item.id!=='potion' && run.status!=='combat') || ['won','lost'].includes(run.status) || paused)?'disabled':''} title="${esc(item.description)}"><span class="item-emblem">${icon(itemIcons[item.id] || 'relic')}</span><span><b>${esc(item.name)}</b><small>${esc(item.description)}</small></span><span class="quantity">×${item.count}</span></button>`).join('') || '<p>行囊空了。到商店或寶箱找找補給。</p>'}</div><p class="card-effect">點擊道具使用；藥水可在探索時補血。</p>${relics.length?`<div class="panel-title" style="margin:20px 0 8px"><h3>${icon('relic')}已裝備遺物</h3><span>自動生效</span></div>${relics.map(item=>`<span class="relic-tag" title="${esc(item.description)}">${esc(item.name||item.id)}</span>`).join('')}`:''}`) + `<section class="side-panel"><div class="panel-title"><h2>${icon('route')}旅途紀錄</h2><span>${run.practice?'練習':'自動保存'}</span></div><div id="logList"></div><button class="quiet-button danger" id="abandonRun">結束這次冒險</button></section>`;
     $('sidebar').querySelectorAll('[data-item]').forEach(button=>button.onclick=()=>doAction('useItem',button.dataset.item));
     $('abandonRun').onclick=()=>confirmAbandon(false); logSignature='';renderLog();
   }
@@ -480,7 +502,7 @@
   $('pauseButton').onclick=togglePause;$('resumeButton').onclick=togglePause;$('helpButton').onclick=help;$('codexButton').onclick=codex;
   $('closeDialog').onclick=()=>$('infoDialog').close();
   function returnToArena(){if(navigable() && !paused && !chanting && !inConversation())$('arena').focus({preventScroll:true});}
-  $('soundButton').onclick=async()=>{const next=!audioEnabled;const ok=await soundtrack.setEnabled(next);audioEnabled=next && ok!==false;$('soundButton').textContent='配樂：'+(audioEnabled?'開':'關');$('soundButton').setAttribute('aria-pressed',String(audioEnabled));if(next && !audioEnabled)notify('瀏覽器尚未允許播放配樂，請再按一次配樂按鈕。',true);syncAudio();returnToArena();};
+  $('soundButton').onclick=async()=>{const next=!audioEnabled;const ok=await soundtrack.setEnabled(next);audioEnabled=next && ok!==false;iconLabel('soundButton','music','配樂：'+(audioEnabled?'開':'關'));$('soundButton').setAttribute('aria-pressed',String(audioEnabled));if(next && !audioEnabled)notify('瀏覽器尚未允許播放配樂，請再按一次配樂按鈕。',true);syncAudio();returnToArena();};
   soundtrack.setVolume(.45);$('musicVolume').oninput=event=>soundtrack.setVolume(Number(event.target.value)/100);
   $('musicVolume').onchange=returnToArena;
   $('chantButton').onclick=()=>{setChant(!chanting);if(!chanting)$('arena').focus({preventScroll:true});};
@@ -488,7 +510,7 @@
   bindTouchPress($('touchInteract'),interact);
   bindTouchPress($('touchCast'),()=>{if(!touchLayout)return;if(run?.status==='combat' && Chant.analyze(run.spell.word,$('spellInput')?.value).complete)cast();else setChant(!chanting);});
   bindTouchPress($('touchDash'),requestDash);
-  touchMedia.addEventListener?.('change',event=>{clearMovement();setChant(false);touchLayout=event.matches;document.body.classList.toggle('touch-layout',touchLayout);touchSpell=null;actionSignature='';if(run)render();else updateArenaHUD();});
+  touchMedia.addEventListener?.('change',event=>{clearMovement();setChant(false);touchLayout=event.matches;document.body.classList.toggle('touch-layout',touchLayout);touchSpell=null;actionSignature='';if(run)render();else {renderWelcome();updateArenaHUD();}});
   window.addEventListener('resize',()=>{clearMovement();if(touchLayout && chanting)setChant(false);});
   $('expandButton').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('gameSurface').requestFullscreen();}catch(_){notify('此瀏覽器不支援全螢幕，仍可直接遊玩。');}returnToArena();};
   document.addEventListener('keydown',event=>{

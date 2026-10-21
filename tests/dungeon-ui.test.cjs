@@ -10,6 +10,7 @@ const Arena = require('../dungeon-arena.js');
 const Explore = require('../dungeon-explore.js');
 const Joystick = require('../dungeon-controls.js');
 const Chant = require('../dungeon-chant.js');
+const Icons = require('../dungeon-icons.js');
 const source = fs.readFileSync(path.join(__dirname, '../dungeon.js'), 'utf8');
 const html = fs.readFileSync(path.join(__dirname, '../dungeon.html'), 'utf8');
 const decode = s => s.replace(/&(?:amp|lt|gt|quot|#39);/g, x => ({'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'"','&#39;':"'"})[x]);
@@ -140,7 +141,7 @@ async function harness(active = null, options = {}) {
     DungeonEngine: {...Engine, createRun: (card, practice) => run = Engine.createRun(card, practice, 31)}, DungeonStorage: Storage,
     DungeonArena: {...Arena, update: (...args) => { calls.updates++; calls.lastInput={...args[2]}; return Arena.update(...args); },
       cast: (...args) => { calls.castAttempts++; return Arena.cast(...args); }, ensure: next => {run = next; return Arena.ensure(next);}},
-    DungeonExplore: Explore, DungeonJoystick: Joystick, DungeonChant: Chant,
+    DungeonExplore: Explore, DungeonJoystick: Joystick, DungeonChant: Chant, DungeonIcons: Icons,
     DungeonArenaRenderer: Renderer, DungeonAudio: Audio, ENROOT_CARDS: [{word:'robot',zh:'機器人',rarity:'N'}],
     addEventListener: (name, callback) => (listeners.window[name] ||= []).push(callback)
   };
@@ -190,6 +191,10 @@ async function harness(active = null, options = {}) {
 
 (async () => {
   const h = await harness();
+  assert.equal(h.$('soundButton').querySelector('svg').getAttribute('data-icon'),'music');
+  await h.resize(390);
+  assert.ok(h.$('actionPanel').textContent.includes('拖曳左側搖桿'),'lobby help follows the current controls');
+  await h.resize(1280);
   h.$('difficultySelect').value = 'story'; h.$('difficultySelect').onchange({target:h.$('difficultySelect')});
   const run = await h.combat(); assert.equal(run.difficulty, 'story'); assert.equal(h.calls.consumes, 0, 'practice never consumes cards');
   assert.equal(h.$('floorLabel').textContent,'01 / 18','new campaign length appears on the HUD');
@@ -351,6 +356,8 @@ async function harness(active = null, options = {}) {
     return lastButton;
   }
   const mobile=await harness(null,{width:390});const mobileRun=await mobile.combat();quietCombat(mobileRun);
+  assert.ok(mobile.$('touchSpellIcon').querySelector('svg'),'mobile spell has an original glyph');
+  assert.equal(mobile.$('touchCast').querySelector('svg').getAttribute('aria-hidden'),'true','glyph does not duplicate the control name');
   assert.ok(mobile.doc.body.classList.contains('touch-layout'),'narrow screens select the touch layout');
   assert.equal(mobile.$('spellInput').readOnly,true,'mobile never exposes an editable system-keyboard field');
   assert.equal(mobile.$('touchControls').closest('.arena'),null,'the touch controls are outside the battlefield');
