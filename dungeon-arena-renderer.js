@@ -369,8 +369,54 @@
         poly(c,[[-19,-36],[-30,-11],[-5,-17]],'#7ba3a9');poly(c,[[17,-37],[29,-13],[7,-19]],'#709ba6');stroke(c,32,1,32,-90,'#aca17d',4);box(c,27,-88,10,22,'#d8c69a');
         stroke(c,-24,-39,-35,-39,'#d1c59d',2);stroke(c,-35,-39,-35,-25,'#d1c59d',2);aura(c,-35,-17,19,'#a2e3e1',.11);box(c,-42,-27,14,18,'#687e91');box(c,-39,-24,8,12,'#c3f0dd');box(c,-44,-10,18,3,'#b5c3a5');
       }
+      this.npcMaterials(c,id,boss);
       if(boss&&phase>1){box(c,-18,-87,36,3,'#f3b09c');gem(c,0,-98,8,'#ffd1b0');}
       c.restore();
+    }
+    npcMaterials(c,id,boss){
+      // Broad left-lit / right-shadowed planes add volume. Accessories remain
+      // role-specific and are large enough to read on a phone-sized arena.
+      const gold=boss?'#efb48c':'#e8ce97';
+      if(id==='merchant'){
+        poly(c,[[-18,-50],[-14,-33],[-18,-12],[-24,-12],[-21,-47]],'#bb9070');poly(c,[[9,-44],[20,-47],[23,-31],[12,-31]],'#674d50');
+        poly(c,[[-12,-76],[4,-83],[-3,-65],[-16,-58]],'#edbf86');box(c,-22,-26,45,2,'#c8a479');box(c,-8,-27,12,9,gold);box(c,-5,-25,6,4,'#74534f');
+        stroke(c,14,-49,-13,-29,'#554050',5);stroke(c,14,-49,-13,-29,'#d0a17a',2);box(c,15,-25,17,3,'#f0ce94');box(c,15,-20,3,10,'#a57e59');
+        gem(c,22,-16,4,'#f5d697');box(c,-13,-12,10,3,'#d5ac7a');
+      }else if(id==='healer'){
+        poly(c,[[-18,-40],[-12,-33],[-17,-11],[-22,-10]],'#91bea0');poly(c,[[12,-37],[18,-40],[22,-12],[14,-14]],'#426e64');
+        box(c,-24,-65,15,3,'#f0c4ae');box(c,14,-62,12,4,'#955e75');stroke(c,-18,-56,-11,-54,'#a26e7c',2);stroke(c,12,-54,21,-56,'#a26e7c',2);
+        box(c,-9,-17,18,3,'#e6dcab');box(c,-18,-36,7,10,'#435e55');box(c,-16,-34,3,6,'#a8e0a6');box(c,13,-33,8,11,'#997579');box(c,15,-32,4,7,'#d9b5ac');
+        poly(c,[[23,-45],[15,-51],[18,-39]],'#a0d4a4');gem(c,26,-61,5,'#eeffcc');
+      }else if(id==='smith'){
+        box(c,-23,-54,13,4,'#d0ccd0');box(c,15,-51,9,17,'#555b70');box(c,-14,-44,5,27,'#dda078');box(c,9,-43,6,28,'#925d54');
+        stroke(c,-10,-49,8,-35,'#5e4b56',3);box(c,-10,-33,20,3,'#d7b18a');box(c,-8,-31,3,3,gold);box(c,6,-31,3,3,gold);
+        box(c,-12,-73,5,3,'#f2d4a5');box(c,-10,-50,6,9,'#97818b');box(c,-7,-46,4,9,'#baa195');box(c,22,-74,5,15,'#dfd9d0');box(c,29,-69,13,3,'#7c8193');
+        gem(c,37,-65,5,'#e2b47f');box(c,30,-31,5,8,'#d5af80');
+      }else if(id==='cartographer'){
+        poly(c,[[-17,-49],[-10,-43],[-16,-34],[-22,-35]],'#a9a7c4');poly(c,[[13,-49],[19,-43],[23,-33],[13,-35]],'#4b527e');
+        poly(c,[[-8,-79],[-6,-85],[9,-69],[1,-69]],'#c9b9d7');box(c,-18,-65,32,2,'#e2cfa9');box(c,-18,-30,3,17,'#b09b7e');box(c,18,-31,3,18,'#b09b7e');
+        gem(c,7,-19,4,'#a27379');box(c,-13,-18,8,2,'#a2a081');stroke(c,-12,-25,0,-16,'#aca186',1);box(c,-8,-7,4,3,gold);box(c,7,-7,4,3,gold);
+      }else if(id==='lantern'){
+        poly(c,[[-31,-67],[-36,-50],[-22,-32],[-24,-48]],'#77c2b6');poly(c,[[31,-67],[36,-50],[22,-32],[24,-48]],'#a4e4c9');
+        stroke(c,-31,-60,-22,-41,'#b9f0cc',2);stroke(c,31,-60,22,-41,'#ddf5d5',2);gem(c,-29,-48,4,'#e7efb9');gem(c,29,-48,4,'#e7efb9');
+        box(c,-10,-59,4,17,'#eff2cf');box(c,6,-56,4,17,'#a4bcae');box(c,-10,-62,20,2,'#8cc5b6');box(c,-11,-23,22,2,'#e7e2ac');
+        box(c,-8,-19,3,16,'#4e8586');box(c,5,-19,3,16,'#4e8586');box(c,-8,-4,16,3,'#618983');stroke(c,-7,-25,-4,-30,gold,2);stroke(c,7,-25,4,-30,gold,2);
+      }else if(id==='echo'){
+        poly(c,[[-15,-44],[-8,-38],[-12,-10],[-18,-8]],'#b2a0d0');poly(c,[[11,-42],[15,-42],[20,-10],[10,-12]],'#655988');
+        poly(c,[[-17,-70],[-10,-84],[-8,-76],[-12,-68]],'#d7bff0');poly(c,[[1,-77],[13,-65],[3,-65]],'#8875b0');box(c,-21,-63,40,2,'#f5dbec');
+        box(c,-16,-11,34,3,'#d8bddf');box(c,-5,-34,8,2,'#fff1da');gem(c,0,-29,3,'#fff3cf');box(c,-14,-29,8,12,'#64557c');box(c,-13,-28,3,10,'#e2c6b2');
+        gem(c,27,-61,6,'#b5dcdf');box(c,25,-47,9,3,'#edc8dd');stroke(c,-35,-44,-31,-44,'#fff1db',2);
+      }else if(id==='sentinel'){
+        poly(c,[[-14,-71],[-1,-78],[-1,-60]],'#fff1c3');poly(c,[[2,-78],[15,-70],[4,-60]],'#b5a16d');box(c,-17,-51,34,3,'#a18b5d');
+        stroke(c,-15,-43,-3,-35,'#f6e8ba',2);stroke(c,3,-35,16,-43,'#fff0bd',2);gem(c,0,-32,6,'#9f8f65');gem(c,0,-33,3,'#fff2be');
+        poly(c,[[-32,-37],[-25,-35],[-26,-20],[-31,-16],[-35,-23]],'#b79857');stroke(c,-33,-37,-28,-35,'#fff1bb',2);box(c,-16,-7,10,3,'#e0c68e');box(c,8,-7,10,3,'#ddc38b');
+        stroke(c,30,-84,30,-67,'#b8c2aa',2);box(c,27,-49,6,4,gold);
+      }else{
+        poly(c,[[-17,-63],[-11,-57],[-17,-12],[-23,-6]],'#6996a2');poly(c,[[12,-57],[17,-63],[22,-9],[13,-15]],'#354f67');
+        stroke(c,-11,-67,-3,-78,'#93b5b5',2);stroke(c,-11,-36,-15,-16,'#a4c3bc',2);stroke(c,10,-35,15,-13,'#658d9b',2);
+        box(c,-17,-7,13,3,'#8eaaa8');box(c,6,-8,13,3,'#78999e');box(c,28,-85,3,15,'#f0d8a5');box(c,31,-54,3,15,'#dbc494');
+        box(c,-41,-27,12,2,'#d4d5ae');box(c,-38,-23,3,9,'#ecffe4');box(c,-36,-35,3,7,gold);
+      }
     }
     spring(c,s,player,t,still){
       const x=val(s.x),y=val(s.y),r=Math.max(1,val(s.r,48)),inside=Math.hypot(val(player.x)-x,val(player.y)-y)<=r;
@@ -402,10 +448,12 @@
       const x=val(a.x),y=val(a.y),dash=val(a.dashTime)>0,invuln=val(a.invulnerable)>0;
       const face=val(a.facingX,1)<-.05?-1:1;
       c.save();c.globalAlpha*=.48;oval(c,x,y+2,dash?22:17,6,p.void);c.restore();
+      c.save();c.globalAlpha*=.5;oval(c,x,y+1,10,3,'#081521');c.restore();
       if(dash)aura(c,x,y-11,22,'#bfeaff',.11);
       c.save();if(invuln&&!still)c.globalAlpha*=.62+Math.sin(t*26)**2*.3;
       c.translate(Math.round(x),Math.round(y));c.scale(face*.57,.57);
-      if(this.legacy?.hero)this.legacy.hero.call(this.legacy,c,-34,-98,t,run?.player,still||dash);
+      const casting=!dash&&run?.status==='combat'&&(run?.arena?.focusActive||(run?.arena?.effects||[]).some(e=>e.kind==='cast'&&val(e.life)>.12));
+      if(this.legacy?.hero)this.legacy.hero.call(this.legacy,c,-34,-98,t,run?.player,still||dash,{casting});
       else this.fallbackMage(c,p);
       c.restore();
       if(dash){stroke(c,x-face*25,y-17,x-face*43,y-17,'#bad6f9',2);stroke(c,x-face*23,y-9,x-face*34,y-9,'#97b4e5',2);}
