@@ -140,6 +140,37 @@ const palette={light:'#d7f4e5',glow:'#8ecabb',void:'#101929',hot:'#f7b6a3'};
 const spellSignatures=new Set(),spellGeometry=new Map();
 const skillFixtures=[['attack','fire'],['attack','frost'],['attack','storm'],['attack','wind'],['attack','rune'],['signature','robot'],['heal','bloom'],['shield','ward']];
 const geometry=calls=>JSON.stringify(calls.map(({name,args})=>({name,args})));
+// Ownership markers are compact symbols below the feet, never a false hitbox or
+// an attack-radius ring. Only the live player receives the facing marker.
+const markerActor={x:320,y:280,r:12,facingX:1,facingY:0},markerBefore=JSON.stringify(markerActor);
+const facingMarks=new Set();
+for(const [facingX,facingY] of [[1,0],[-1,0],[0,1],[0,-1],[1,1]]){
+  ctx.calls=[];renderer.actorMarker(ctx,{...markerActor,facingX,facingY});facingMarks.add(geometry(ctx.calls));
+  assert.ok(ctx.calls.length<35,'one ownership marker needs only a few bounded Canvas commands');
+  assert.ok(!ctx.calls.some(call=>['ellipse','arc'].includes(call.name)),'ownership marks never imply a circular gameplay boundary');
+  for(const call of ctx.calls.filter(call=>['moveTo','lineTo'].includes(call.name))){
+    assert.ok(Math.abs(call.args[0]-320)<=19&&call.args[1]>=280&&call.args[1]<=298,'facing marker stays in a compact footprint below the player');
+  }
+  assert.equal(ctx.depth,0);
+}
+assert.equal(facingMarks.size,5,'a small arrow distinguishes cardinal and diagonal facing directions');
+assert.equal(JSON.stringify(markerActor),markerBefore,'markers never change player position, facing or radius');
+ctx.calls=[];renderer.actorMarker(ctx,markerActor,'ally');const allyMark=geometry(ctx.calls);
+assert.ok(!facingMarks.has(allyMark),'followers use a diamond distinct from the player compass');
+ctx.globalAlpha=.23;ctx.calls=[];renderer.actorMarker(ctx,markerActor);
+assert.ok(ctx.calls.every(call=>call.alpha<=.23),'player marker respects inherited transparency');assert.equal(ctx.globalAlpha,.23);
+ctx.calls=[];renderer.companion(ctx,{...markerActor,npcId:'lantern'},palette,0,true);
+assert.ok(ctx.calls.every(call=>call.alpha<=.23),'ally shadow, marker, model, glow and label respect inherited transparency');assert.equal(ctx.globalAlpha,.23);
+ctx.globalAlpha=1;
+const markerMethod=renderer.actorMarker,markerCalls=[];
+renderer.actorMarker=function(...args){markerCalls.push({kind:args[2]||'player',x:args[1].x,y:args[1].y});return markerMethod.apply(this,args);};
+const markerRun=sample(71);markerRun.arena.player.dashTime=.12;markerRun.arena.companions=[{...markerActor,npcId:'echo'}];
+renderer.draw({run:markerRun},3260);markerCalls.length=0;renderer.draw({run:markerRun},3276);
+assert.equal(markerCalls.filter(call=>call.kind==='player').length,1,'dash afterimages cannot duplicate the live player marker');
+assert.equal(markerCalls.filter(call=>call.kind==='ally').length,1,'one companion has one ally marker');
+markerCalls.length=0;renderer.foe(ctx,{id:'slime',x:400,y:300,hp:10},palette,0,true,0);
+assert.equal(markerCalls.length,0,'enemies never inherit friendly ownership marks');
+renderer.actorMarker=markerMethod;
 // Character poses are read-only visual state. Focusing raises the staff without
 // moving the player, changing the collision radius or animating reduced motion.
 const poseRun=sample(72),poseActor=poseRun.arena.player;
@@ -242,12 +273,14 @@ renderer.draw({run:deathRun,reducedMotion:true},5050);assert.equal(renderer.deat
 
 const lostRun=sample(57);lostRun.status='lost';lostRun.player.hp=0;lostRun.arena.effects=[];
 const mageDraw=renderer.mage,magePositions=[];
-renderer.mage=function(...args){magePositions.push([args[1].x,args[1].y]);return mageDraw.apply(this,args);};
+const deathMarkerFlags=[];
+renderer.mage=function(...args){magePositions.push([args[1].x,args[1].y]);deathMarkerFlags.push(args[6]);return mageDraw.apply(this,args);};
 renderer.draw({run:lostRun,reducedMotion:true},5100);
 assert.equal(renderer.deathScenes.length,1,'loss creates player death even without a gameplay effect');
 assert.equal(renderer.deathScenes[0].actor.kind,'player');
 assert.ok(!magePositions.some(([x,y])=>x===lostRun.arena.player.x&&y===lostRun.arena.player.y),'dead player is not still drawn as a living mage');
 assert.ok(magePositions.some(([x,y])=>x===0&&y===0),'player death draws the departing sprite snapshot');
+assert.ok(deathMarkerFlags.every(flag=>flag===false),'departing player snapshots omit the live ownership marker');
 renderer.draw({run:null},5150);assert.equal(renderer.deathScenes.length,0,'returning to lobby clears lingering death effects');
 
 const introRun=sample(61);introRun.arena.enemies=[{...dead,hp:100,maxHp:100,alive:true,active:true}];
