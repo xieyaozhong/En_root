@@ -336,6 +336,43 @@ async function harness(active = null, options = {}) {
     assert.ok(target,'fixture retains a live target');
     next.arena.player.x=target.x;next.arena.player.y=target.y+60;
   }
+  const quick=await harness(null,{width:390});
+  assert.equal(quick.$('quickPotion').hidden,true,'lobby hides adventure healing');
+  const quickRun=await quick.combat();quietCombat(quickRun);
+  const potion=quickRun.inventory.find(item=>item.id==='potion');potion.count=3;
+  quickRun.player.hp=quickRun.player.maxHp;quick.tick(.1);
+  assert.equal(quick.$('quickPotion').disabled,true,'full health preserves potions');
+  quick.touchTap(quick.$('quickPotion'));assert.equal(potion.count,3);
+  quickRun.player.hp=1;quick.tick(.1);
+  assert.equal(quick.$('quickPotion').disabled,false);
+  assert.ok(quick.$('quickPotion').classList.contains('needed'),'critical health highlights available healing');
+  quick.pointer(71,'pointerdown',120,80);await quick.click('touchCast');
+  const firstChunk=Chant.touchSequence(quickRun.spell.word)[0];
+  quick.touchTap(quick.$('touchRuneKeys').querySelector('[data-rune="'+firstChunk+'"]'));
+  const prefix=quick.$('spellInput').value;
+  quick.touchTap(quick.$('quickPotion'));
+  assert.equal(quickRun.player.hp,39,'one touch heals exactly once including compatibility click');
+  assert.equal(potion.count,2);assert.equal(quick.$('quickPotionCount').textContent,'×2');
+  assert.equal(quick.$('spellInput').value,prefix,'healing keeps the entered spell prefix');
+  assert.ok(quick.doc.body.classList.contains('chanting-mode'),'healing keeps chanting active');
+  assert.ok(quick.$('moveJoystick').hasPointerCapture(71),'healing keeps the movement finger');
+  const letters=quick.$('touchSpellName').children[0];quick.tick(.1);
+  assert.equal(quick.$('touchSpellName').children[0],letters,'idle HUD ticks preserve spell letter nodes');
+  assert.ok(quick.calls.lastInput.x>0,'movement continues after healing');
+  quick.pointer(71,'pointercancel');await quick.click('pauseButton');
+  assert.equal(quick.$('quickPotion').disabled,true);quick.touchTap(quick.$('quickPotion'));assert.equal(potion.count,2,'paused input cannot consume healing');
+  await quick.click('resumeButton');quick.fire(quick.$('quickPotion'),'click',{detail:0});
+  assert.equal(potion.count,1,'keyboard activation heals once');
+  potion.count=0;quick.tick(.1);quick.touchTap(quick.$('quickPotion'));
+  assert.equal(potion.count,0);assert.equal(quick.$('quickPotion').disabled,true,'empty stock disables healing');
+  quickRun.spell={word:'cocoon',zh:'重複符文',type:'attack',power:5};quick.input('');quick.tick(.1);await quick.click('touchCast');
+  const repeatedRune=quick.$('touchRuneKeys').querySelector('[data-rune="co"]');quick.touchTap(repeatedRune);
+  assert.equal(quick.$('spellInput').value,'co');
+  assert.ok(repeatedRune.classList.contains('next'),'a repeated chunk remains the next target');
+  assert.equal(repeatedRune.classList.contains('entered'),false,'completed styling cannot override the next target');
+  const repeatLetter=quick.$('touchSpellName').children[0];quickRun.arena.player.focusEnergy=0;quick.tick(.1);
+  assert.match(quick.$('touchChantHint').textContent,/專注耗盡/,'dynamic focus guidance still refreshes without text input');
+  assert.equal(quick.$('touchSpellName').children[0],repeatLetter);
   function touchSequence(ui, word) {
     let lastButton, prefix='';
     for(const chunk of Chant.touchSequence(word)) {
@@ -517,6 +554,12 @@ async function harness(active = null, options = {}) {
   assert.equal(merchant.$('npcChallengeForm'),null,'merchant controls stay hidden until approaching');
   const mp=merchant.run.exploration.player;mp.x=440;mp.y=270;merchant.tick(.1);
   await merchant.key('KeyE');assert.ok(merchant.$('npcChallengeForm'),'merchant conversation opens nearby');
+  merchant.run.player.hp=1;merchant.tick(.1);
+  const merchantPotions=merchant.run.inventory.find(item=>item.id==='potion');
+  const beforeConversationPotion=merchantPotions.count;
+  assert.equal(merchant.$('quickPotion').disabled,true);merchant.touchTap(merchant.$('quickPotion'));
+  assert.equal(merchantPotions.count,beforeConversationPotion,'conversation blocks quick healing');
+  merchant.run.player.hp=merchant.run.player.maxHp;
   assert.equal(merchant.fire(merchant.$('npcChallengeInput'),'contextmenu').defaultPrevented,false,'NPC challenge input keeps the native editing menu');
   const stayY=mp.y;await merchant.key('KeyW');merchant.tick(.1);assert.equal(mp.y,stayY,'conversation freezes movement');
   merchant.$('npcChallengeInput').focus();merchant.$('npcChallengeInput').value='wrong';
@@ -578,6 +621,7 @@ async function harness(active = null, options = {}) {
   ending.run.player.hp=1;ending.run.arena.player.x=420;await ending.click('chantButton');
   ending.input('incorrect');await ending.$('spellForm').onsubmit({preventDefault(){}});
   assert.equal(ending.run.status,'lost');
+  assert.equal(ending.$('quickPotion').hidden,true,'completed adventures hide quick healing');
   ending.doc.hidden=true;await ending.dispatch('document','visibilitychange');
   ending.doc.hidden=false;await ending.dispatch('document','visibilitychange');
   assert.equal(ending.$('pauseOverlay').hidden,true,'returning to a completed run never traps results behind an unusable pause screen');

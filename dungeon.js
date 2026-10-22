@@ -8,7 +8,7 @@
   const soundtrack = new window.DungeonAudio();
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const touchMedia = matchMedia('(max-width: 780px), (pointer: coarse)');
-  let touchLayout = touchMedia.matches, touchSpell = null, touchMissUntil = 0;
+  let touchLayout = touchMedia.matches, touchSpell = null, touchMissUntil = 0, touchLettersKey = '', touchButtonsKey = '';
   document.body.classList.toggle('touch-layout',touchLayout);
   const names = Engine.REGIONS.map(region=>region.name);
   const bosses = ['棘冠典獄長', '鏡月女巫', '失名之王'];
@@ -27,6 +27,10 @@
     if(!element || element.dataset.iconLabel===key)return;
     element.dataset.iconLabel=key;
     element.innerHTML=icon(name)+'<span>'+esc(label)+'</span>';
+  }
+  function textIfChanged(id, value) {
+    const element=$(id), text=String(value);
+    if(element.textContent!==text)element.textContent=text;
   }
   document.querySelectorAll('[data-ui-icon]').forEach(element=>{element.innerHTML=icon(element.dataset.uiIcon);});
   iconLabel('soundButton','music','配樂：關');
@@ -109,28 +113,37 @@
     const combat=run?.status==='combat',spell=run?.spell;
     $('touchSpellPreview').hidden=!combat;$('touchRuneKeys').hidden=!combat;$('touchCast').hidden=!combat;
     $('touchInteract').hidden=combat || !navigable();
-    if(!combat){touchSpell=null;$('touchChantHint').textContent='靠近角色或傳送門，再按互動';return;}
+    if(!combat){touchSpell=null;textIfChanged('touchChantHint','靠近角色或傳送門，再按互動');return;}
     const input=$('spellInput'),typed=input?.value || '',state=Chant.analyze(spell.word,typed);
     if(touchSpell!==spell){
-      touchSpell=spell;touchMissUntil=0;
+      touchSpell=spell;touchMissUntil=0;touchLettersKey='';touchButtonsKey='';
       $('touchSpellIcon').innerHTML=icon(spellIcon(spell));
       $('touchSpellPreview').dataset.element=spellIcon(spell);
       $('touchRuneKeys').innerHTML=Chant.touchKeys(spell.word).map(key=>`<button type="button" class="rune-key" data-rune="${esc(key)}" aria-label="符文 ${esc(key)}">${esc(key.replace(/ /g,'␣'))}</button>`).join('');
       $('touchRuneKeys').querySelectorAll('button').forEach(button=>{bindTouchPress(button,()=>tapRune(button.dataset.rune,spell));});
+      textIfChanged('touchSpellMeaning',(spellTypes[spell.type] || '魔法')+' · '+(spell.zh || ''));
     }
     const next=Chant.touchSequence(spell.word).find((_,i,sequence)=>sequence.slice(0,i).join('').length===typed.length);
-    $('touchSpellName').innerHTML=state.letters.map(letter=>`<span class="${letter.state}">${esc(letter.char)}</span>`).join('');$('touchSpellMeaning').textContent=(spellTypes[spell.type] || '魔法')+' · '+(spell.zh || '');
-    $('touchRuneKeys').querySelectorAll('button').forEach(button=>{
-      button.disabled=!chanting || paused;
-      button.classList.toggle('next',chanting && button.dataset.rune===next);
-      button.classList.toggle('entered',!!typed && typed.includes(button.dataset.rune));
-      button.setAttribute('aria-label','符文 '+button.dataset.rune+(chanting && button.dataset.rune===next?' · 下一組':''));
-    });
+    const lettersKey=JSON.stringify([spell.word,typed]),buttonsKey=JSON.stringify([typed,chanting,paused]);
+    if(lettersKey!==touchLettersKey){
+      touchLettersKey=lettersKey;
+      $('touchSpellName').innerHTML=state.letters.map(letter=>`<span class="${letter.state}">${esc(letter.char)}</span>`).join('');
+    }
+    if(buttonsKey!==touchButtonsKey){
+      touchButtonsKey=buttonsKey;
+      $('touchRuneKeys').querySelectorAll('button').forEach(button=>{
+        const isNext=chanting && button.dataset.rune===next;
+        button.disabled=!chanting || paused;
+        button.classList.toggle('next',isNext);
+        button.classList.toggle('entered',!isNext && !!typed && typed.includes(button.dataset.rune));
+        button.setAttribute('aria-label','符文 '+button.dataset.rune+(isNext?' · 下一組':''));
+      });
+    }
     iconLabel('touchCast',chanting && !state.complete?'dash':'spell',state.complete?'施放已備咒語':chanting?'返回走位':'詠唱');
     $('touchCast').disabled=paused;
     if(performance.now()>=touchMissUntil){
       $('touchRuneKeys').classList.remove('rune-miss');
-      $('touchChantHint').textContent=state.complete?'咒語已備妥，靠近敵人後點施放':chanting?(run.arena?.player.focusEnergy<=0?'專注耗盡！點「'+(next || '')+'」或衝刺':'點亮起的「'+(next || '')+'」 · '+state.matched+'/'+state.letters.length+' 字母'):'點詠唱 → '+Chant.touchSequence(spell.word).length+' 組符文，自動施放';
+      textIfChanged('touchChantHint',state.complete?'咒語已備妥，靠近敵人後點施放':chanting?(run.arena?.player.focusEnergy<=0?'專注耗盡！點「'+(next || '')+'」或衝刺':'點亮起的「'+(next || '')+'」 · '+state.matched+'/'+state.letters.length+' 字母'):'點詠唱 → '+Chant.touchSequence(spell.word).length+' 組符文，自動施放');
     }
     $('touchRuneKeys').dataset.progress=String(state.matched);
   }
@@ -144,6 +157,25 @@
     if(!navigable() || paused || persistenceBroken || inConversation())return;
     if(chanting)setChant(false);dashQueued=true;$('arena').focus({preventScroll:true});
   }
+  function canQuickHeal() {
+    return navigable() && !paused && !busy && !persistenceBroken && !inConversation() &&
+      run.player.hp<run.player.maxHp && run.inventory.some(item=>item.id==='potion' && item.count>0);
+  }
+  function updateQuickPotion() {
+    const button=$('quickPotion'),count=run?.inventory.find(item=>item.id==='potion')?.count || 0;
+    button.hidden=!navigable();button.disabled=!canQuickHeal();
+    button.classList.toggle('needed',!!run && run.player.hp<=run.player.maxHp*.35 && count>0);
+    textIfChanged('quickPotionCount','×'+count);
+    const label='使用苔露藥水，剩餘 '+count+' 瓶'+(run && run.player.hp>=run.player.maxHp?'，生命已滿':'');
+    if(button.getAttribute('aria-label')!==label)button.setAttribute('aria-label',label);
+  }
+  function quickHeal() {
+    if(!canQuickHeal())return;
+    const result=Arena.useItem(run,'potion');
+    if(!result.ok){notify(result.message,true);return;}
+    // Healing must preserve the held joystick and the partially entered spell.
+    notify(result.message);tone('heal');renderVitals();updateQuickPotion();renderSidebar();persist();
+  }
   function updateArenaHUD() {
     const active=!!navigable(),combat=run?.status==='combat';
     $('arenaHUD').hidden=!active;$('movementBar').hidden=!active;$('touchControls').hidden=!active;
@@ -153,7 +185,7 @@
     document.body.classList.toggle('exploring',explorationStatuses.includes(run?.status));
     $('castFeedback').hidden=!combat || paused || performance.now()>=castFeedbackUntil;
     $('focusFlag').hidden=true;$('focusAbility').hidden=!combat;$('chantButton').hidden=!combat;$('interactButton').hidden=!active || combat;
-    paintTouchSpell();
+    paintTouchSpell();updateQuickPotion();
     if(!active || !world())return;
     const arena=world(),player=arena.player;
     if(combat){
@@ -510,6 +542,7 @@
   bindTouchPress($('touchInteract'),interact);
   bindTouchPress($('touchCast'),()=>{if(!touchLayout)return;if(run?.status==='combat' && Chant.analyze(run.spell.word,$('spellInput')?.value).complete)cast();else setChant(!chanting);});
   bindTouchPress($('touchDash'),requestDash);
+  bindTouchPress($('quickPotion'),quickHeal);
   touchMedia.addEventListener?.('change',event=>{clearMovement();setChant(false);touchLayout=event.matches;document.body.classList.toggle('touch-layout',touchLayout);touchSpell=null;actionSignature='';if(run)render();else {renderWelcome();updateArenaHUD();}});
   window.addEventListener('resize',()=>{clearMovement();if(touchLayout && chanting)setChant(false);});
   $('expandButton').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('gameSurface').requestFullscreen();}catch(_){notify('此瀏覽器不支援全螢幕，仍可直接遊玩。');}returnToArena();};
