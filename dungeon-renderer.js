@@ -6,7 +6,8 @@
   const PALETTES = [
     { void:'#0b0e20', wall:'#171c35', stone:'#242a46', edge:'#303855', floor:'#222841', line:'#151a2d', light:'#9d93ff', glow:'#8762ec', trim:'#505272', accent:'#d1b884', name:'library' },
     { void:'#08191c', wall:'#102e30', stone:'#214244', edge:'#305658', floor:'#193e3e', line:'#0e2b2e', light:'#b5e8cb', glow:'#54d3b1', trim:'#396360', accent:'#bcae77', name:'forest' },
-    { void:'#160c22', wall:'#281732', stone:'#392242', edge:'#53304f', floor:'#302138', line:'#1d1226', light:'#ffb6b0', glow:'#f17c91', trim:'#724059', accent:'#d4a074', name:'obsidian' }
+    { void:'#160c22', wall:'#281732', stone:'#392242', edge:'#53304f', floor:'#302138', line:'#1d1226', light:'#ffb6b0', glow:'#f17c91', trim:'#724059', accent:'#d4a074', name:'obsidian' },
+    { void:'#111a2e', wall:'#26384a', stone:'#3b5060', edge:'#6f8691', floor:'#243b4c', line:'#1a2d42', light:'#f8e4da', glow:'#b9dfe7', trim:'#adaca6', accent:'#ecd6ae', name:'astral' }
   ];
   function seed(n) { let x = n | 0; return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return (x >>> 0) / 4294967296; }; }
   function rect(c,x,y,w,h,color) { c.fillStyle=color; c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h)); }
@@ -77,11 +78,21 @@
         this.mushrooms(c,56,273,1);this.mushrooms(c,683,250,1);this.mushrooms(c,308,347,.75);
         rect(c,123,169,81,24,'#142d2b');rect(c,126,173,74,13,'#2a4b3c');
         this.vine(c,136,68,113,p,rnd);this.vine(c,620,49,145,p,rnd);
-      }else{
+      }else if(region===2){
         [49,229,525,698].forEach((x,i)=>this.crystal(c,x,199+i%2*79,18+i%3*5,p,true));
         const paths=[[11,316,139,273],[654,324,751,347],[288,372,340,343]];
         paths.forEach(([x,y,xx,yy])=>{line(c,x,y,xx,yy,'#682e51',5);line(c,x,y,xx,yy,'#c06377',2);});
         [141,604].forEach(x=>{rect(c,x,89,21,103,'#241527');rect(c,x-4,85,29,10,'#59304c');diamond(c,x+10,63,23,'#754556');diamond(c,x+7,57,16,'#b47886');});
+      }else{
+        [142,626].forEach(x=>{
+          rect(c,x-24,169,48,21,'#607584');rect(c,x-28,165,56,7,'#b7b9af');
+          for(const [dx,dy] of [[-14,0],[2,-17],[17,3]]){
+            line(c,x+dx,165,x+dx,137+dy,'#8cae98',3);facet(c,[[x+dx,153+dy],[x+dx-12,144+dy],[x+dx-8,157+dy]],'#99b39a');
+            disk(c,x+dx,134+dy,10,'#b785a2');disk(c,x+dx-3,131+dy,6,'#edbaca');rect(c,x+dx-4,128+dy,3,3,'#ffe4d4');
+          }
+        });
+        [303,466].forEach(x=>{line(c,x,26,x,145,'#acb6b8',3);diamond(c,x,153,12,'#ddbad3');diamond(c,x-1,150,6,'#f5dfdb');});
+        c.save();c.globalAlpha=.22;for(let i=0;i<9;i++)diamond(c,119+i*64,248+(i%3)*32,3,p.light);c.restore();
       }
       this.crystal(c,34,315,17,p);this.crystal(c,725,326,22,p);
       // Foreground framing creates depth without covering the action.
@@ -95,7 +106,7 @@
       rect(c,x-w/2-6,y+16,w+12,h-10,p.void);rect(c,x-w/2,y+7,w,h,p.stone);
       rect(c,x-w/2+5,y,w-10,h,p.stone);rect(c,x-w/2+9,y+5,w-18,h-9,p.void);
       rect(c,x-w/2+5,y+20,w-10,h-20,p.void);
-      const sky=region===1?'#254858':region===2?'#352445':'#292d56';rect(c,x-w/2+7,y+23,w-14,h-27,sky);
+      const sky=region===1?'#254858':region===2?'#352445':region===3?'#3b6681':'#292d56';rect(c,x-w/2+7,y+23,w-14,h-27,sky);
       rect(c,x-w/2+11,y+10,w-22,h-15,sky);
       disk(c,x+6,y+33,region===2?11:15,p.light);disk(c,x+11,y+28,region===2?9:13,sky);
       rect(c,x-15,y+24,2,2,p.light);rect(c,x+14,y+56,2,2,p.light);rect(c,x-6,y+66,2,2,p.light);
@@ -131,7 +142,7 @@
     }
     draw(scene={}, time=0){
       if(!Number.isFinite(time))time=0;
-      const c=this.ctx,region=Math.max(0,Math.min(2,Number(scene.region)||0)),p=PALETTES[region];
+      const c=this.ctx,region=Math.max(0,Math.min(3,Number(scene.region)||0)),p=PALETTES[region];
       const still=!!scene.reducedMotion||!!scene.paused;
       const dt=this.lastTime?Math.min(.05,Math.max(0,(time-this.lastTime)/1000)):0;this.lastTime=time;this.lastScene=scene;
       if(!still)this.now+=dt;const t=this.now;
@@ -198,6 +209,10 @@
       rect(c,-3,-46,6,34,'#c4a777');rect(c,-1,-43,2,28,'#f2d49c');
       facet(c,[[-18,-15],[-6,-18],[-3,-11],[17,-14],[19,-10],[-3,-7],[-8,-13],[-22,-10]],'#bd9f79');
       rect(c,-18,-29,35,5,'#383447');rect(c,-3,-30,8,7,'#e5c588');rect(c,-1,-28,4,3,'#74637f');
+      // Three stitched celestial marks give the travelling coat a readable
+      // material identity; all details follow the existing anchored silhouette.
+      diamond(c,-13,-24,3,'#c8becf');rect(c,10,-24,2,6,'#9c91b5');rect(c,8,-22,6,2,'#9c91b5');
+      line(c,-19,-34,-16,-40,'#d5bd9a',2);rect(c,15,-15,3,3,'#c3ae8d');
       // Shoulder cape and pale turquoise scarf share the game's icon colours.
       facet(c,[[-15,-54],[-25,-42],[-15,-35],[0,-41],[17,-35],[24,-43],[13,-54]],'#ac9bc9');
       facet(c,[[-15,-51],[-21,-43],[-13,-39],[0,-44],[14,-39],[19,-44],[11,-51]],'#77689d');
@@ -227,7 +242,9 @@
     enemy(c,x,y,e,t,p,still,region){
       const tag=String(e.id||e.kind||e.name||'').toLowerCase();t=still?0:t;const bob=still?0:Math.round(Math.sin(t*2.3)*3);
       if(e.boss||e.kind==='boss'){
-        if(/thorn|root|tree|forest|wood|樹|森/.test(tag))this.treeBoss(c,x,y,t,p,bob);
+        if(/constellation|失約/.test(tag))this.constellationBoss(c,x,y,t,p,bob);
+        else if(/astral|星龍/.test(tag))this.astralBoss(c,x,y,t,p,bob,e.phase);
+        else if(/thorn|root|tree|forest|wood|樹|森/.test(tag))this.treeBoss(c,x,y,t,p,bob);
         else if(/witch|lich|巫/.test(tag))this.lichBoss(c,x,y,t,p,bob);
         else if(/king|dragon|void|abyss|龍|虛空/.test(tag))this.dragonBoss(c,x,y,t,p,bob);
         else if(region===1)this.treeBoss(c,x,y,t,p,bob);
@@ -235,7 +252,8 @@
         else this.lichBoss(c,x,y,t,p,bob);
         return;
       }
-      if(/eye|眼/.test(tag))this.eye(c,x,y-15+bob,t,p);
+      if(/stardust|starling|astrolabe/.test(tag))this.astralEnemy(c,x,y+bob,t,p,tag);
+      else if(/eye|眼/.test(tag))this.eye(c,x,y-15+bob,t,p);
       else if(/mushroom|菇/.test(tag))this.mushroomEnemy(c,x,y+bob,p);
       else if(/bat|moth|raven|蝠|蛾|鴉/.test(tag))this.winged(c,x,y-14+bob,t,p,/raven|鴉/.test(tag));
       else if(/wisp|ghost|shade|幽|魂/.test(tag))this.ghost(c,x,y-14+bob,t,p,tag);
@@ -243,6 +261,84 @@
       else if(/spider|蛛/.test(tag))this.spider(c,x,y+bob,p,t);
       else if(/skull|skeleton|bone|骷|骨/.test(tag))this.skeleton(c,x,y+bob,p);
       else this.slime(c,x,y+bob,p,t,region);
+    }
+    astralEnemy(c,x,y,t,p,tag){
+      if(tag==='astrolabe'){
+        // A running orrery: segmented brass hoop, inset glass and four feet.
+        for(const s of [-1,1]){line(c,x+s*15,y-16,x+s*28,y-3,'#827492',5);rect(c,x+s*24-4,y-3,12,4,'#d0b799');}
+        c.save();c.strokeStyle='#2b2e49';c.lineWidth=10;c.beginPath();c.ellipse(x,y-32,25,29,0,0,Math.PI*2);c.stroke();
+        c.strokeStyle='#d7b99a';c.lineWidth=5;c.beginPath();c.ellipse(x,y-32,25,29,0,0,Math.PI*2);c.stroke();
+        c.strokeStyle='#857895';c.lineWidth=3;c.beginPath();c.ellipse(x,y-32,29,11,-.55,0,Math.PI*2);c.stroke();c.restore();
+        diamond(c,x,y-32,20,'#586b91');diamond(c,x-3,y-36,12,'#a8d4dc');diamond(c,x-3,y-38,5,'#ecf4e4');
+        for(let i=0;i<4;i++){const a=i*Math.PI/2+t*.45;diamond(c,x+Math.cos(a)*25,y-32+Math.sin(a)*29,5,'#eed4b1');}
+        rect(c,x-7,y-32,4,4,'#35506c');rect(c,x+5,y-32,4,4,'#35506c');
+      }else if(tag==='starling'){
+        // Split comet wings read as a ranged enemy rather than another bat.
+        for(const s of [-1,1]){
+          facet(c,[[x+s*8,y-35],[x+s*32,y-61],[x+s*48,y-47],[x+s*29,y-32],[x+s*43,y-18],[x+s*18,y-22]],'#4e547e');
+          facet(c,[[x+s*12,y-34],[x+s*31,y-54],[x+s*38,y-47],[x+s*26,y-33],[x+s*31,y-24]],'#a5afcc');
+          line(c,x+s*19,y-35,x+s*31,y-48,'#ebcadd',2);
+        }
+        facet(c,[[x,y-59],[x+15,y-39],[x+11,y-17],[x,y-2],[x-13,y-22],[x-14,y-39]],'#747ca3');
+        facet(c,[[x,y-55],[x+8,y-38],[x+6,y-22],[x,y-12],[x-6,y-27],[x-7,y-39]],'#d2dce2');
+        diamond(c,x,y-42,7,'#f2bfd7');rect(c,x-9,y-34,5,4,'#28344f');rect(c,x+4,y-34,5,4,'#28344f');
+      }else{
+        // A tiny glass fox made of stardust, with tall ears and a faceted tail.
+        facet(c,[[x+12,y-16],[x+34,y-28],[x+40,y-49],[x+28,y-41],[x+22,y-31]],'#738db2');
+        facet(c,[[x+24,y-30],[x+38,y-46],[x+30,y-28],[x+16,y-19]],'#d8bdcf');
+        facet(c,[[x-21,y-39],[x-22,y-59],[x-8,y-47],[x+8,y-48],[x+22,y-59],[x+20,y-34],[x+17,y-12],[x-17,y-12]],'#494c75');
+        facet(c,[[x-17,y-36],[x-14,y-47],[x-5,y-42],[x+9,y-43],[x+17,y-34],[x+14,y-14],[x-13,y-14]],'#9baed1');
+        facet(c,[[x-15,y-49],[x-17,y-54],[x-8,y-46]],'#e9c2d1');facet(c,[[x+12,y-47],[x+18,y-54],[x+17,y-44]],'#e9c2d1');
+        rect(c,x-18,y-9,12,7,'#8999b7');rect(c,x+7,y-9,12,7,'#8999b7');
+        rect(c,x-10,y-33,4,5,'#293b59');rect(c,x+6,y-33,4,5,'#293b59');diamond(c,x,y-24,3,'#516282');diamond(c,x,y-43,5,'#f4e1bf');
+        facet(c,[[x-9,y-23],[x,y-20],[x+10,y-23],[x+5,y-14],[x-5,y-14]],'#e4d4d9');
+      }
+    }
+    astralBoss(c,x,y,t,p,bob,phase){
+      y+=bob*.5;const wing=Math.round(Math.sin(t*1.3)*4),pink=phase>1?'#f1b5d4':'#c3b7d9';
+      // Long crescent wings and antler-like celestial horns distinguish this
+      // dragon from the heavy obsidian dragon, without changing its hitbox.
+      for(const s of [-1,1]){
+        facet(c,[[x+s*19,y-60],[x+s*51,y-109],[x+s*92,y-135+wing],[x+s*79,y-91],[x+s*58,y-53],[x+s*39,y-31]],'#23314e');
+        facet(c,[[x+s*29,y-67],[x+s*56,y-106],[x+s*84,y-125+wing],[x+s*68,y-88],[x+s*50,y-49]],'#607997');
+        facet(c,[[x+s*41,y-78],[x+s*60,y-105],[x+s*77,y-116+wing],[x+s*62,y-83]],pink);
+        line(c,x+s*27,y-60,x+s*79,y-120+wing,'#e2d6dd',3);
+        for(let i=0;i<3;i++){const xx=x+s*(48+i*12),yy=y-79-i*15;diamond(c,xx,yy,4,'#e8dfc3');}
+      }
+      facet(c,[[x-26,y-64],[x-22,y-88],[x,y-101],[x+24,y-86],[x+31,y-40],[x+20,y-9],[x-20,y-9],[x-31,y-36]],'#344563');
+      facet(c,[[x-21,y-65],[x-16,y-85],[x,y-92],[x+14,y-77],[x+20,y-29],[x+11,y-12],[x-14,y-13]],'#8ba7ba');
+      facet(c,[[x-8,y-72],[x+8,y-70],[x+12,y-17],[x-8,y-14],[x-17,y-31]],'#e0d6cd');
+      for(let i=0;i<5;i++)line(c,x-9,y-66+i*10,x+10,y-64+i*10,'#a399b4',2);
+      // Long-necked face with an ivory brow, teal eyes and pink cheek scales.
+      facet(c,[[x-18,y-89],[x-23,y-116],[x-11,y-133],[x+13,y-134],[x+25,y-119],[x+20,y-93],[x+3,y-79]],'#34445d');
+      facet(c,[[x-17,y-111],[x-10,y-127],[x+10,y-129],[x+19,y-117],[x+14,y-98],[x+2,y-87],[x-14,y-94]],'#c7d4d7');
+      facet(c,[[x+10,y-127],[x+19,y-116],[x+13,y-97],[x+4,y-91],[x+7,y-113]],'#8196b1');
+      facet(c,[[x-22,y-110],[x-6,y-106],[x+7,y-100],[x+5,y-89],[x-14,y-91],[x-25,y-99]],'#c9b6cd');
+      rect(c,x-15,y-110,8,4,'#34576a');rect(c,x+7,y-118,8,4,'#34576a');rect(c,x-13,y-110,3,2,'#d5ffe8');rect(c,x+9,y-118,3,2,'#d5ffe8');
+      diamond(c,x,y-127,7,'#f6d5b4');diamond(c,x,y-128,3,'#fef0cf');
+      for(const s of [-1,1]){
+        line(c,x+s*12,y-128,x+s*23,y-152,'#d8c6b1',5);line(c,x+s*23,y-152,x+s*38,y-160,'#eaddc1',3);line(c,x+s*21,y-147,x+s*15,y-158,'#eaddc1',3);
+        facet(c,[[x+s*18,y-25],[x+s*34,y-22],[x+s*38,y-5],[x+s*20,y-3]],'#778ba5');
+        for(let i=0;i<3;i++)rect(c,x+s*24+i*5-4,y-4,4,5,'#e5d5c9');
+      }
+      line(c,x+24,y-19,x+50,y-10,'#8fa5ba',10);line(c,x+50,y-10,x+64,y-27,'#c1b5cd',7);diamond(c,x+65,y-36,13,'#eac0d7');diamond(c,x+63,y-39,6,'#e4f5e9');
+      diamond(c,x+1,y-48,10,'#5c7898');diamond(c,x,y-51,6,'#b9ecdf');
+    }
+    constellationBoss(c,x,y,t,p,bob){
+      y+=bob;glow(c,x,y-76,49,'#c898df',.07);
+      // An empty star-crowned cloak; the hollow, broken silhouette is separate
+      // from both living dragons and Lumina's optional sparring form.
+      const points=[[-44,-102],[-20,-121],[2,-108],[31,-123],[50,-95],[29,-71],[38,-37],[56,-4],[18,-18],[3,4],[-13,-18],[-46,-3],[-32,-45],[-37,-72]];
+      facet(c,points.map(([xx,yy])=>[x+xx,y+yy]),'#30233e');
+      facet(c,[[-35,-95],[-18,-108],[0,-97],[27,-110],[39,-95],[20,-73],[29,-42],[35,-15],[14,-27],[2,-8],[-11,-29],[-31,-15],[-22,-48],[-29,-73]].map(([xx,yy])=>[x+xx,y+yy]),'#69567e');
+      facet(c,[[x-6,y-91],[x+13,y-91],[x+18,y-45],[x+6,y-25],[x-13,y-45]],'#171e35');
+      for(const s of [-1,1])line(c,x+s*24,y-72,x+s*30,y-23,'#b88cac',3);
+      facet(c,[[x-21,y-111],[x-11,y-138],[x+12,y-138],[x+23,y-110],[x+12,y-91],[x-13,y-91]],'#181e34');
+      diamond(c,x-9,y-113,5,'#e9b8d7');diamond(c,x+10,y-113,5,'#e9b8d7');
+      for(let i=0;i<5;i++){const xx=x+(i-2)*13,yy=y-144+(i%2)*6;diamond(c,xx,yy,7,i===2?'#fff0cd':'#e4b6d5');if(i)line(c,xx-13,yy+(i%2?-6:6),xx,yy,'#a586b7',2);}
+      const stars=[[-59,-85],[61,-73],[-53,-37],[52,-23]];
+      stars.forEach(([xx,yy],i)=>{const drift=Math.sin(t*.7+i)*3;diamond(c,x+xx,y+yy+drift,8,'#c2aedb');line(c,x+xx-5,y+yy+drift,x+xx+5,y+yy+drift,'#ffdeca',2);});
+      diamond(c,x+3,y-63,12,'#b18cad');diamond(c,x+1,y-65,7,'#f3c7dd');
     }
     slime(c,x,y,p,t,region){
       const body=region===1?'#4c9f80':region===2?'#a35c87':'#7771a9',lite=region===1?'#88d3ac':region===2?'#e491ad':'#b1a2dc';

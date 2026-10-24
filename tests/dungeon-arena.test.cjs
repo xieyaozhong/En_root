@@ -196,10 +196,10 @@ while (!['won', 'lost'].includes(campaign.status) && guard++ < 600) {
     assert.equal(sumHp(campaign), campaign.enemy.hp);
   }
 }
-assert.equal(campaign.status, 'won'); assert.equal(campaign.stats.bossesDefeated, 3); assert.equal(campaign.completedNodes, 18);
+assert.equal(campaign.status, 'won'); assert.equal(campaign.stats.bossesDefeated, 4); assert.equal(campaign.completedNodes, 24);
 
 // Each new chamber creates avoidable hazards after its visible warning, with a real safe location.
-assert.equal(Arena.ROOMS.length, 10);
+assert.equal(Arena.ROOMS.length, 13);
 for (const id of ['tempest', 'meteor', 'mirrors', 'eclipse']) {
   const run = roomRun(id); noAttacks(run); advance(run, 2.55);
   const hazards = run.arena.hazards.filter(h => h.source === 'trap');
@@ -314,4 +314,133 @@ const typoDeath = roomRun('spring'); typoDeath.player.hp = 1; typoDeath.arena.pl
 assert.equal(Arena.cast(typoDeath, 'not-a-spell').ok, false);
 assert.equal(typoDeath.status, 'lost');
 assert.ok(typoDeath.arena.effects.some(e => e.kind === 'death' && e.actor.kind === 'player'), 'fatal spell mistakes also produce the player death snapshot');
-console.log('Arena checks passed: movement, ten room mechanics, boss phases, three follower roles, copied spells, death snapshots, save resume, and full eighteen-room campaign.');
+console.log('Arena checks passed: movement, thirteen room mechanics, boss phases, three follower roles, copied spells, death snapshots, save resume, and full twenty-four-room campaign.');
+
+const starLanes = roomRun('starlanes'); noAttacks(starLanes); advance(starLanes, 2.55);
+assert.equal(starLanes.arena.hazards.filter(h => h.source === 'trap').length, 3);
+assert.ok(starLanes.arena.hazards.every(h => h.delay > 1.6), 'safe-lane puzzle grants a readable repositioning window');
+const safeStar = JSON.parse(JSON.stringify(starLanes));
+safeStar.arena.player.x = 480; safeStar.arena.player.y = 115 + safeStar.arena.room.safeLane * 105;
+const badLane = starLanes.arena.hazards[0];
+starLanes.arena.player.x = 480; starLanes.arena.player.y = badLane.y + 50;
+advance(starLanes, 2.5); advance(safeStar, 2.5);
+assert.ok(starLanes.player.hp < starLanes.player.maxHp);
+assert.equal(safeStar.player.hp, safeStar.player.maxHp, 'the unlit lane is genuinely safe');
+const firstSafeLane = safeStar.arena.room.safeLane;
+safeStar.arena.player.invulnerable = 1000; advance(safeStar, 4);
+assert.notEqual(safeStar.arena.room.safeLane, firstSafeLane, 'subsequent pulses demand a different safe lane');
+
+const flowers = roomRun('bloom'); noAttacks(flowers); flowers.player.hp -= 30;
+advance(flowers, 2.55);
+assert.equal(flowers.arena.room.blossoms.filter(f => f.ready).length, 3);
+const flower = flowers.arena.room.blossoms[0], oldHp = flowers.player.hp;
+flowers.arena.player.x = flower.x; flowers.arena.player.y = flower.y;
+advance(flowers, .1); assert.equal(flowers.player.hp, oldHp + 6); assert.equal(flower.ready, false);
+const flowerSave = JSON.parse(JSON.stringify(flowers));
+advance(flowers, 2.5); advance(flowerSave, 2.5);
+assert.equal(flowers.player.hp, oldHp + 6, 'standing on a collected blossom cannot repeatedly heal in the same pulse');
+assert.deepEqual(flowerSave, flowers, 'collected blossoms and pending rings survive saves');
+flowers.arena.player.x = 480; flowers.arena.player.y = 280; advance(flowers, 6);
+assert.equal(flowers.arena.room.blossoms[0].ready, true, 'next pulse replenishes collected blossoms');
+
+const comets = roomRun('comet'); noAttacks(comets); advance(comets, 2.55);
+assert.equal(comets.arena.room.comets.length, 3);
+assert.equal(comets.arena.projectiles.length, 0);
+assert.ok(comets.arena.hazards.every(h => h.cosmetic && h.delay > 1.3), 'comet trails preview rather than instantly deal line damage');
+comets.arena.player.x = 480; comets.arena.player.y = 270;
+const safeComets = JSON.parse(JSON.stringify(comets)); safeComets.arena.player.y = 335;
+advance(comets, 1.8); advance(safeComets, 1.8);
+assert.ok(comets.arena.projectiles.some(p => p.ownerId === 'comet-room' && Math.abs(p.vx) > 250));
+const cometSave = JSON.parse(JSON.stringify(safeComets));
+advance(comets, 2); advance(safeComets, 2); advance(cometSave, 2);
+assert.ok(comets.player.hp < comets.player.maxHp, 'crossing stars collide with a player in their flight lane');
+assert.equal(safeComets.player.hp, safeComets.player.maxHp, 'walking between flight lanes avoids comet damage');
+assert.deepEqual(cometSave, safeComets, 'pending stars and projectiles resume deterministically');
+
+function chronicleBoss(id) {
+  const r = Engine.createRun(null, true, 771);
+  if (id === 'astral') {
+    r.region = 3; r.encounter = 23; r.routes = [{ id: 'boss', type: 'boss', name: 'Final' }]; Engine.chooseRoute(r, 'boss');
+  } else {
+    r.relationship.affection = 45;
+    r.routes = [{ id: 'lumina', type: 'npc', npcId: 'lumina', name: 'Mage' }]; Engine.chooseRoute(r, 'lumina');
+    Engine.beginBondQuest(r);
+    for (let i = 0; i < 2; i++) { Engine.damageEnemy(r, 100000, 1); Engine.chooseReward(r, r.rewards[0].id); }
+  }
+  Arena.ensure(r); r.arena.player.invulnerable = 1000;
+  r.arena.companions.forEach(c => { c.cooldown = 1000; });
+  return r;
+}
+for (const id of ['astral', 'constellation']) {
+  const boss = chronicleBoss(id), patterns = new Set();
+  for (let turn = 0; turn < (id === 'astral' ? 3 : 2); turn++) {
+    boss.enemy.intent.remaining = 0; Arena.update(boss, .05);
+    patterns.add(boss.arena.lastPattern);
+    assert.ok(boss.arena.hazards.length || boss.arena.enemies[0].volley, `${id} generates actual spatial attacks`);
+    assert.ok(boss.arena.hazards.every(h => h.delay >= 1.2), `${id} never launches an unannounced instant hit`);
+    boss.arena.hazards = []; boss.arena.enemies[0].volley = null;
+  }
+  assert.equal(patterns.size, id === 'astral' ? 3 : 2);
+  Engine.damageEnemy(boss, Math.ceil(boss.enemy.maxHp * .51), 1);
+  Arena.update(boss, .05); assert.equal(boss.enemy.phase, 2);
+  boss.arena.hazards = []; boss.enemy.intent.remaining = 0;
+  Arena.update(boss, .05);
+  assert.ok(boss.arena.hazards.length || boss.arena.enemies[0].volley);
+  const saved = JSON.parse(JSON.stringify(boss));
+  advance(boss, 2.8); advance(saved, 2.8);
+  assert.deepEqual(saved, boss, `${id} phase and pending volley survive a save`);
+}
+
+const starmage = recruit(roomRun('spring'), ['lumina']);
+starmage.player.hp -= 25; starmage.arena.companions[0].cooldown = 0;
+const hpBeforeSupport = starmage.player.hp; advance(starmage, .1);
+assert.equal(starmage.player.hp, hpBeforeSupport + 4); assert.equal(starmage.player.shield, 2);
+starmage.arena.player.x = 530; starmage.arena.player.y = 280;
+starmage.spell = { word: 'spark', name: '星火術', type: 'attack', power: 17, elapsed: 0 };
+assert.equal(Arena.cast(starmage, 'wrong').ok, false); assert.equal(starmage.arena.echoQueue.length, 0);
+const starCast = Arena.cast(starmage, 'spark'); assert.ok(starCast.ok);
+assert.equal(starmage.arena.echoQueue.length, 1); assert.equal(starmage.arena.echoQueue[0].npcId, 'lumina');
+const hpAfterStarCast = starmage.enemy.hp, starCasts = starmage.stats.casts;
+advance(starmage, .7); assert.equal(starmage.enemy.hp, hpAfterStarCast, 'Lumina visibly waits before repeating a spell');
+advance(starmage, .2); assert.ok(starmage.enemy.hp < hpAfterStarCast);
+assert.equal(starmage.stats.casts, starCasts, 'support echoes do not recursively count as new player casts');
+assert.equal(sumHp(starmage), starmage.enemy.hp);
+
+// A repeated visit can challenge a recruited traveler without cloning them
+// into their own boss fight or permanently removing them from the party.
+for (const npcId of ['lumina', 'echo', 'lantern', 'sentinel']) {
+  const duel = Engine.createRun(null, true, 911);
+  const visit = () => {
+    duel.routes = [{ id: 'npc', type: 'npc', npcId, name: Engine.NPCS[npcId].name }];
+    assert.equal(Engine.chooseRoute(duel, 'npc').ok, true);
+  };
+  visit(); assert.equal(Engine.helpNpc(duel).ok, true);
+  const otherIds = ['lumina', 'echo', 'lantern', 'sentinel'].filter(id => id !== npcId);
+  duel.companions.push(...otherIds.map(id => ({ id, name: Engine.NPCS[id].name, sprite: id, role: Engine.NPCS[id].companionRole })));
+  const roster = JSON.stringify(duel.companions);
+  Engine.leaveNpc(duel);
+  Engine.chooseRoute(duel, 'battle'); Arena.ensure(duel); noAttacks(duel);
+  duel.arena.player.x = 540; duel.arena.player.y = 280;
+  duel.spell = { word: 'spark', name: '星火術', type: 'attack', power: 1, elapsed: 0 };
+  assert.equal(Arena.cast(duel, 'spark').ok, true);
+  assert.ok(duel.arena.echoQueue.some(echo => echo.npcId === 'lumina'));
+  assert.ok(duel.arena.echoQueue.some(echo => echo.npcId === 'echo'));
+  Engine.damageEnemy(duel, 100000, 1); Engine.chooseReward(duel, duel.rewards[0].id);
+  visit(); assert.equal(Engine.challengeNpc(duel, Engine.NPCS[npcId].challengeWord).ok, true);
+  const arena = Arena.ensure(duel);
+  assert.equal(arena.enemies[0].npcId, npcId);
+  assert.deepEqual(arena.companions.map(c => c.npcId), otherIds, npcId + ' appears only as the boss');
+  assert.equal(arena.echoQueue.length, 0, 'fresh duel discards the prior room’s pending echoes');
+  assert.equal(JSON.stringify(duel.companions), roster, 'duel preserves the entire recruited roster');
+  const otherEcho = npcId === 'echo' ? 'lumina' : 'echo';
+  arena.echoQueue.push({ npcId, delay: .3 }, { npcId: otherEcho, delay: .3 });
+  if (npcId === 'echo') arena.echoQueue.push({ delay: .3 }); // Legacy echoes omit the identity.
+  const resumed = JSON.parse(JSON.stringify(duel));
+  assert.deepEqual(Arena.ensure(resumed).echoQueue, [{ npcId: otherEcho, delay: .3 }], 'resume removes only the opponent’s stale copied spell');
+  assert.deepEqual(resumed.arena.companions.map(c => c.npcId), otherIds);
+  Engine.damageEnemy(duel, 100000, 1); Engine.chooseReward(duel, duel.rewards[0].id);
+  assert.equal(Engine.chooseRoute(duel, 'battle').ok, true);
+  assert.deepEqual(Arena.ensure(duel).companions.map(c => c.npcId), [npcId, ...otherIds], 'all allies return for the next combat');
+  assert.equal(JSON.stringify(duel.companions), roster);
+}
+console.log('Chronicle arena checks passed: moving safe lanes, collectible healing flowers, real comet projectiles, two new boss patterns and Lumina support.');

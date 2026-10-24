@@ -48,10 +48,47 @@
         [12, 9, 7, 5, 7, null, 9, 7], [10, 8, 7, 5, 3, null, 5, 8],
         [11, 8, 6, 4, 6, 8, 6, 4], [7, 6, 7, 9, 7, null, 0, null]
       ]
+    },
+    {
+      name: '星誓花庭・未寄出的願望', tonic: 41, tempo: 90,
+      scale: [0, 2, 4, 6, 7, 9, 11], wave: 'sine', cutoff: 3600,
+      harmony: [0, 5, 3, 4, 0, 2, 5, 4, 3, 0, 5, 2, 3, 4, 1, 0],
+      melody: [
+        [7, null, 11, 9, 8, null, 7, 4], [9, null, 12, 11, 9, 7, null, 5],
+        [10, 8, null, 5, 7, null, 8, 10], [11, null, 9, 8, 6, 4, null, null],
+        [7, 9, 11, null, 14, null, 11, 9], [8, null, 10, 12, 10, 8, 5, null],
+        [9, 12, null, 14, 12, 9, 7, null], [8, 6, 4, null, 7, null, null, null],
+        [12, null, 10, 8, 10, 12, null, 15], [14, 11, null, 9, 7, null, 9, 11],
+        [12, 9, 7, null, 9, 12, 14, null], [10, null, 8, 5, 8, 10, null, 12],
+        [12, 10, 8, null, 5, null, 8, 10], [11, null, 9, 6, 4, 6, 8, null],
+        [8, 10, 12, null, 10, 8, 7, 4], [7, null, 11, 9, 7, null, 0, null]
+      ]
     }
   ];
-  // Region order follows DungeonEngine: forest, library, then the throne.
-  const THEMES = [COMPOSITIONS[1], COMPOSITIONS[0], COMPOSITIONS[2]];
+  // Region order follows DungeonEngine: forest, library, throne, star garden.
+  const THEMES = [COMPOSITIONS[1], COMPOSITIONS[0], COMPOSITIONS[2], COMPOSITIONS[3]];
+  // Lumina's four-note answer (0, 4, 7, 6) returns in her conversation,
+  // relationship and duel scores. Each is an original, playable arrangement.
+  const LUMINA_MELODY = [
+    [0, null, 4, null, 7, 6, null, 4], [2, null, 5, null, 9, null, 7, null],
+    [7, null, 9, 11, null, 9, 7, null], [6, null, 4, null, 2, null, null, null],
+    [0, null, 4, null, 7, 6, null, 9], [10, null, 8, null, 5, null, 8, null],
+    [9, null, 7, 5, null, 4, 2, null], [4, null, 7, null, 0, null, null, null],
+    [7, null, 11, null, 14, 13, null, 11], [9, null, 12, null, 14, null, 12, null],
+    [12, null, 10, 8, null, 5, 8, null], [11, null, 9, null, 6, null, null, null],
+    [7, null, 4, null, 9, 7, null, 4], [5, null, 8, null, 10, null, 8, null],
+    [9, null, 7, 6, null, 4, 2, null], [4, null, 7, null, 0, null, null, null]
+  ];
+  const STORY_SCORES = {
+    lumina: { name: '露米娜・星燈旁的悄悄話', tonic: 48, tempo: 80, scale: [0, 2, 4, 5, 7, 9, 11],
+      wave: 'sine', cutoff: 3200, gentle: true, harmony: [0, 1, 3, 4, 0, 5, 3, 4, 0, 1, 5, 4, 0, 3, 4, 0], melody: LUMINA_MELODY },
+    romance: { name: '露米娜・只為你點亮的星', tonic: 48, tempo: 76, scale: [0, 2, 4, 5, 7, 9, 11],
+      wave: 'sine', cutoff: 2800, gentle: true, harmony: [0, 5, 3, 4, 0, 5, 1, 4, 3, 0, 5, 4, 1, 3, 4, 0],
+      melody: LUMINA_MELODY.map((phrase, index) => phrase.map((note, tick) => note === null ? null : note + (index >= 8 && tick < 4 ? 7 : 0))) },
+    chronicle: { name: '星根紀事・仍被記得的名字', tonic: 43, tempo: 72, scale: [0, 2, 3, 5, 7, 9, 10],
+      wave: 'triangle', cutoff: 1900, gentle: true, harmony: [0, 3, 5, 4, 0, 1, 3, 4, 5, 3, 1, 4, 0, 3, 4, 0],
+      melody: LUMINA_MELODY.map(phrase => phrase.map((note, tick) => tick % 4 === 2 ? null : note)) }
+  };
   // Each opponent has a separately written motif, harmony, percussion pattern,
   // and timbre. These are original scores, not sped-up exploration tracks.
   const BOSS_SCORES = {
@@ -105,18 +142,35 @@
       harmony: [0, 2, -1, 3, 3, -1, 2, 0], kick: [0, 3, 7, 11], snare: [5, 13], pulse: [0, 7, 2, 5],
       motifs: [[0, 4, 7, 9, 9, 7, 4, 0], [8, null, 5, 3, 3, 5, null, 8], [7, 10, null, 12, 12, null, 10, 7], [9, 7, 4, 1, 1, 4, 7, 0]]
     },
+    astral: {
+      name: '忘誓星龍・墜星的終章', tonic: 35, tempo: 120, scale: [0, 2, 3, 6, 7, 9, 11], wave: 'sawtooth', cutoff: 2300,
+      harmony: [0, 3, 1, 4, 5, -1, 3, 0], kick: [0, 3, 8, 11, 14], snare: [4, 12], pulse: [0, 4, 6, 2],
+      motifs: [[7, 11, 14, null, 13, 11, 7, 6], [8, null, 12, 10, 8, 5, 3, null], [9, 12, null, 15, 12, 9, 6, 4], [11, 8, 6, null, 4, 7, 0, null]]
+    },
+    lumina: {
+      name: '露米娜・雙星試煉', tonic: 41, tempo: 116, scale: [0, 2, 4, 6, 7, 9, 11], wave: 'triangle', cutoff: 3300,
+      harmony: [0, 5, 3, 4, 1, 3, 4, 0], kick: [0, 6, 8, 14], snare: [4, 12], pulse: [0, 4, 7, 6],
+      motifs: [[0, 4, 7, 6, null, 9, 7, 4], [9, null, 12, 11, 9, 7, 5, null], [10, 8, 5, 8, 12, null, 10, 8], [11, 9, 6, 4, 7, null, 0, null]]
+    },
+    constellation: {
+      name: '失約星影・未完成的約定', tonic: 38, tempo: 108, scale: [0, 2, 3, 5, 7, 8, 11], wave: 'sine', cutoff: 3600,
+      harmony: [0, 5, 3, 4, -2, 3, 1, 0], kick: [0, 5, 8, 14], snare: [6, 12], pulse: [0, 4, 7, 1],
+      motifs: [[7, 4, 0, null, 6, 7, 4, null], [9, 6, 3, null, 5, 9, 6, 4], [10, null, 8, 5, 3, 5, 8, null], [11, 8, 4, 1, 0, null, 4, 7]]
+    },
     sentinel: {
       name: '碎誓守衛的最後進軍', tonic: 35, tempo: 114, scale: [0, 2, 3, 5, 7, 8, 10], wave: 'square', cutoff: 1800,
       harmony: [0, 0, 3, -2, 4, 3, -2, 0], kick: [0, 4, 8, 12], snare: [2, 6, 10, 14], pulse: [0, 4, 0, 7],
       motifs: [[7, null, 7, 4, 5, 7, null, 11], [8, 5, 3, null, 5, 8, 7, 5], [11, null, 10, 8, 7, 10, 8, null], [7, 5, 4, 2, 4, 7, 0, null]]
     }
   };
-  const REGION_BOSSES = ['thorn', 'witch', 'king'];
+  const REGION_BOSSES = ['thorn', 'witch', 'king', 'astral'];
   const bossKey = value => {
     const id = typeof value === 'string' ? value.replace(/^npc-/, '') : '';
     return Object.prototype.hasOwnProperty.call(BOSS_SCORES, id) ? id : '';
   };
-  const scoreFor = scene => scene.boss ? BOSS_SCORES[scene.bossId] || BOSS_SCORES[REGION_BOSSES[scene.region]] : THEMES[scene.region];
+  const scoreFor = scene => scene.boss ? BOSS_SCORES[scene.bossId] || BOSS_SCORES[REGION_BOSSES[scene.region]] :
+    !scene.combat && scene.npcId === 'lumina' ? STORY_SCORES[scene.romance ? 'romance' : 'lumina'] :
+    scene.story ? STORY_SCORES.chronicle : THEMES[scene.region];
   const tempoFor = (scene, score) => score.tempo + (scene.boss ? scene.phase === 2 ? 16 : 0 : scene.combat ? 16 : 0);
   const MAX_VOICES = 96;
   const LOOKAHEAD = 0.12;
@@ -128,7 +182,8 @@
       this._enabled = false;
       this._disposed = false;
       this._volume = 0.55;
-      this._scene = { region: 0, combat: false, boss: false, bossId: '', phase: 1, paused: false, focus: false };
+      this._scene = { region: 0, combat: false, boss: false, bossId: '', phase: 1, paused: false, focus: false,
+        npcId: '', story: false, romance: false };
       this._context = null;
       this._nodes = [];
       this._voices = new Set();
@@ -152,8 +207,10 @@
     getTrackInfo() {
       const scene = this._scene, score = scoreFor(scene);
       const id = scene.boss ? (BOSS_SCORES[scene.bossId] ? scene.bossId : REGION_BOSSES[scene.region]) : null;
-      return Object.freeze({ id: id ? 'boss-' + id : 'region-' + scene.region, name: score.name,
-        kind: scene.boss ? 'boss' : 'exploration', bossId: id, tempo: tempoFor(scene, score),
+      const lumina = !scene.combat && scene.npcId === 'lumina';
+      const track = id ? 'boss-' + id : lumina ? (scene.romance ? 'romance-lumina' : 'npc-lumina') : scene.story ? 'story-chronicle' : 'region-' + scene.region;
+      return Object.freeze({ id: track, name: score.name,
+        kind: scene.boss ? 'boss' : lumina ? scene.romance ? 'romance' : 'conversation' : scene.story ? 'story' : 'exploration', bossId: id, tempo: tempoFor(scene, score),
         phase: scene.boss ? scene.phase : 1, bars: 32 });
     }
 
@@ -188,10 +245,11 @@
       if (this._disposed || !scene || typeof scene !== 'object') return;
       const previous = this._scene;
       const next = Object.assign({}, previous);
-      if (Number.isFinite(scene.region)) next.region = clamp(Math.floor(scene.region), 0, 2);
-      for (const key of ['combat', 'boss', 'paused', 'focus']) {
+      if (Number.isFinite(scene.region)) next.region = clamp(Math.floor(scene.region), 0, THEMES.length - 1);
+      for (const key of ['combat', 'boss', 'paused', 'focus', 'story', 'romance']) {
         if (typeof scene[key] === 'boolean') next[key] = scene[key];
       }
+      if (typeof scene.npcId === 'string' || scene.npcId === null) next.npcId = scene.npcId === 'lumina' ? 'lumina' : '';
       if (typeof scene.bossId === 'string' || scene.bossId === null) next.bossId = bossKey(scene.bossId);
       if (previous.bossId !== next.bossId || (!previous.boss && next.boss)) next.phase = 1;
       if (Number.isFinite(scene.phase)) next.phase = scene.phase >= 2 ? 2 : 1;
@@ -202,7 +260,9 @@
       if (scoreFor(previous) !== scoreFor(next) || (next.boss && previous.phase !== next.phase)) {
         this._step = 0;
         this._nextTime = this._context ? this._context.currentTime + 0.055 : 0;
-        this._stopVoices('music');
+        // Overlap the old release with the new first chord for a gentle scene
+        // transition. One-shot effects retain their original release times.
+        this._stopVoices('music', false, 0.16);
       }
       this._reconcile();
     }
@@ -297,12 +357,25 @@
         this._effects.gain.value = 0.85;
         this._master.gain.value = this._volume;
         this._gate.gain.value = 0;
-        this._compressor.threshold.value = -14;
+        this._compressor.threshold.value = -18;
         this._compressor.knee.value = 18;
-        this._compressor.ratio.value = 4;
-        this._compressor.attack.value = 0.003;
-        this._compressor.release.value = 0.18;
-        this._music.connect(this._compressor);
+        this._compressor.ratio.value = 3;
+        this._compressor.attack.value = 0.008;
+        this._compressor.release.value = 0.24;
+        const musicFilter = context.createBiquadFilter();
+        musicFilter.type = 'highpass'; musicFilter.frequency.value = 48; musicFilter.Q.value = 0.5;
+        this._nodes.push(musicFilter);
+        this._music.connect(musicFilter); musicFilter.connect(this._compressor);
+        // One shared, filtered room echo adds depth without creating a reverb
+        // processor per note. No feedback loop or unbounded tail is needed.
+        if (context.createDelay) {
+          const room = context.createDelay(0.5), roomFilter = context.createBiquadFilter(), roomGain = context.createGain();
+          room.delayTime.value = 0.135;
+          roomFilter.type = 'lowpass'; roomFilter.frequency.value = 2200; roomFilter.Q.value = 0.4;
+          roomGain.gain.value = 0.12;
+          this._nodes.push(room, roomFilter, roomGain);
+          musicFilter.connect(room); room.connect(roomFilter); roomFilter.connect(roomGain); roomGain.connect(this._compressor);
+        }
         this._effects.connect(this._compressor);
         this._compressor.connect(this._master);
         this._master.connect(this._gate);
@@ -359,14 +432,14 @@
       else param.setValueAtTime(value, now);
     }
 
-    _stopVoices(channel, immediate) {
+    _stopVoices(channel, immediate, release) {
       if (!this._context) return;
-      const now = this._context.currentTime;
+      const now = this._context.currentTime, fade = immediate ? 0 : release || 0.035;
       for (const voice of Array.from(this._voices)) {
         if (channel && voice.channel !== channel) continue;
         try {
-          this._ramp(voice.envelope.gain, 0, immediate ? 0 : 0.03);
-          voice.source.stop(now + (immediate ? 0 : 0.035));
+          this._ramp(voice.envelope.gain, 0, immediate ? 0 : Math.max(0, fade - 0.005));
+          voice.source.stop(now + fade);
         } catch (_) { voice.cleanup(); }
         if (immediate) voice.cleanup();
       }
@@ -390,20 +463,28 @@
       const oscillator = context.createOscillator(), envelope = context.createGain();
       const nodes = [oscillator, envelope];
       const channel = opts.channel || 'music';
-      const attack = opts.attack || 0.007;
-      const release = Math.min(duration * 0.55, opts.release || 0.10);
       oscillator.type = opts.wave || 'triangle';
+      const attack = Math.min(duration * 0.3, opts.attack || (channel === 'music' ? /square|sawtooth/.test(oscillator.type) ? 0.018 : 0.012 : 0.007));
+      const release = Math.min(duration * 0.55, opts.release || (channel === 'music' ? 0.16 : 0.10));
+      const peak = opts.gain === undefined ? 0.04 : opts.gain;
+      const sustain = peak * (opts.sustain === undefined ? channel === 'music' ? 0.76 : 1 : opts.sustain);
+      const decayAt = when + Math.min(duration - release, attack + Math.min(0.055, duration * 0.15));
       oscillator.frequency.setValueAtTime(frequency(midi), when);
       if (opts.slide !== undefined) oscillator.frequency.exponentialRampToValueAtTime(frequency(opts.slide), when + duration * 0.8);
       if (opts.detune) oscillator.detune.value = opts.detune;
       envelope.gain.setValueAtTime(0, when);
-      envelope.gain.linearRampToValueAtTime(opts.gain === undefined ? 0.04 : opts.gain, when + attack);
-      envelope.gain.setValueAtTime(opts.gain === undefined ? 0.04 : opts.gain, when + Math.max(attack, duration - release));
+      envelope.gain.linearRampToValueAtTime(peak, when + attack);
+      envelope.gain.linearRampToValueAtTime(sustain, decayAt);
+      envelope.gain.setValueAtTime(sustain, when + Math.max(attack, duration - release));
       envelope.gain.exponentialRampToValueAtTime(0.0001, when + duration);
       let output = oscillator;
       if (opts.cutoff) {
         const filter = context.createBiquadFilter();
-        filter.type = 'lowpass'; filter.frequency.value = opts.cutoff; filter.Q.value = 0.7;
+        filter.type = 'lowpass'; filter.frequency.value = opts.cutoff; filter.Q.value = 0.5;
+        if (channel === 'music') {
+          filter.frequency.setValueAtTime(opts.cutoff, when);
+          filter.frequency.exponentialRampToValueAtTime(Math.max(240, opts.cutoff * 0.66), when + duration * 0.8);
+        }
         output.connect(filter); output = filter; nodes.push(filter);
       }
       output.connect(envelope);
@@ -425,7 +506,7 @@
       source.buffer = this._noiseBuffer;
       filter.type = type || 'highpass'; filter.frequency.value = cutoff; filter.Q.value = 0.7;
       envelope.gain.setValueAtTime(0, when);
-      envelope.gain.linearRampToValueAtTime(gain, when + 0.003);
+      envelope.gain.linearRampToValueAtTime(gain, when + (channel === 'sfx' ? 0.003 : 0.005));
       envelope.gain.exponentialRampToValueAtTime(0.0001, when + duration);
       source.connect(filter); filter.connect(envelope);
       envelope.connect(channel === 'sfx' ? this._effects : this._music);
@@ -501,10 +582,11 @@
         this._tone(41, when, 0.18, { wave: 'sine', gain: 0.13, slide: 25, release: 0.14 });
       }
       if (score.snare.includes(tick)) {
-        this._noise(when, 0.13, 0.055, score.cutoff * 0.7);
+        this._noise(when, 0.13, 0.045, 1800, 'music', 'bandpass');
         this._tone(50, when, 0.08, { wave: 'triangle', gain: 0.03, slide: 43 });
       }
-      if (tick % 2 === 0 || enraged) this._noise(when, tick % 4 === 2 ? 0.065 : 0.035, tick % 2 ? 0.008 : 0.018, 6200);
+      if (tick % 2 === 0 || enraged) this._noise(when, tick % 4 === 2 ? 0.065 : 0.035,
+        tick % 2 ? 0.006 : tick % 4 === 0 ? 0.014 : 0.01, 5600);
       if (bar % 8 === 7 && tick >= 13) {
         this._tone(46 - (tick - 13) * 2, when, unit * 0.75, {
           wave: 'sine', gain: 0.065, slide: 34 - (tick - 13) * 2
@@ -514,24 +596,24 @@
 
     _playStep(theme, step, when, unit) {
       const bar = Math.floor(step / 16), tick = step % 16, movement = Math.floor(bar / 8);
-      const combat = this._scene.combat || this._scene.boss, boss = this._scene.boss;
+      const combat = this._scene.combat || this._scene.boss, gentle = !!theme.gentle && !combat;
       const phrase = bar < 16 ? bar : bar < 24 ? bar - 8 : bar - 24;
-      const root = theme.harmony[bar % 16];
+      const root = theme.harmony[bar % theme.harmony.length];
       const degree = (note, octave) => this._degree(theme, note, octave);
 
       if (tick === 0) {
         const voicing = [root, root + 2, root + 4];
-        if (movement === 2 || boss) voicing.push(root + 8);
+        if (movement === 2 || gentle) voicing.push(root + 6);
         voicing.forEach((note, i) => this._tone(degree(note, 1), when, unit * 15.7, {
-          wave: 'triangle', gain: combat ? 0.016 : 0.023, attack: 0.08, release: unit * 3,
+          wave: gentle ? 'sine' : 'triangle', gain: combat ? 0.016 : gentle ? 0.018 : 0.023, attack: gentle ? 0.16 : 0.08, release: unit * 3,
           cutoff: combat ? 1350 : 1000, detune: i % 2 ? 3 : -3, pan: (i - 1) * 0.22
         }));
       }
 
-      if (tick === 0 || tick === 8 || (combat && (tick === 6 || tick === 14)) || (boss && tick === 12)) {
-        const note = root + (tick === 6 || tick === 14 ? 4 : tick === 12 ? 7 : 0);
+      if (tick === 0 || tick === 8 || (combat && (tick === 6 || tick === 14))) {
+        const note = root + (tick === 6 || tick === 14 ? 4 : 0);
         this._tone(degree(note, 0), when, unit * (combat ? 2.4 : 6.3), {
-          wave: 'triangle', gain: combat ? 0.085 : 0.055, cutoff: 650, release: 0.09
+          wave: 'triangle', gain: combat ? 0.075 : gentle ? 0.035 : 0.05, cutoff: 650, release: 0.14
         });
       }
 
@@ -541,39 +623,41 @@
         const breathing = !combat && movement === 1 && tick === 6;
         if (note !== null && !breathing) {
           const reprise = movement === 3 && tick < 8 ? 7 : 0;
-          this._tone(degree(note + reprise, 2), when, unit * (tick === 12 && bar % 8 === 7 ? 3.7 : 1.65), {
-            wave: theme.wave, gain: theme.wave === 'triangle' ? 0.063 : 0.034,
-            cutoff: theme.cutoff, pan: -0.10, release: unit * 0.7
+          this._tone(degree(note + reprise, 2), when, unit * (tick === 12 && bar % 8 === 7 ? 3.7 : gentle ? 2.8 : 1.85), {
+            wave: theme.wave, gain: gentle ? 0.052 : theme.wave === 'triangle' || theme.wave === 'sine' ? 0.062 : 0.034,
+            cutoff: theme.cutoff, pan: -0.10, attack: gentle ? 0.025 : 0.014, release: unit * (gentle ? 1.3 : 0.85)
+          });
+          if (theme.wave === 'sine' && (tick === 0 || tick === 8)) this._tone(degree(note + reprise, 3), when + 0.012, unit * 2.5, {
+            wave: 'sine', gain: 0.009, pan: 0.15, attack: 0.008, release: unit * 1.3
           });
         }
       }
 
-      if ((movement === 2 || boss) && (tick === 4 || tick === 12)) {
+      if ((movement === 2 || gentle) && (tick === 4 || tick === 12)) {
         this._tone(degree(root + (tick === 4 ? 11 : 9), 2), when, unit * 2.8, {
-          wave: 'sine', gain: 0.028, pan: 0.28, attack: 0.015, release: unit * 1.5
+          wave: 'sine', gain: gentle ? 0.017 : 0.028, pan: 0.28, attack: 0.025, release: unit * 1.5
         });
       }
 
-      if (combat && (boss || tick % 2 === 0)) {
+      if (combat && tick % 2 === 0) {
         const arpeggio = bar % 2 ? [7, 4, 2, 4] : [0, 2, 4, 7];
-        this._tone(degree(root + arpeggio[(boss ? tick : tick / 2) % 4], 2), when, unit * 0.72, {
-          wave: 'square', gain: boss ? 0.014 : 0.012, cutoff: 2000, pan: 0.23, release: unit * 0.35
+        this._tone(degree(root + arpeggio[(tick / 2) % 4], 2), when, unit * 0.72, {
+          wave: 'triangle', gain: 0.016, cutoff: 2000, pan: 0.23, release: unit * 0.35
         });
       }
 
-      if (tick === 0 || (combat && tick === 8) || (boss && (tick === 6 || tick === 10))) {
-        this._tone(43, when, 0.19, { wave: 'sine', gain: combat ? 0.15 : 0.045, slide: 27, release: 0.15 });
+      if (!gentle && (tick === 0 || (combat && tick === 8))) {
+        this._tone(43, when, 0.19, { wave: 'sine', gain: combat ? 0.13 : 0.04, slide: 27, release: 0.15 });
       }
       if (combat && (tick === 4 || tick === 12)) {
-        this._noise(when, 0.15, boss ? 0.07 : 0.05, 1400);
+        this._noise(when, 0.15, 0.04, 1700, 'music', 'bandpass');
         this._tone(53, when, 0.085, { wave: 'triangle', gain: 0.042, slide: 46 });
       }
-      if ((combat && tick % 2 === 0) || (boss && tick % 2 === 1) || (!combat && tick === 8)) {
-        this._noise(when, tick % 4 === 2 ? 0.09 : 0.045, boss && tick % 2 ? 0.010 : combat ? 0.025 : 0.008, 6500);
+      if ((combat && tick % 2 === 0) || (!combat && tick === 8)) {
+        this._noise(when, tick % 4 === 2 ? 0.07 : 0.045, combat ? tick % 4 === 0 ? 0.018 : 0.012 : gentle ? 0.003 : 0.006, 5600);
       }
       if (combat && bar % 8 === 7 && tick >= 13) {
         this._tone(47 - (tick - 13) * 2, when, unit * 0.85, { wave: 'sine', gain: 0.085, slide: 37 - (tick - 13) * 2 });
-        if (boss) this._noise(when, 0.06, 0.03, 1900);
       }
     }
   }
@@ -582,5 +666,10 @@
   DungeonAudio.BOSS_THEMES = Object.freeze(Object.keys(BOSS_SCORES).map(id => Object.freeze({
     id: 'boss-' + id, bossId: id, name: BOSS_SCORES[id].name, tempo: BOSS_SCORES[id].tempo, bars: 32
   })));
+  DungeonAudio.STORY_THEMES = Object.freeze([
+    Object.freeze({ id: 'npc-lumina', name: STORY_SCORES.lumina.name, tempo: STORY_SCORES.lumina.tempo, bars: 32 }),
+    Object.freeze({ id: 'romance-lumina', name: STORY_SCORES.romance.name, tempo: STORY_SCORES.romance.tempo, bars: 32 }),
+    Object.freeze({ id: 'story-chronicle', name: STORY_SCORES.chronicle.name, tempo: STORY_SCORES.chronicle.tempo, bars: 32 })
+  ]);
   global.DungeonAudio = DungeonAudio;
 })(window);

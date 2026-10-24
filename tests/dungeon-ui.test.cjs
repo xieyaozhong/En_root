@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const Story = require('../dungeon-story.js');
 const Engine = require('../dungeon-engine.js');
 const Arena = require('../dungeon-arena.js');
 const Explore = require('../dungeon-explore.js');
@@ -108,7 +109,8 @@ class Element {
 }
 
 async function harness(active = null, options = {}) {
-  const listeners = { document: {}, window: {} }, frames = [], calls = { updates:0, castAttempts:0, consumes:0, saves:0, sounds:[] }, doc = {};
+  const listeners = { document: {}, window: {} }, frames = [], calls = { updates:0, castAttempts:0, consumes:0, saves:0, sounds:[],
+    fullscreenRequests:0,fullscreenExits:0,orientationLocks:[],orientationUnlocks:0 }, doc = {};
   const media = {width:options.width ?? 1280,coarse:options.coarse ?? false}, mediaQueries = new Map();
   const matchesMedia = query => query.split(',').some(part => {
     const width = part.match(/max-width:\s*(\d+)px/);
@@ -126,6 +128,26 @@ async function harness(active = null, options = {}) {
   doc.createElement = tag => new Element(tag, doc);
   doc.addEventListener = (name, callback) => (listeners.document[name] ||= []).push(callback);
   doc.dispatchEvent = event => {for(const fn of listeners.document[event.type] || [])fn(event);return !event.defaultPrevented;};
+  let finishFullscreen, finishOrientation;
+  doc.fullscreenElement = null;
+  const fullscreenChange = element => {doc.fullscreenElement=element;doc.dispatchEvent(makeEvent('fullscreenchange'));};
+  if(options.fullscreen){
+    doc.getElementById('gameSurface').requestFullscreen=async()=>{
+      calls.fullscreenRequests++;
+      if(options.fullscreen==='reject')throw new Error('Fullscreen denied');
+      if(options.fullscreen==='deferred')await new Promise(resolve=>{finishFullscreen=resolve;});
+      fullscreenChange(doc.getElementById('gameSurface'));
+    };
+    doc.exitFullscreen=async()=>{calls.fullscreenExits++;fullscreenChange(null);};
+  }
+  const screen=options.orientation?{orientation:{
+    async lock(value){
+      calls.orientationLocks.push(value);
+      if(options.orientation==='reject')throw new Error('Orientation denied');
+      if(options.orientation==='deferred')await new Promise(resolve=>{finishOrientation=resolve;});
+    },
+    unlock(){calls.orientationUnlocks++;}
+  }}:undefined;
   let time = 1, run = active?.run || null, audioScene;
   class Audio {
     setVolume() {} setScene(scene) { audioScene = scene; } async setEnabled(value) { return value; } sfx(kind) {calls.sounds.push(kind);}
@@ -133,16 +155,16 @@ async function harness(active = null, options = {}) {
   }
   class Renderer { draw() {} burst() {} }
   const Storage = {
-    load: async () => ({ok:true, active}), listOwned: () => ({ok:true, cards:[{word:'robot',zh:'機器人',rarity:'N',count:2}]}),
+    load: async () => ({ok:true, active,relationship:options.relationship || Story.createProfile()}), listOwned: () => ({ok:true, cards:[{word:'robot',zh:'機器人',rarity:'N',count:2}]}),
     consumeEntry: async (word, cards, next) => { calls.consumes++; active = {run:next, receipt:{id:'entry-1',word}}; return {ok:true,receipt:active.receipt}; },
     saveRun: async () => { calls.saves++; return {ok:true}; }, finishRun: async () => ({ok:true}), abandonRun: async () => {active = null; return {ok:true};}
   };
   const win = {
-    DungeonEngine: {...Engine, createRun: (card, practice) => run = Engine.createRun(card, practice, 31)}, DungeonStorage: Storage,
+    DungeonEngine: {...Engine, createRun: (card, practice, seed, profile) => run = Engine.createRun(card, practice, 31, profile)}, DungeonStorage: Storage,
     DungeonArena: {...Arena, update: (...args) => { calls.updates++; calls.lastInput={...args[2]}; return Arena.update(...args); },
       cast: (...args) => { calls.castAttempts++; return Arena.cast(...args); }, ensure: next => {run = next; return Arena.ensure(next);}},
-    DungeonExplore: Explore, DungeonJoystick: Joystick, DungeonChant: Chant, DungeonIcons: Icons,
-    DungeonArenaRenderer: Renderer, DungeonAudio: Audio, ENROOT_CARDS: [{word:'robot',zh:'機器人',rarity:'N'}],
+    DungeonStory: Story, DungeonExplore: Explore, DungeonJoystick: Joystick, DungeonChant: Chant, DungeonIcons: Icons,
+    DungeonArenaRenderer: Renderer, DungeonAudio: Audio, ENROOT_CARDS: [{word:'robot',zh:'機器人',rarity:'N'}], screen,
     addEventListener: (name, callback) => (listeners.window[name] ||= []).push(callback)
   };
   vm.runInNewContext(source, {window:win, document:doc, navigator:{}, HTMLElement:Element,
@@ -186,7 +208,11 @@ async function harness(active = null, options = {}) {
     }
     await dispatch('window','resize');
   };
-  return {$,doc,calls,click,combat,key,tick,pointer,dispatch,fire,touchTap,input,resize,get run(){return run;},get audioScene(){return audioScene;}};
+  return {$,doc,calls,click,combat,key,tick,pointer,dispatch,fire,touchTap,input,resize,
+    browserExitFullscreen:()=>fullscreenChange(null),
+    resolveFullscreen:()=>{assert.ok(finishFullscreen,'fullscreen request is pending');const finish=finishFullscreen;finishFullscreen=null;finish();},
+    resolveOrientation:()=>{assert.ok(finishOrientation,'orientation request is pending');const finish=finishOrientation;finishOrientation=null;finish();},
+    get run(){return run;},get audioScene(){return audioScene;}};
 }
 
 (async () => {
@@ -197,7 +223,7 @@ async function harness(active = null, options = {}) {
   await h.resize(1280);
   h.$('difficultySelect').value = 'story'; h.$('difficultySelect').onchange({target:h.$('difficultySelect')});
   const run = await h.combat(); assert.equal(run.difficulty, 'story'); assert.equal(h.calls.consumes, 0, 'practice never consumes cards');
-  assert.equal(h.$('floorLabel').textContent,'01 / 18','new campaign length appears on the HUD');
+  assert.equal(h.$('floorLabel').textContent,'01 / 24','new campaign length appears on the HUD');
   assert.equal(h.doc.activeElement, h.$('arena'), 'battle focuses the movement surface');
   const p = run.arena.player, startX = p.x;
   await h.key('KeyD'); h.tick(.1); assert.ok(p.x > startX, 'WASD reaches arena update');
@@ -336,6 +362,102 @@ async function harness(active = null, options = {}) {
     assert.ok(target,'fixture retains a live target');
     next.arena.player.x=target.x;next.arena.player.y=target.y+60;
   }
+
+  // Exercise the shipping fullscreen handlers against browser success, denial,
+  // delayed promises and browser-driven exit, rather than modifying UI state.
+  for(const fullscreen of [undefined,'reject']){
+    const immersive=await harness(null,{width:390,coarse:false,fullscreen,orientation:true});
+    await immersive.click('expandButton');
+    assert.equal(immersive.doc.body.classList.contains('immersive-game'),false,'lobby cannot enter gameplay fullscreen');
+    const immersiveRun=await immersive.combat();quietCombat(immersiveRun);
+    await immersive.click('expandButton');
+    assert.equal(immersive.doc.fullscreenElement,null);
+    assert.ok(immersive.doc.body.classList.contains('immersive-game'),'unsupported or rejected native fullscreen still offers full-page play');
+    assert.equal(immersive.$('immersiveTools').hidden,false);
+    assert.equal(immersive.$('expandButton').getAttribute('aria-pressed'),'true');
+    assert.deepEqual(immersive.calls.orientationLocks,[],'fallback never attempts a native orientation lock');
+    await immersive.resize(844,false);
+    assert.ok(immersive.doc.body.classList.contains('touch-layout'),'rotating a narrow phone retains touch controls even without coarse-pointer detection');
+    await immersive.click('touchCast');
+    assert.equal(immersive.$('spellInput').readOnly,true,'landscape fullscreen retains the rune dock instead of a system keyboard');
+    assert.ok(immersive.$('touchRuneKeys').children.length>0);
+    await immersive.click('touchCast');
+    await immersive.resize(390,false);
+    immersive.pointer(301,'pointerdown',148,80);immersive.tick(.1);
+    assert.ok(immersive.$('moveJoystick').hasPointerCapture(301));
+    await immersive.click('immersiveExit');
+    assert.equal(immersive.doc.body.classList.contains('immersive-game'),false);
+    assert.equal(immersive.$('immersiveTools').hidden,true);
+    assert.equal(immersive.$('expandButton').getAttribute('aria-pressed'),'false');
+    assert.equal(immersive.$('moveJoystick').hasPointerCapture(301),false,'exit releases a held joystick pointer');
+    const stopped=immersiveRun.arena.player.x;immersive.tick(.1);immersive.tick(.1);
+    assert.equal(immersiveRun.arena.player.x,stopped,'exit clears movement without waiting for a pointer-up');
+    assert.equal(immersive.calls.consumes,0);
+  }
+
+  const nativeScreen=await harness(null,{width:390,coarse:false,fullscreen:'native',orientation:true});
+  const fullscreenRun=await nativeScreen.combat(false);quietCombat(fullscreenRun);
+  const fullscreenNode=fullscreenRun.encounter;
+  await nativeScreen.click('expandButton');
+  assert.equal(nativeScreen.doc.fullscreenElement,nativeScreen.$('gameSurface'));
+  assert.deepEqual(nativeScreen.calls.orientationLocks,['landscape']);
+  await nativeScreen.resize(844,false);
+  assert.ok(nativeScreen.doc.body.classList.contains('touch-layout'));
+  assert.equal(nativeScreen.$('immersiveSound').getAttribute('aria-pressed'),'false');
+  await nativeScreen.click('immersiveSound');
+  assert.equal(nativeScreen.$('immersiveSound').getAttribute('aria-pressed'),'true');
+  assert.equal(nativeScreen.$('soundButton').getAttribute('aria-pressed'),'true');
+  assert.equal(nativeScreen.$('immersiveSound').getAttribute('aria-label'),'關閉配樂');
+  await nativeScreen.click('soundButton');
+  assert.equal(nativeScreen.$('immersiveSound').getAttribute('aria-pressed'),'false','both music buttons share the same state');
+  await nativeScreen.click('immersiveExit');
+  assert.equal(nativeScreen.doc.fullscreenElement,null);
+  assert.equal(nativeScreen.calls.fullscreenExits,1);assert.equal(nativeScreen.calls.orientationUnlocks,1);
+  assert.equal(nativeScreen.doc.body.classList.contains('touch-layout'),false,'exit restores controls for the current wide viewport');
+  assert.equal(nativeScreen.run,fullscreenRun);assert.equal(fullscreenRun.encounter,fullscreenNode);
+  await nativeScreen.resize(390,false);await nativeScreen.click('expandButton');
+  nativeScreen.pointer(302,'pointerdown',148,80);nativeScreen.tick(.1);
+  nativeScreen.browserExitFullscreen();
+  assert.equal(nativeScreen.doc.body.classList.contains('immersive-game'),false);
+  assert.equal(nativeScreen.calls.orientationUnlocks,2);
+  assert.equal(nativeScreen.$('pauseOverlay').hidden,false,'browser fullscreen dismissal pauses an active fight');
+  assert.equal(nativeScreen.audioScene.paused,true);
+  assert.equal(nativeScreen.$('moveJoystick').hasPointerCapture(302),false);
+  const browserExitX=fullscreenRun.arena.player.x;nativeScreen.tick(.1);
+  assert.equal(fullscreenRun.arena.player.x,browserExitX);
+  await nativeScreen.click('resumeButton');
+  await nativeScreen.click('expandButton');await nativeScreen.key('Escape');
+  assert.equal(nativeScreen.doc.fullscreenElement,null);assert.equal(nativeScreen.$('pauseOverlay').hidden,false);
+  assert.equal(nativeScreen.calls.consumes,1,'entering, rotating and exiting never consumes another card');
+
+  const deniedOrientation=await harness(null,{width:390,fullscreen:'native',orientation:'reject'});
+  await deniedOrientation.combat();await deniedOrientation.click('expandButton');
+  assert.equal(deniedOrientation.doc.fullscreenElement,deniedOrientation.$('gameSurface'),'denied orientation does not cancel usable fullscreen');
+  await deniedOrientation.click('immersiveExit');
+  assert.equal(deniedOrientation.doc.fullscreenElement,null);assert.equal(deniedOrientation.calls.orientationUnlocks,0);
+
+  const delayedScreen=await harness(null,{width:390,fullscreen:'deferred',orientation:true});
+  await delayedScreen.combat(false);
+  const entering=delayedScreen.click('expandButton');
+  assert.ok(delayedScreen.doc.body.classList.contains('immersive-game'));
+  await delayedScreen.click('immersiveExit');
+  delayedScreen.resolveFullscreen();await entering;
+  assert.equal(delayedScreen.doc.fullscreenElement,null,'a late native grant is dismissed after cancellation');
+  assert.equal(delayedScreen.doc.body.classList.contains('immersive-game'),false,'late resolution cannot re-enter immersive play');
+  assert.equal(delayedScreen.$('immersiveTools').hidden,true);
+  assert.deepEqual(delayedScreen.calls.orientationLocks,[]);
+  assert.equal(delayedScreen.calls.consumes,1);
+
+  const delayedOrientation=await harness(null,{width:390,fullscreen:'native',orientation:'deferred'});
+  await delayedOrientation.combat();
+  const locking=delayedOrientation.click('expandButton');await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(delayedOrientation.calls.orientationLocks,['landscape']);
+  await delayedOrientation.click('immersiveExit');
+  delayedOrientation.resolveOrientation();await locking;
+  assert.equal(delayedOrientation.calls.orientationUnlocks,1,'a late orientation grant is unlocked after the player exits');
+  assert.equal(delayedOrientation.doc.fullscreenElement,null);
+  assert.equal(delayedOrientation.doc.body.classList.contains('immersive-game'),false);
+
   const quick=await harness(null,{width:390});
   assert.equal(quick.$('quickPotion').hidden,true,'lobby hides adventure healing');
   const quickRun=await quick.combat();quietCombat(quickRun);
@@ -550,6 +672,40 @@ async function harness(active = null, options = {}) {
     Engine.chooseRoute(next,next.routes[0].id);
     return {run:next,receipt:{id:'npc-entry',word:'robot'},finished:false};
   }
+  const starSave=encounter('lumina');starSave.run.relationship=Story.createProfile({affection:44,gifts:{star:2}});
+  const star=await harness(starSave,{width:390});await star.click('continueRun');star.tick(.1);
+  assert.equal(star.$('actionPanel').querySelector('[data-action="giveGift"]'),null,'gift controls require a physical conversation');
+  star.run.exploration.player.x=440;star.run.exploration.player.y=270;star.tick(.1);await star.key('KeyE');
+  assert.equal(star.audioScene.npcId,'lumina','conversation selects Lumina music');
+  assert.ok(star.$('actionPanel').querySelector('.bond-portrait'),'adult mage portrait accompanies dialogue');
+  assert.equal(star.$('actionPanel').querySelector('[data-action="beginBondQuest"]').disabled,true,'quest is visibly gated by trust');
+  await star.$('actionPanel').querySelectorAll('[data-action="giveGift"]').find(button=>button.dataset.choice==='star').onclick();
+  assert.equal(star.run.relationship.affection,50);assert.equal(star.run.relationship.gifts.star,1);
+  assert.equal(star.$('actionPanel').querySelector('[data-action="beginBondQuest"]').disabled,false,'giving a gift unlocks the quest immediately');
+  await star.$('actionPanel').querySelector('[data-action="talkNpc"]').onclick();
+  assert.equal(star.run.relationship.affection,51);assert.equal(star.$('actionPanel').querySelector('[data-action="talkNpc"]').disabled,true);
+  await star.$('actionPanel').querySelector('[data-action="beginBondQuest"]').onclick();
+  assert.equal(star.run.status,'combat');assert.equal(star.run.bondQuest.step,0);assert.equal(star.run.encounter,0);
+  assert.equal(star.run.arena.room.id,'starlanes');assert.equal(star.audioScene.story,true);
+  assert.equal(star.$('storyStrip').dataset.story,'bond-0');
+  const questSave=JSON.parse(JSON.stringify({run:star.run,receipt:starSave.receipt,finished:false}));
+  const questResume=await harness(questSave,{width:390});await questResume.click('continueRun');
+  assert.equal(questResume.$('pauseOverlay').hidden,false,'side quest resumes safely paused');
+  assert.equal(questResume.run.bondQuest.step,0);assert.equal(questResume.run.arena.room.id,'starlanes');
+  const romanceSave=encounter('lumina');romanceSave.run.relationship=Story.createProfile({affection:80,questCleared:true,scenes:['lumina-promise']});
+  const romance=await harness(romanceSave,{width:390});await romance.click('continueRun');
+  romance.run.exploration.player.x=440;romance.run.exploration.player.y=270;romance.tick(.1);await romance.key('KeyE');
+  assert.equal(romance.run.relationship.dating,false,'affection never starts romance automatically');
+  assert.equal(romance.$('actionPanel').querySelector('[data-action="confessBond"]').disabled,false);
+  await romance.$('actionPanel').querySelector('[data-action="confessBond"]').onclick();
+  assert.equal(romance.run.relationship.dating,true);assert.ok(romance.run.relationship.scenes.includes('lumina-confession'));
+  assert.equal(romance.$('infoDialog').open,true,'confession opens its full story');
+  assert.ok(romance.$('dialogContent').textContent.includes('讓我成為你的下一顆星'));
+  await romance.click('storyReturn');assert.equal(romance.$('infoDialog').open,false);assert.equal(romance.audioScene.romance,true);
+  assert.equal(romance.audioScene.npcId,'lumina');assert.equal(romance.$('actionPanel').querySelector('[data-action="confessBond"]'),null);
+  await romance.click('storyButton');
+  assert.ok(romance.$('dialogContent').querySelector('[data-open-journal="lumina-confession"]'),'unlocked romance can be replayed');
+  await romance.click('storyReturn');
   const merchant=await harness(encounter('merchant'));await merchant.click('continueRun');merchant.tick(.1);
   assert.equal(merchant.$('npcChallengeForm'),null,'merchant controls stay hidden until approaching');
   const mp=merchant.run.exploration.player;mp.x=440;mp.y=270;merchant.tick(.1);
@@ -613,7 +769,7 @@ async function harness(active = null, options = {}) {
   await resumed.click('resumeButton'); const before = resumed.run.arena.player.x;
   await resumed.key('KeyD'); resumed.tick(.1); resumed.tick(.1);
   assert.ok(resumed.run.arena.player.x > before,'resumed save accepts movement');
-  const legacy=JSON.parse(JSON.stringify(saved));delete legacy.run.nodesPerRegion;delete legacy.run.companions;
+  const legacy=JSON.parse(JSON.stringify(saved));delete legacy.run.nodesPerRegion;delete legacy.run.regionCount;delete legacy.run.companions;
   const legacyUI=await harness(legacy);await legacyUI.click('continueRun');
   assert.equal(legacyUI.$('floorLabel').textContent,'01 / 12','untagged saves keep original campaign length');
   assert.equal(legacyUI.$('partyStrip').hidden,true);
@@ -626,5 +782,5 @@ async function harness(active = null, options = {}) {
   ending.doc.hidden=false;await ending.dispatch('document','visibilitychange');
   assert.equal(ending.$('pauseOverlay').hidden,true,'returning to a completed run never traps results behind an unusable pause screen');
   assert.equal(ending.$('actionPanel').inert,false);assert.ok(ending.$('returnLobby'));
-  console.log('UI integration checks passed: admission, desktop QTE, mobile rune auto-casting and retries, simultaneous joystick/dash/chant, gesture cancellation and responsive layout changes, long-press guards, NPC interactions, and saved-run resume.');
+  console.log('UI integration checks passed: admission, desktop QTE, mobile rune auto-casting and retries, simultaneous joystick/dash/chant, native and fallback fullscreen, rotation and pending-request cancellation, gesture cancellation and responsive layout changes, long-press guards, NPC interactions, and saved-run resume.');
 })().catch(error => {console.error(error); process.exitCode = 1;});

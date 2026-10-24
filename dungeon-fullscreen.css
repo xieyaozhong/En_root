@@ -1,0 +1,208 @@
+/* Immersive play is opt-in. Ordinary mobile pages retain normal scrolling. */
+body.immersive-game{overflow:hidden;overscroll-behavior:none}
+#gameSurface.is-immersive{
+  --immersive-gap:7px;
+  position:fixed;inset:0;z-index:1000;
+  width:100%;height:100vh;height:100dvh;max-width:none;max-height:none;
+  display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;
+  gap:0;margin:0;
+  padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));
+  overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
+  background:radial-gradient(ellipse at 80% 0,#31445366,transparent 62%),#101c29;
+  isolation:isolate;-webkit-overflow-scrolling:touch;
+}
+#gameSurface.is-immersive:fullscreen{position:fixed;inset:0;width:100%;height:100dvh;margin:0;justify-content:flex-start}
+#gameSurface.is-immersive>.stage-frame,
+#gameSurface.is-immersive>.movement-bar,
+#gameSurface.is-immersive>.touch-controls,
+#gameSurface.is-immersive>.action-panel,
+#gameSurface.is-immersive>.party-strip,
+#gameSurface.is-immersive>.story-strip{width:100%;max-width:1120px;margin-left:auto;margin-right:auto;flex-shrink:0}
+#gameSurface.is-immersive>.stage-frame{margin-top:0;border-radius:10px 10px 0 0}
+#gameSurface.is-immersive .stage-top{min-height:48px;padding:3px 10px;gap:8px}
+#gameSurface.is-immersive .stage-top .chapter{display:none}
+#gameSurface.is-immersive .stage-top h2{font-size:.82rem;letter-spacing:.05em;line-height:1.4;margin:0}
+#gameSurface.is-immersive .stage-controls{gap:5px;flex-shrink:0}
+#gameSurface.is-immersive .stage-controls .icon-button{width:44px;min-width:44px;height:44px;min-height:44px;padding:5px;border-radius:7px}
+#gameSurface.is-immersive .floor-label{font-size:.64rem;padding:4px 5px;white-space:nowrap}
+#gameSurface.is-immersive .arena{width:100%;height:auto;aspect-ratio:16/9;min-height:0;max-height:none}
+#gameSurface.is-immersive .arena canvas{display:block;width:100%;height:100%;object-fit:contain}
+#gameSurface.is-immersive .vitals{padding:7px 10px;gap:10px;min-height:58px}
+#gameSurface.is-immersive .vital-label{font-size:.63rem;margin-bottom:5px;gap:5px}
+#gameSurface.is-immersive .vital-label b{font-size:.7rem}
+#gameSurface.is-immersive .mini-stat{min-width:27px}
+#gameSurface.is-immersive .mini-stat small{font-size:.54rem;gap:3px;margin-bottom:4px}
+#gameSurface.is-immersive .mini-stat b{font-size:.8rem}
+#gameSurface.is-immersive .vitals .dungeon-icon{width:12px;height:12px}
+#gameSurface.is-immersive .quick-potion{width:44px;min-width:44px;height:44px;min-height:44px}
+#gameSurface.is-immersive .quick-potion .dungeon-icon{width:17px;height:17px}
+#gameSurface.is-immersive .touch-controls{margin-top:0;max-width:1120px}
+#gameSurface.is-immersive .touch-action-buttons>button,
+#gameSurface.is-immersive .rune-key{min-height:44px}
+#gameSurface.is-immersive .movement-bar{min-height:30px;padding:6px 10px}
+#gameSurface.is-immersive .under-stage{display:none}
+#gameSurface.is-immersive .feedback{max-width:1120px;width:100%;margin:5px auto;min-height:0;font-size:.7rem;line-height:1.5}
+#gameSurface.is-immersive .pause-overlay{padding:12px}
+#gameSurface.is-immersive .pause-overlay h3{font-size:1.05rem;margin:8px 0}
+#gameSurface.is-immersive .pause-overlay p{font-size:.72rem;margin:0}
+#gameSurface.is-immersive .pause-overlay button{min-height:44px;margin-top:8px}
+#immersiveTools{display:none}
+#gameSurface.is-immersive>#immersiveTools{
+  order:-2;position:sticky;top:0;z-index:30;
+  display:flex;align-items:center;justify-content:flex-end;gap:6px;flex:none;
+  width:100%;max-width:1120px;min-height:48px;margin:0 auto 7px;padding:2px 0;
+  background:#172737;box-shadow:0 5px 12px #06111d66;border-radius:8px;
+}
+#gameSurface.is-immersive #immersiveTools>button{
+  display:inline-flex;justify-content:center;align-items:center;gap:5px;
+  min-width:44px;min-height:44px;height:44px;padding:5px 10px;
+  background:#2c4051;border:1px solid #9d9fa080;border-radius:7px;
+  font-size:.7rem;line-height:1.35;white-space:nowrap;color:#e5ded2;
+}
+#gameSurface.is-immersive #immersiveTools>button .dungeon-icon{width:17px;height:17px}
+#gameSurface.is-immersive #immersiveExit{border-color:#c2a68a99;background:#4b4146;color:#f1d8bd}
+#gameSurface.is-immersive #immersiveTools>button:focus-visible{outline:2px solid #edcfaa;outline-offset:2px}
+#gameSurface.is-immersive #immersiveSound[aria-pressed=true]{border-color:#c9b592;color:#f2dcb4;background:#414749}
+#gameSurface.is-immersive.immersive-terminal{overflow-y:auto;display:flex;gap:0}
+#gameSurface.is-immersive.immersive-terminal>.stage-frame{flex:none}
+#gameSurface.is-immersive.immersive-terminal>.action-panel{display:block!important;position:static;max-height:none;margin-top:0;padding:18px;overflow:visible;flex:none}
+#gameSurface.is-immersive.immersive-terminal .action-panel button{min-height:44px}
+@media(orientation:portrait){
+  #gameSurface.is-immersive:before{content:'橫放手機，可啟用並排戰場與操作區';order:-1;display:block;box-sizing:border-box;flex:none;max-width:1120px;width:100%;margin:0 auto 8px;padding:7px 10px;border:1px solid #a4b7bd44;border-radius:6px;background:#20394a;color:#c0d3d8;font-size:.67rem;line-height:1.5;text-align:center}
+  #gameSurface.is-immersive .arena{height:auto;min-height:0;max-height:none;aspect-ratio:16/9}
+  #gameSurface.is-immersive .touch-controls:not([hidden]){grid-template-columns:96px minmax(0,1fr);padding:9px;gap:10px}
+  #gameSurface.is-immersive .move-joystick{width:92px;height:92px}
+  #gameSurface.is-immersive .joystick-thumb{width:44px;height:44px}
+  #gameSurface.is-immersive .conversation-panel{max-height:none;overflow:visible}
+}
+/* At phone landscape sizes, every movement/cast control has its own space.
+   Canvas object-fit contains all 960x540 world pixels inside the left column. */
+@media(orientation:landscape) and (max-height:600px),(orientation:landscape) and (pointer:coarse){
+  #gameSurface.is-immersive:not(.immersive-terminal){
+    --immersive-dock:clamp(246px,34vw,298px);
+    display:grid;grid-template-columns:minmax(0,1fr) var(--immersive-dock);
+    grid-template-rows:44px 27px minmax(0,1fr) 27px;
+    align-items:stretch;align-content:stretch;gap:var(--immersive-gap);
+    overflow:hidden;
+    padding:max(6px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left));
+  }
+  #gameSurface.is-immersive:not(.immersive-terminal)>.stage-frame{
+    grid-column:1;grid-row:1/5;display:flex;flex-direction:column;
+    min-width:0;min-height:0;width:100%;height:100%;max-width:none;
+    align-self:stretch;margin:0;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px #03111c55;
+  }
+  #gameSurface.is-immersive:not(.immersive-terminal) .stage-top{
+    min-height:48px;height:48px;flex:0 0 48px;padding:2px 7px;gap:5px;
+  }
+  #gameSurface.is-immersive:not(.immersive-terminal) .stage-top h2{font-size:.74rem;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #gameSurface.is-immersive:not(.immersive-terminal) .stage-top>div:first-child{min-width:0}
+  #gameSurface.is-immersive:not(.immersive-terminal) .floor-label{font-size:.6rem;padding:3px 4px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .stage-controls{gap:4px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .arena{
+    min-width:0;min-height:0;max-height:none;width:100%;height:auto;aspect-ratio:auto;
+    flex:1 1 0;background:#0d1825;overflow:hidden;
+  }
+  #gameSurface.is-immersive:not(.immersive-terminal) .arena canvas{width:100%;height:100%;object-fit:contain;max-height:none}
+  #gameSurface.is-immersive:not(.immersive-terminal) .vitals{flex:0 0 58px;min-height:58px;height:58px;padding:6px 8px;gap:9px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .vital-block{min-width:72px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .vital-label{font-size:.58rem;flex-direction:row;align-items:center;gap:4px;margin-bottom:5px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .vital-label b{font-size:.65rem}
+  #gameSurface.is-immersive:not(.immersive-terminal) .mini-stat{min-width:24px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .mini-stat small{font-size:.51rem;gap:2px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .mini-stat b{font-size:.73rem}
+  #gameSurface.is-immersive:not(.immersive-terminal) .vitals .dungeon-icon{width:11px;height:11px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .vitals .quick-potion .dungeon-icon{width:17px;height:17px}
+  #gameSurface.is-immersive:not(.immersive-terminal)>#immersiveTools{
+    order:0;grid-column:2;grid-row:1;position:relative;top:auto;
+    width:100%;max-width:none;height:44px;min-height:44px;margin:0;padding:0;
+    display:grid;grid-template-columns:repeat(3,minmax(44px,1fr));gap:6px;background:none;box-shadow:none;
+  }
+  #gameSurface.is-immersive:not(.immersive-terminal) #immersiveTools>button{padding:4px 5px;font-size:.64rem;gap:4px;min-width:0}
+  #gameSurface.is-immersive:not(.immersive-terminal) #immersiveTools>button .dungeon-icon{width:15px;height:15px}
+  #gameSurface.is-immersive:not(.immersive-terminal)>.movement-bar{
+    grid-column:2;grid-row:2;margin:0;max-width:none;min-width:0;width:100%;height:27px;min-height:27px;
+    padding:4px 7px;gap:10px;border:1px solid #7d949f44;border-radius:5px;background:#203343;
+  }
+  #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar .ability-stat{font-size:.56rem;gap:4px;flex:1;min-width:0}
+  #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar .ability-stat>span{font-size:.54rem;gap:3px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar .ability-stat .dungeon-icon{width:11px;height:11px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar .ability-stat .meter{min-width:18px;max-width:none;height:5px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar .ability-stat b{font-size:.55rem;min-width:25px;line-height:1.2}
+  #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar button,
+  #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar kbd{display:none!important}
+  #gameSurface.is-immersive:not(.immersive-terminal)>.touch-controls:not([hidden]){
+    grid-column:2;grid-row:3;display:grid!important;grid-template-columns:88px minmax(0,1fr);
+    align-items:center;align-content:center;gap:8px;width:100%;max-width:none;min-width:0;min-height:0;
+    height:100%;margin:0;padding:8px;border:1px solid #94a6a56b;border-radius:9px;
+    background:linear-gradient(135deg,#2b4150,#233348);overflow:visible;
+  }
+  #gameSurface.is-immersive:not(.immersive-terminal) .joystick-wrap{width:88px;min-width:0;gap:0;align-self:center}
+  #gameSurface.is-immersive:not(.immersive-terminal) .move-joystick{width:88px;height:88px;min-width:88px;min-height:88px;box-shadow:inset 0 0 18px #06172799,0 0 0 3px #b6c9cd0c;touch-action:none}
+  #gameSurface.is-immersive:not(.immersive-terminal) .joystick-thumb{width:44px;height:44px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .joystick-wrap>span{display:none}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-actions{display:flex;flex-direction:column;justify-content:center;min-width:0;min-height:0;gap:5px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview{display:flex;align-items:center;min-height:31px;gap:5px;margin:0}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview .spell-emblem{width:25px;height:27px;border-radius:5px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview .spell-emblem .dungeon-icon{width:17px;height:17px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview b{font-size:.77rem;line-height:1.1;letter-spacing:0;word-break:break-word;overflow-wrap:anywhere}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview small{font-size:.52rem;line-height:1.15}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-rune-keys{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:44px;gap:5px;min-height:93px;flex:none}
+  #gameSurface.is-immersive:not(.immersive-terminal) .rune-key{height:44px;min-height:44px;min-width:44px;padding:4px 2px;font-size:.93rem;line-height:1.1;border-bottom-width:2px;touch-action:manipulation}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-chant-hint{font-size:.53rem;line-height:1.3;min-height:28px;max-height:28px;margin:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-action-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;min-width:0}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-action-buttons>button{height:44px;min-height:44px;min-width:44px;padding:3px;font-size:.64rem;gap:3px;border-radius:6px;white-space:normal;line-height:1.25}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-action-buttons>button .dungeon-icon{width:13px;height:13px}
+  #gameSurface.is-immersive:not(.immersive-terminal)>.party-strip,
+  #gameSurface.is-immersive:not(.immersive-terminal)>#storyStrip,
+  #gameSurface.is-immersive:not(.immersive-terminal)>.action-panel,
+  #gameSurface.is-immersive:not(.immersive-terminal)>.under-stage{display:none!important}
+  #gameSurface.is-immersive:not(.immersive-terminal)>#feedback{
+    grid-column:2;grid-row:4;position:relative;align-self:center;pointer-events:none;
+    width:100%;max-width:none;min-width:0;min-height:0;max-height:27px;margin:0;padding:0 4px;
+    font-size:.56rem;line-height:1.35;color:#c5e2d1;overflow:hidden;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  }
+  #gameSurface.is-immersive:not(.immersive-terminal)>#feedback.error{color:#f1b2ba}
+  #gameSurface.is-immersive:not(.immersive-terminal) .arena-hud{top:6px;left:6px;right:6px;gap:5px;font-size:.53rem}
+  #gameSurface.is-immersive:not(.immersive-terminal) .arena-hud span{padding:3px 5px;border-radius:4px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .boss-banner{top:31px;left:14%;right:14%;padding:3px 6px 2px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .boss-heading strong{font-size:.58rem;letter-spacing:.01em}
+  #gameSurface.is-immersive:not(.immersive-terminal) .boss-heading span{font-size:.46rem}
+  #gameSurface.is-immersive:not(.immersive-terminal) .boss-meter{height:4px;margin-top:3px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .boss-banner>small{font-size:8px;margin-top:1px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .focus-flag{bottom:9px;font-size:.55rem;padding:3px 6px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .cast-feedback{top:8px;font-size:.6rem;max-width:72%;white-space:normal;text-align:center;padding:4px 7px}
+  #gameSurface.is-immersive.immersive-conversation:not(.immersive-terminal)>.action-panel.conversation-panel{
+    display:block!important;position:absolute;grid-column:auto;grid-row:auto;
+    inset:max(60px,calc(env(safe-area-inset-top) + 54px)) max(12px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+    z-index:20;width:auto;max-width:900px;min-width:0;min-height:0;height:auto;max-height:none;
+    margin:0 auto;padding:13px 16px;border:1px solid #c3ad98;border-radius:10px;
+    background:linear-gradient(130deg,#263c4e,#1b2b3c);box-shadow:0 14px 45px #020c16cc;
+    overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  }
+  #gameSurface.is-immersive.immersive-conversation .conversation-panel>.action-heading{position:sticky;top:-13px;z-index:2;align-items:center;margin:-1px 0 10px;padding:7px 0;background:#253b4d;border-bottom:1px solid #b8a78f55}
+  #gameSurface.is-immersive.immersive-conversation .conversation-panel>.action-heading h3{font-size:.85rem}
+  #gameSurface.is-immersive.immersive-conversation .conversation-panel>.action-heading button{min-height:44px;min-width:44px;padding:6px 11px;font-size:.71rem}
+  #gameSurface.is-immersive.immersive-conversation .conversation-panel button{min-height:44px}
+  #gameSurface.is-immersive.immersive-conversation .conversation-panel .choices{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #gameSurface.is-immersive.immersive-conversation .conversation-panel .bond-intro{grid-template-columns:86px minmax(0,1fr)}
+  #gameSurface.is-immersive.immersive-conversation .conversation-panel .bond-portrait{max-height:108px;object-fit:contain}
+  #gameSurface.is-immersive.immersive-conversation .conversation-panel .bond-copy p{font-size:.74rem;line-height:1.7}
+  #gameSurface.is-immersive.immersive-conversation .conversation-panel .challenge-input-row{flex-direction:row}
+  #gameSurface.is-immersive.immersive-conversation .conversation-panel .challenge-input-row input{font-size:16px}
+  #gameSurface.is-immersive.immersive-terminal{display:flex;overflow-y:auto}
+  #gameSurface.is-immersive.immersive-terminal>.stage-frame{max-width:900px;max-height:none}
+  #gameSurface.is-immersive.immersive-terminal .arena{height:220px;aspect-ratio:auto;min-height:160px}
+}
+@media(orientation:landscape) and (max-height:340px){
+  #gameSurface.is-immersive:not(.immersive-terminal){grid-template-rows:44px 0 minmax(0,1fr) 22px;gap:5px}
+  #gameSurface.is-immersive:not(.immersive-terminal)>.movement-bar{display:none!important}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-chant-hint{min-height:14px;max-height:14px;-webkit-line-clamp:1}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview{min-height:24px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview small{display:none}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-actions{gap:4px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .touch-controls:not([hidden]){padding:5px 8px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .vitals{flex-basis:54px;height:54px;min-height:54px;padding-top:4px;padding-bottom:4px}
+  #gameSurface.is-immersive:not(.immersive-terminal) .stage-top{flex-basis:46px;height:46px;min-height:46px}
+}
+@media(prefers-reduced-motion:reduce){#gameSurface.is-immersive{scroll-behavior:auto}}

@@ -9,6 +9,19 @@
   function fault(code, message) { const error = new Error(message); error.code = code; throw error; }
   function record(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
   function whole(value) { return Number.isSafeInteger(value) && value >= 0; }
+  function relationship(value) {
+    if(value===undefined)return {version:1,affection:0,gifts:{flower:0,tea:0,star:0},scenes:[],dating:false,questCleared:false};
+    if(!record(value) || value.version!==1 || !whole(value.affection) || value.affection>100 ||
+      !record(value.gifts) || !['flower','tea','star'].every(id=>whole(value.gifts[id])) ||
+      !Array.isArray(value.scenes) || value.scenes.some(id=>typeof id!=='string' || id.length>100) ||
+      typeof value.dating!=='boolean' || typeof value.questCleared!=='boolean') {
+      fault('CORRUPT_RELATIONSHIP','星露手札格式不完整，禮物與好感資料已保留，請先備份瀏覽器資料。');
+    }
+    return JSON.parse(JSON.stringify(value));
+  }
+  function saveRelationship(saved, run) {
+    if(run && !run.practice && run.relationship!==undefined)saved.relationship=relationship(run.relationship);
+  }
   function fail(error) {
     return { ok: false, code: error.code || "STORAGE_UNAVAILABLE", error: error.code ? error.message : "目前無法儲存遊戲，請確認瀏覽器允許儲存資料後再試一次。" };
   }
@@ -47,7 +60,7 @@
     return active === null || (record(active) && validReceipt(active.receipt) && record(active.run) && typeof active.finished === "boolean" &&
       (active.revision === undefined || whole(active.revision)));
   }
-  function emptyState() { return { version: 1, active: null, stats: { runs: 0, wins: 0, shards: 0, bestFloor: 0 } }; }
+  function emptyState() { return { version: 1, active: null, relationship:relationship(), stats: { runs: 0, wins: 0, shards: 0, bestFloor: 0 } }; }
   function state() {
     const raw = read(KEYS.dungeon);
     if (raw === null) return emptyState();
@@ -56,6 +69,7 @@
       !["runs", "wins", "shards", "bestFloor"].every(key => whole(value.stats[key]))) {
       fault("CORRUPT_SAVE", "地牢進度格式不完整，現有資料已保留，暫時無法儲存新冒險。" );
     }
+    value.relationship=relationship(value.relationship);
     return value;
   }
   // Recover the run, never the collection: replaying an old collection snapshot
@@ -113,7 +127,7 @@
   }
   function result(saved) {
     if (saved.active) observedRevisions.set(saved.active.receipt.id, saved.active.revision || 0);
-    return { ok: true, active: saved.active, stats: saved.stats };
+    return { ok: true, active: saved.active, stats: saved.stats, relationship:relationship(saved.relationship) };
   }
   function match(saved, receiptId) {
     if (!saved.active || saved.active.receipt.id !== receiptId) {
@@ -147,6 +161,8 @@
       return serial(() => {
         const saved = recover();
         if (saved.active) fault("ACTIVE_RUN", "已有一場冒險，請先接續或結束後再消耗卡片。" );
+        // The authoritative profile and the paid run share one storage commit.
+        run.relationship=relationship(saved.relationship);
         const card = cards.find(item => item.word === word);
         if (!card) fault("UNKNOWN_CARD", "找不到這張卡片，請重新選擇入場卡片。" );
         const before = read(KEYS.cards), collection = inventory(before);
@@ -173,6 +189,7 @@
         const saved = recover();
         match(saved, receiptId);
         if (saved.active.finished) return result(saved);
+        saveRelationship(saved,copy);
         saved.active.run = copy;
         saved.active.revision = (saved.active.revision || 0) + 1;
         write(KEYS.dungeon, saved);
@@ -200,7 +217,7 @@
           saved.active.summary = { won: summary.won, shards: summary.shards, floor: summary.floor };
           saved.active.revision = (saved.active.revision || 0) + 1;
         }
-        if (copy) saved.active.run = copy;
+        if (copy) {saveRelationship(saved,copy);saved.active.run = copy;}
         write(KEYS.dungeon, saved);
         return result(saved);
       });

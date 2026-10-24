@@ -1,15 +1,17 @@
 (function (root, factory) {
   'use strict';
-  var api = factory(root);
+  var story = typeof module === 'object' && module.exports ? require('./dungeon-story.js') : root.DungeonStory;
+  var api = factory(root, story);
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.DungeonEngine = api;
-})(typeof window !== 'undefined' ? window : globalThis, function (root) {
+})(typeof window !== 'undefined' ? window : globalThis, function (root, Story) {
   'use strict';
 
   var REGIONS = [
     { id: 'forest', name: '苔光秘林', subtitle: '字根在古樹之間甦醒', color: '#75dba0', boss: 'thorn' },
     { id: 'mirror', name: '碎月書庫', subtitle: '讓咒語穿透月影與幻象', color: '#9d9bff', boss: 'witch' },
-    { id: 'void', name: '失名王座', subtitle: '為被遺忘的世界找回名字', color: '#ff9174', boss: 'king' }
+    { id: 'void', name: '失名王座', subtitle: '為被遺忘的世界找回名字', color: '#ff9174', boss: 'king' },
+    { id: 'astral', name: '星誓花庭', subtitle: '讓未完成的約定重新成為星光', color: '#efb2e3', boss: 'astral' }
   ];
   var ITEMS = {
     potion: { id: 'potion', name: '苔露藥水', icon: '✚', description: '恢復 38 點生命；任何探索階段皆可使用。', price: 24 },
@@ -95,10 +97,18 @@
       challengeWord: 'unfold', challengeDescription: '輸入 unfold 展開戰書，躲過摺紙斬線與千刃交叉突擊。', lootId: 'paperedge', lootName: '千摺刃印', hp: 290,
       patterns: ['摺界斬', '千刃列陣'] }
   });
-  // Untagged saves keep their original twelve-node route and boss gates.
+  Object.assign(RELICS, {
+    moonbrooch: { id: 'moonbrooch', name: '露米娜的月紋別針', icon: '✧', description: '每場戰鬥開始時獲得 10 點護盾；每次迅捷施法恢復 1 點生命。', special: true },
+    starpromise: { id: 'starpromise', name: '雙星之約', icon: '✧', description: '完成星光之約的紀念；本命咒語額外造成 10 點傷害。', special: true }
+  });
+  NPCS.lumina = { id: 'lumina', name: '星露法師・露米娜', title: '24 歲・觀星研究員', age: 24, sprite: 'lumina', color: '#efb2e3', icon: '✧', companionRole: 'starmage',
+    description: '帽緣綴著小月亮的年輕女法師，正尋找被遺忘的星座。她記得每一份心意，也願意陪你踏上長路。', helpDescription: '邀請露米娜同行；定期恢復少量生命，並以星光模仿你的成功施法。',
+    challengeWord: 'starlight', challengeDescription: '輸入 starlight 邀請友誼試煉；閃避連星光線與花庭月環。勝敗不會抹去既有的情誼。', lootId: 'moonbrooch', lootName: '露米娜的月紋別針', hp: 265, patterns: ['連星練習曲', '月花圓舞'] };
+  // Explicit campaign versioning keeps both twelve- and eighteen-node saves intact.
   function getNodesPerRegion(s) { return s && s.nodesPerRegion === 6 ? 6 : 4; }
-  function getCampaignLength(s) { return getNodesPerRegion(s) * REGIONS.length; }
-  function startingShield(s) { return (has(s, 'shell') ? 18 : 0) + (has(s, 'lanternwake') ? 12 : 0); }
+  function getRegionCount(s) { return s && s.regionCount === 4 ? 4 : 3; }
+  function getCampaignLength(s) { return getNodesPerRegion(s) * getRegionCount(s); }
+  function startingShield(s) { return (has(s, 'shell') ? 18 : 0) + (has(s, 'lanternwake') ? 12 : 0) + (has(s, 'moonbrooch') ? 10 : 0); }
   var ENEMIES = [
     [
       { id: 'slime', name: '墨滴史萊姆', description: '沾滿墨水的小生物，正準備彈跳撞擊。' },
@@ -114,12 +124,19 @@
       { id: 'shade', name: '失名幽影', description: '失去名字的影子，仍記得戰鬥的方式。' },
       { id: 'golem', name: '黑曜碑衛', description: '刻著禁咒的巨石，正在積蓄毀滅之力。' },
       { id: 'raven', name: '終章渡鴉', description: '從末頁飛出的渡鴉，銜著王座的碎片。' }
+    ],
+    [
+      { id: 'stardust', name: '碎誓星塵', description: '失散的星屑聚成生命，追逐仍然明亮的心。' },
+      { id: 'starling', name: '月羽星雀', description: '羽翼折射遺忘的光，以成串星箭守住花庭。' },
+      { id: 'astrolabe', name: '失序星儀', description: '逆向運轉的觀星儀器，蓄力後沿星軌突進。' }
     ]
   ];
   var BOSS = {
     thorn: { id: 'thorn', name: '棘冠典獄長', description: '交替編織荊棘護盾與重擊；本命咒語可穿透部分護盾。', hp: 205 },
     witch: { id: 'witch', name: '鏡月女巫', description: '月蝕會吸取生命；用護盾擋住傷害，就能阻止她恢復。', hp: 280 },
-    king: { id: 'king', name: '失名之王', description: '每三次行動蓄力末頁湮滅；把沙漏與護符留給重擊。', hp: 365 }
+    king: { id: 'king', name: '失名之王', description: '每三次行動蓄力末頁湮滅；把沙漏與護符留給重擊。', hp: 365 },
+    astral: { id: 'astral', name: '忘誓星龍', description: '龍翼刻出星軌，接著落下延遲星雨；第二階段月環與交錯光線接連爆發。', hp: 440 },
+    constellation: { id: 'constellation', name: '失約星影', description: '它複寫你停留的位置，再以雙星連線封住歸途；移動後別急著折返。', hp: 320 }
   };
 
   function copy(value) { return Object.assign({}, value); }
@@ -230,13 +247,13 @@
       s.enemy.intent.duration = Math.max(s.enemy.intent.duration, s.enemy.intent.remaining);
     }
   }
-  function createRun(card, practice, seed) {
+  function createRun(card, practice, seed, profile) {
     var source = card && typeof card.word === 'string' && card.word.trim() ? card : { word: 'magic', zh: '魔法', rarity: 'N' };
     var cleanCard = { word: source.word.trim().toLowerCase(), zh: source.zh || source.word, rarity: source.rarity || 'N', root: source.root || '' };
     var rarity = { N: 0, R: 1, SR: 2, SSR: 3, UR: 4 }[cleanCard.rarity] || 0;
     var runSeed = seed === undefined ? Date.now() : seed;
     var s = {
-      version: 1, nodesPerRegion: 6, companions: [], status: 'route', practice: !!practice, card: cleanCard, cardBonus: rarity,
+      version: 1, nodesPerRegion: 6, regionCount: 4, companions: [], relationship: Story.createProfile(profile), giftDrops: [], bondQuest: null, status: 'route', practice: !!practice, card: cleanCard, cardBonus: rarity,
       seed: runSeed, rng: hash(runSeed),
       region: 0, regionName: REGIONS[0].name, encounter: 0, completedNodes: 0,
       player: { hp: 120 + rarity * 3, maxHp: 120 + rarity * 3, shield: 0, gold: 35, power: 0, combo: 0, focus: 0 },
@@ -258,7 +275,7 @@
   function buildRoutes(s) {
     s.status = 'route'; s.enemy = null; s.player.shield = 0; s.player.combo = 0;
     var nodes = getNodesPerRegion(s), localNode = s.encounter % nodes;
-    s.region = Math.min(2, Math.floor(s.encounter / nodes)); s.regionName = REGIONS[s.region].name;
+    s.region = Math.min(getRegionCount(s) - 1, Math.floor(s.encounter / nodes)); s.regionName = REGIONS[s.region].name;
     s.routes = [];
     if (localNode === nodes - 1) {
       var boss = BOSS[REGIONS[s.region].boss];
@@ -278,10 +295,12 @@
     // Each expanded chapter offers a random un-recruited companion early on.
     var recruits = ['lantern', 'echo', 'sentinel'].filter(function (id) { return !(s.companions || []).some(function (c) { return c.id === id; }); });
     if (nodes === 6 && localNode === 1 && recruits.length && alternatives.indexOf('npc') < 0) alternatives[1] = 'npc';
+    var luminaVisit = s.regionCount === 4 && s.region === 0 && localNode === 2;
+    if (luminaVisit && alternatives.indexOf('npc') < 0) alternatives[1] = 'npc';
     if (alternatives.indexOf('npc') >= 0) {
-      var visitors = (s.region === 0 ? ['healer', 'smith', 'cartographer'] : s.region === 1 ? ['healer', 'cartographer', 'ferryman'] : ['smith', 'cartographer', 'ferryman']).concat(recruits);
+      var visitors = (s.region === 0 ? ['healer', 'smith', 'cartographer'] : s.region === 1 ? ['healer', 'cartographer', 'ferryman'] : ['smith', 'cartographer', 'ferryman']).concat(recruits, s.regionCount === 4 ? ['lumina'] : []);
       if (nodes === 6 && localNode === 1 && recruits.length) visitors = recruits;
-      var visitor = NPCS[pick(s, visitors)];
+      var visitor = NPCS[luminaVisit ? 'lumina' : pick(s, visitors)];
       definitions.npc = { npcId: visitor.id, name: visitor.name, icon: visitor.icon, description: visitor.description, danger: '旅途邂逅' };
     }
     s.routes = ['battle'].concat(alternatives).map(function (kind) {
@@ -304,6 +323,11 @@
       } else if (e.id === 'witch') {
         if (turn % 3 === 1) { name = '鏡面折光'; kind = 'guard'; shield = 24; damage = 6; description = '鏡面會形成護盾，準備本命咒語突破。'; }
         else { name = '月蝕汲取'; kind = 'drain'; description = '造成傷害並吸取等量生命；護盾可阻止生命被吸取。'; }
+      } else if (e.id === 'astral' || e.id === 'constellation') {
+        name = e.id === 'constellation' ? (turn % 2 ? '雙星斷章' : '未寄出的回聲') : ['龍翼星軌', '忘誓流星', '花庭星環'][turn % 3];
+        duration = e.phase === 2 ? 8.5 : 10;
+        description = e.description;
+        if (turn % 3 === 2) { kind = 'guard'; shield = e.phase === 2 ? 24 : 16; }
       } else {
         if (turn % 3 === 2) { name = '末頁湮滅'; damage = e.phase === 2 ? 35 : 29; duration = 14; description = '高傷害蓄力！使用琥珀護符或凝時沙漏爭取時間。'; }
         else if (turn % 3 === 0) { name = '王座封印'; kind = 'guard'; damage = 10; shield = e.phase === 2 ? 26 : 18; description = '在王座周圍凝聚護盾，並釋出小量衝擊。'; }
@@ -336,7 +360,8 @@
     if (route.type === 'battle' || route.type === 'elite' || route.type === 'boss') startCombat(s, route.type);
     else if (route.type === 'treasure') {
       var amount = coins(s, 24 + s.region * 9);
-      makeRewards(s, true); event(s, 'treasure', '寶匣裡有 ' + amount + ' 金幣。再選擇一份寶藏帶走。');
+      var gift = awardGift(s, true);
+      makeRewards(s, true); event(s, 'treasure', '寶匣裡有 ' + amount + ' 金幣。再選擇一份寶藏帶走。' + (gift ? '另找到' + Story.GIFTS[gift].name + '。' : ''), { gift: gift });
     } else if (route.type === 'camp') {
       s.status = 'camp'; event(s, 'camp', '星燈下十分安全。休息回復生命，或磨練咒語威力。');
     } else if (route.type === 'npc' && NPCS[route.npcId] && route.npcId !== 'merchant') {
@@ -361,29 +386,51 @@
       s.rewards = [r].concat(shuffle(s, choices).slice(0, 2));
     } else s.rewards = shuffle(s, choices).slice(0, 3);
   }
+  function awardGift(s, guaranteed) {
+    // The roll is tied to the seeded encounter and saved even when it yields no gift.
+    // Reopening a reward screen cannot roll again or consume the campaign RNG.
+    var key = String(s.encounter) + (s.bondQuest && s.bondQuest.active ? ':bond-' + s.bondQuest.step : ':main');
+    if (!Array.isArray(s.giftDrops)) s.giftDrops = [];
+    if (s.giftDrops.indexOf(key) >= 0) return null;
+    s.giftDrops.push(key);
+    var roll = hash(String(s.seed) + ':gift:' + key);
+    if (!guaranteed && s.encounter !== 0 && roll % 100 >= 58) return null;
+    var id = guaranteed && s.enemy && s.enemy.kind === 'boss' ? 'star' : ['flower', 'tea', 'flower', 'star'][Math.floor(roll / 100) % 4];
+    s.relationship = Story.createProfile(s.relationship);
+    s.relationship.gifts[id] = Math.min(999, s.relationship.gifts[id] + 1);
+    return id;
+  }
   function winEncounter(s) {
+    if (s.status !== 'combat' || !s.enemy) return;
     var e = s.enemy;
     s.stats.enemiesDefeated += 1;
-    if (e.kind === 'boss' && !e.isNpcBoss) s.stats.bossesDefeated += 1;
+    if (e.kind === 'boss' && !e.isNpcBoss && !e.isStoryBoss) s.stats.bossesDefeated += 1;
     if (e.isNpcBoss) s.stats.npcBossesDefeated = (s.stats.npcBossesDefeated || 0) + 1;
     var amount = coins(s, e.kind === 'boss' ? 55 + s.region * 15 : e.kind === 'elite' ? 42 + s.region * 9 : 22 + s.region * 7);
     s.player.shield = 0; s.player.combo = 0;
     var drop = null;
     if (e.kind === 'boss' || random(s) < 0.42) { drop = pick(s, Object.keys(ITEMS)); addItem(s, drop); }
-    var message = '擊敗' + e.name + '！獲得 ' + amount + ' 金幣' + (drop ? '與' + ITEMS[drop].name : '') + '。';
+    var gift = awardGift(s, e.kind === 'boss');
+    var message = '擊敗' + e.name + '！獲得 ' + amount + ' 金幣' + (drop ? '與' + ITEMS[drop].name : '') + '。' + (gift ? ' 找到心意小物「' + Story.GIFTS[gift].name + '」。' : '');
     var specialLoot = e.isNpcBoss && NPCS[e.npcId] ? NPCS[e.npcId].lootId : null;
     if (specialLoot) {
       if (addRelic(s, specialLoot)) message += ' 特殊戰利品「' + RELICS[specialLoot].name + '」已放入背包！';
       else message += ' 已持有特殊戰利品，額外獲得 ' + coins(s, 35) + ' 金幣。';
       if (s.npc) s.npc.defeated = true;
     }
-    if (s.encounter === getCampaignLength(s) - 1 && e.id === 'king' && !e.isNpcBoss) {
+    if (e.isStoryBoss) {
+      s.relationship = Story.createProfile(s.relationship); s.relationship.questCleared = true;
+      s.relationship.affection = Math.min(100, s.relationship.affection + 8);
+      if (s.relationship.scenes.indexOf('lumina-promise') < 0) s.relationship.scenes.push('lumina-promise');
+      addRelic(s, 'starpromise'); message += ' 星圖重新完整，獲得專屬遺物「雙星之約」。';
+    }
+    if (s.encounter === getCampaignLength(s) - 1 && e.id === REGIONS[getRegionCount(s) - 1].boss && !e.isNpcBoss && !e.isStoryBoss) {
       s.status = 'won'; s.completedNodes = getCampaignLength(s);
-      event(s, 'won', '失名之王化作晨光。你為世界找回了名字！' + message, { gold: amount, drop: drop });
+      event(s, 'won', '最後的封印化作晨光。你為世界找回了名字！' + message, { gold: amount, drop: drop, gift: gift });
     } else {
       if (e.kind === 'boss' && !e.isNpcBoss) heal(s, 24);
       makeRewards(s, e.kind !== 'battle');
-      event(s, 'victory', message + (e.kind === 'boss' && !e.isNpcBoss ? '區域淨化，恢復 24 點生命。' : ''), { gold: amount, drop: drop, specialLoot: specialLoot });
+      event(s, 'victory', message + (e.kind === 'boss' && !e.isNpcBoss ? '區域淨化，恢復 24 點生命。' : ''), { gold: amount, drop: drop, gift: gift, specialLoot: specialLoot });
     }
   }
   function checkPhase(s) {
@@ -415,11 +462,12 @@
     var multiplier = 1 + Math.min(8, p.combo - 1) * 0.055 + (fast ? 0.16 : 0);
     var base = spell.type === 'heal' || spell.type === 'shield' ? 8 : spell.power;
     var rawDamage = base + p.power + (has(s, 'ember') ? 4 : 0) + (has(s, 'forgecore') ? 7 : 0) + (has(s, 'paperedge') ? 3 : 0) + (has(s, 'fang') && p.combo >= 3 ? 6 : 0)
-      + (spell.type === 'signature' && has(s, 'prism') ? 14 : 0) + (spell.type === 'signature' && has(s, 'echoquill') ? 8 : 0) + (p.focus > 0 ? 12 : 0);
+      + (spell.type === 'signature' && has(s, 'prism') ? 14 : 0) + (spell.type === 'signature' && has(s, 'echoquill') ? 8 : 0) + (spell.type === 'signature' && has(s, 'starpromise') ? 10 : 0) + (p.focus > 0 ? 12 : 0);
     var damage = hitEnemy(s, Math.round(rawDamage * multiplier), spell.type === 'signature' ? 0.5 : 0, options && options.damageLimit);
     var healing = spell.type === 'heal' ? heal(s, spell.power + p.power) : 0, shield = 0;
     if (has(s, 'moss')) healing += heal(s, 2);
     if (has(s, 'dewheart')) healing += heal(s, 3);
+    if (fast && has(s, 'moonbrooch')) healing += heal(s, 1);
     if (spell.type === 'shield') { shield = Math.min(Math.max(0, 90 - p.shield), spell.power + p.power + (has(s, 'paperedge') ? 6 : 0)); p.shield += shield; }
     if (fast && has(s, 'wayfinder')) { var starShield = Math.min(5, Math.max(0, 90 - p.shield)); shield += starShield; p.shield += starShield; }
     if (p.focus > 0) p.focus -= 1;
@@ -452,6 +500,15 @@
     return s;
   }
   function nextEncounter(s) {
+    if (s.bondQuest && s.bondQuest.active) {
+      s.rewards = [];
+      if (s.bondQuest.step < 2) { s.bondQuest.step += 1; startBondRoom(s); }
+      else {
+        s.bondQuest.active = false; s.bondQuest.completed = true; s.status = 'npc'; s.enemy = null; s.arena = null;
+        s.currentRoute = s.bondQuest.originalRoute; s.npc = Object.assign({}, s.bondQuest.originalNpc, { id: 'lumina', encounter: s.encounter, challenged: false, defeated: false });
+      }
+      return;
+    }
     s.completedNodes = s.encounter + 1; s.encounter += 1;
     s.rewards = []; s.shop = []; s.npc = null;
     buildRoutes(s);
@@ -494,6 +551,72 @@
     }
     return s.npc && NPCS[s.npc.id] || null;
   }
+  function friendlyLumina(s) {
+    var npc = getNpc(s);
+    return npc && npc.id === 'lumina' && s.status === 'npc' && !s.npc.challenged;
+  }
+  function remember(s, id) {
+    if (s.relationship.scenes.indexOf(id) < 0) s.relationship.scenes.push(id);
+  }
+  function giveGift(s, id) {
+    if (!friendlyLumina(s)) return fail('請先與露米娜交談，再送出小物品。');
+    if (!Object.prototype.hasOwnProperty.call(Story.GIFTS, id)) return fail('找不到這份心意。');
+    var profile = Story.createProfile(s.relationship), gift = Story.GIFTS[id];
+    if (profile.gifts[id] <= 0) return fail('背包裡還沒有這份小物品。');
+    if ((s.npc.giftsGiven || 0) >= 3) return fail('她想好好收藏今天的心意；下次邂逅再送禮吧。');
+    if (profile.affection >= 100) return fail('心意已經滿滿了，把小物品留作旅途紀念吧。');
+    profile.gifts[id] -= 1; profile.affection = Math.min(100, profile.affection + gift.affection);
+    s.relationship = profile; s.npc.giftsGiven = (s.npc.giftsGiven || 0) + 1;
+    var scene = Story.dialogue(s); remember(s, scene.id);
+    var message = '露米娜收下' + gift.name + '：「謝謝你還記得我喜歡這個。」好感度 +' + gift.affection + '。';
+    event(s, 'bond-gift', message, { gift: id, affection: profile.affection });
+    return done(message);
+  }
+  function talkNpc(s, choice) {
+    if (!friendlyLumina(s)) return fail('現在無法與露米娜談心。');
+    if (choice !== undefined && ['listen', 'stars', 'journey'].indexOf(choice) < 0) return fail('請選擇聆聽她的故事。');
+    s.relationship = Story.createProfile(s.relationship);
+    if (!s.npc.talked) { s.npc.talked = true; s.relationship.affection = Math.min(100, s.relationship.affection + 1); }
+    var scene = Story.dialogue(s); remember(s, scene.id);
+    event(s, 'bond-talk', scene.text, { scene: scene.id });
+    return done(scene.text, { scene: scene });
+  }
+  function startBondRoom(s) {
+    var quest = s.bondQuest, step = quest.step;
+    var template = step === 2 ? BOSS.constellation : {
+      id: step === 0 ? 'stardust' : 'starling', name: step === 0 ? '殘星守望者' : '月花記憶',
+      description: step === 0 ? '穿過變換的星軌，找回第一片座標。' : '採集月露花光，守護她未說完的心願。', hp: (step === 0 ? 145 : 180) + s.region * 22
+    };
+    s.status = 'combat'; s.arena = null; s.exploration = null; s.rewards = [];
+    s.player.combo = 0; s.player.shield = startingShield(s);
+    s.enemy = Object.assign({}, template, { kind: step === 2 ? 'boss' : 'elite', isStoryBoss: step === 2,
+      hp: template.hp, maxHp: template.hp, shield: 0, phase: 1, turn: 0 });
+    s.currentRoute = { id: 'bond-' + step, type: step === 2 ? 'boss' : 'elite', name: Story.QUEST[step].title, storyRoom: ['starlanes', 'bloom', null][step] };
+    s.spell.elapsed = 0; makeIntent(s);
+    remember(s, 'bond-' + step);
+    event(s, 'story', Story.QUEST[step].text);
+  }
+  function beginBondQuest(s) {
+    if (!friendlyLumina(s)) return fail('請先走近露米娜，聽她說明星光之約。');
+    var profile = Story.createProfile(s.relationship);
+    if (profile.affection < 45) return fail('好感度達到 45，露米娜才會分享這段私人旅程。');
+    if (profile.questCleared || s.bondQuest && s.bondQuest.active) return fail('這段星光之約已經開啟或完成。');
+    s.relationship = profile;
+    if (!s.npc.helped) helpNpc(s);
+    s.bondQuest = { active: true, step: 0, originEncounter: s.encounter, originalRoute: copy(s.currentRoute), originalNpc: copy(s.npc) };
+    startBondRoom(s);
+    return done('與露米娜踏上星光之約。完成三個房間後，會回到目前的旅途節點。');
+  }
+  function confessBond(s) {
+    if (!friendlyLumina(s)) return fail('請親自走到露米娜身邊，再告訴她你的心意。');
+    var profile = Story.createProfile(s.relationship);
+    if (profile.dating) return fail('你們已經約定一起走向下一個明天。');
+    if (profile.affection < 75 || !profile.questCleared) return fail('好感度達到 75，並完成星光之約後，才能選擇告白。');
+    profile.dating = true; s.relationship = profile; remember(s, 'lumina-confession');
+    var text = Story.SCENES['lumina-confession'].text;
+    event(s, 'bond-romance', text, { scene: 'lumina-confession' });
+    return done(text);
+  }
   function helpNpc(s) {
     var npc = getNpc(s);
     if (!npc || s.status !== 'npc') return fail('請與旅途中的夥伴交談；商人的補給需要交易。');
@@ -502,7 +625,7 @@
     var message;
     if (npc.companionRole) {
       if (!Array.isArray(s.companions)) s.companions = [];
-      if (!s.companions.some(function (c) { return c.id === npc.id; }) && s.companions.length < 3) {
+      if (!s.companions.some(function (c) { return c.id === npc.id; }) && (s.companions.length < 3 || npc.id === 'lumina' || s.companions.some(function (c) { return c.id === 'lumina'; }) && s.companions.length < 4)) {
         s.companions.push({ id: npc.id, npcId: npc.id, name: npc.name, sprite: npc.sprite, color: npc.color, role: npc.companionRole });
         message = npc.name + ' 加入隊伍，將陪伴你走完本趟遠征。';
       } else { addItem(s, 'potion'); message = npc.name + ' 已與你同行，送你一瓶苔露藥水。'; }
@@ -605,6 +728,7 @@
     chooseCamp: chooseCamp, useItem: useItem, buy: buy, leaveShop: leaveShop, damagePlayer: damagePlayer,
     damageEnemy: damageEnemy, healPlayer: healPlayer, resolveArenaIntent: resolveArenaIntent,
     getNpc: getNpc, helpNpc: helpNpc, challengeNpc: challengeNpc, leaveNpc: leaveNpc,
-    getNodesPerRegion: getNodesPerRegion, getCampaignLength: getCampaignLength,
+    giveGift: giveGift, talkNpc: talkNpc, beginBondQuest: beginBondQuest, confessBond: confessBond,
+    getNodesPerRegion: getNodesPerRegion, getRegionCount: getRegionCount, getCampaignLength: getCampaignLength,
     ITEMS: ITEMS, RELICS: RELICS, REGIONS: REGIONS, NPCS: NPCS };
 });
