@@ -3,10 +3,12 @@ const assert = require('node:assert/strict');
 const E = require('../dungeon-engine.js');
 const clone = value => JSON.parse(JSON.stringify(value));
 
-for (const legacy of [false, true]) {
+for (const length of [12, 18, 24]) {
+  const legacy = length === 12;
   const run = E.createRun({word:'rune'}, false, 100);
+  if (length < 24) delete run.regionCount;
   if (legacy) { delete run.nodesPerRegion; delete run.companions; }
-  const length = legacy ? 12 : 18, gates = [], visitors = new Set();
+  const gates = [], visitors = new Set();
   while (run.status !== 'won') {
     const local = run.encounter % E.getNodesPerRegion(run);
     assert.equal(E.getCampaignLength(run), length);
@@ -26,11 +28,11 @@ for (const legacy of [false, true]) {
     if (run.status === 'reward') E.chooseReward(run, run.rewards[0].id);
     assert.ok(run.encounter < length, 'campaign stops at its final king');
   }
-  assert.deepEqual(gates, legacy ? [4, 8, 12] : [6, 12, 18]);
-  assert.equal(run.completedNodes, length); assert.equal(run.stats.bossesDefeated, 3);
+  assert.deepEqual(gates, legacy ? [4, 8, 12] : length === 18 ? [6, 12, 18] : [6, 12, 18, 24]);
+  assert.equal(run.completedNodes, length); assert.equal(run.stats.bossesDefeated, length === 24 ? 4 : 3);
   if (!legacy) assert.ok(visitors.size);
 }
-console.log('PASS 18-node chapters and safe legacy 12-node progression');
+console.log('PASS 24-node chapters and safe legacy 12-/18-node progression');
 
 const party = E.createRun(null, true, 44);
 for (const id of ['lantern', 'echo', 'sentinel']) {

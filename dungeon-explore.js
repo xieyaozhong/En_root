@@ -56,7 +56,7 @@
     ];
     var recruited = !merchant && person.companionRole && Array.isArray(run.companions) && run.companions.some(function (companion) { return companion.id === person.id; });
     // Keep the current conversation available until it is closed, then show only the following actor.
-    return recruited && (!exploration || exploration.dialogId !== 'npc-' + person.id) ? people.slice(1) : people;
+    return recruited && person.id !== 'lumina' && (!exploration || exploration.dialogId !== 'npc-' + person.id) ? people.slice(1) : people;
   }
   function roomKey(run, npc) {
     return [run.status, run.encounter, run.currentRoute && run.currentRoute.id || '', npc && npc.id || '',
@@ -75,8 +75,8 @@
   function syncCompanions(run, exploration) {
     var previous = Array.isArray(exploration.companions) ? exploration.companions : [];
     exploration.companions = (Array.isArray(run.companions) ? run.companions : []).filter(function (c, index, list) {
-      return c && ['lantern', 'echo', 'sentinel'].indexOf(c.id) >= 0 && list.findIndex(function (other) { return other && other.id === c.id; }) === index;
-    }).slice(0, 3).map(function (c, index) {
+      return c && ['lantern', 'echo', 'sentinel', 'lumina'].indexOf(c.id) >= 0 && !(c.id === 'lumina' && run.status === 'npc' && run.npc && run.npc.id === 'lumina') && list.findIndex(function (other) { return other && other.id === c.id; }) === index;
+    }).slice(0, 4).map(function (c, index) {
       var old = previous.find(function (body) { return body.npcId === c.id; });
       return Object.assign({}, old || {}, { id: 'companion-' + c.id, npcId: c.id, name: c.name, role: c.role, sprite: c.sprite || c.id,
         color: c.color || '#b9deff', r: 11, x: clamp(finite(old && old.x, exploration.player.x - 35 + index * 28), 44, 916),
@@ -216,6 +216,7 @@
     if (method === 'buy' && merchant) result = Engine.buy(run, value);
     else if (method === 'helpNpc' && npc && typeof Engine.helpNpc === 'function') result = Engine.helpNpc(run);
     else if (method === 'challengeNpc' && (merchant || npc) && typeof Engine.challengeNpc === 'function') result = Engine.challengeNpc(run, value);
+    else if (npc && target.npcId === 'lumina' && ['giveGift', 'talkNpc', 'beginBondQuest', 'confessBond'].indexOf(method) >= 0 && typeof Engine[method] === 'function') result = Engine[method](run, value);
     else return fail('交談中無法執行這個動作。');
     return applyResult(run, result, exploration.key);
   }

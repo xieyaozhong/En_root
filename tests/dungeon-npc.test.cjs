@@ -31,9 +31,9 @@ function ordinary() {
   run.spell = { word: 'spark', name: '星火術', type: 'attack', power: 17, elapsed: 0 };
   return run;
 }
-assert.equal(ids.length, 8, 'merchant, four travelers and three recruitable companions');
-assert.equal(new Set(ids.map(id => Engine.NPCS[id].challengeWord)).size, 8);
-assert.equal(new Set(ids.map(id => Engine.NPCS[id].lootId)).size, 8);
+assert.equal(ids.length, 9, 'merchant, four travelers and four recruitable companions');
+assert.equal(new Set(ids.map(id => Engine.NPCS[id].challengeWord)).size, 9);
+assert.equal(new Set(ids.map(id => Engine.NPCS[id].lootId)).size, 9);
 assert.equal(Engine.NPCS.merchant.challengeWord, 'debt');
 const observed = new Set();
 for (let seed = 0; seed < 150; seed++) {
@@ -117,7 +117,7 @@ for (const id of ids) {
   assert.deepEqual(saved, run, 'mid-pattern save resumes deterministically');
   Engine.damageEnemy(run, 100000, 1);
   assert.equal(run.status, 'reward');
-  assert.equal(run.stats.bossesDefeated, 0, 'optional NPC boss does not count toward the three region bosses');
+  assert.equal(run.stats.bossesDefeated, 0, 'optional NPC boss does not count toward the four region bosses');
   assert.equal(run.stats.npcBossesDefeated, 1);
   assert.equal(run.npc.defeated, true);
   assert.equal(run.relics.filter(r => r.id === Engine.NPCS[id].lootId).length, 1, 'special trophy is guaranteed before reward selection');
@@ -151,7 +151,7 @@ for (const id of ids) {
 }
 const endNode = fight('merchant', 11); Engine.damageEnemy(endNode, 100000, 1);
 assert.equal(endNode.status, 'reward', 'optional boss cannot trigger the king ending');
-console.log('PASS eight unique two-phase bosses, save restoration, guaranteed trophy and single advancement');
+console.log('PASS nine unique two-phase bosses, save restoration, guaranteed trophy and single advancement');
 
 for (let seed = 0; seed < 100; seed++) {
   const shop = encounter('merchant', seed);

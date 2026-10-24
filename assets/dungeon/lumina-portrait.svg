@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" role="img" aria-labelledby="title desc">
+  <title id="title">星露法師・露米娜</title>
+  <desc id="desc">二十四歲的女性星術法師，玫瑰銀色短髮，身穿奶油白披肩與深藍星紋長衣，握著薄荷色星杖，站在夜色花庭前微笑。</desc>
+  <defs>
+    <linearGradient id="night" x2=".7" y2="1"><stop stop-color="#263854"/><stop offset="1" stop-color="#17283c"/></linearGradient>
+    <linearGradient id="hair" x1="0" y1="0" x2=".9" y2="1"><stop stop-color="#f4dedf"/><stop offset=".43" stop-color="#dcb8cd"/><stop offset="1" stop-color="#9b8eae"/></linearGradient>
+    <linearGradient id="face" x2=".85" y2="1"><stop stop-color="#ffdfc6"/><stop offset=".65" stop-color="#f1c4b0"/><stop offset="1" stop-color="#dfaa9e"/></linearGradient>
+    <linearGradient id="cloak" x2=".9" y2="1"><stop stop-color="#fff1d9"/><stop offset=".6" stop-color="#e5dbce"/><stop offset="1" stop-color="#a0b2bc"/></linearGradient>
+    <linearGradient id="dress" x2=".8" y2="1"><stop stop-color="#596f8e"/><stop offset=".5" stop-color="#354c6a"/><stop offset="1" stop-color="#253852"/></linearGradient>
+    <linearGradient id="gem" x2=".85" y2="1"><stop stop-color="#edffe8"/><stop offset=".45" stop-color="#aee6d8"/><stop offset="1" stop-color="#668fa5"/></linearGradient>
+    <clipPath id="frame"><rect x="8" y="8" width="240" height="304" rx="34"/></clipPath>
+  </defs>
+  <rect width="256" height="320" rx="40" fill="#132034"/>
+  <g clip-path="url(#frame)">
+    <rect x="8" y="8" width="240" height="304" fill="url(#night)"/>
+    <path d="M25 312V84Q128-28 231 84V312M128 27V269M27 104H229M27 179H229" fill="none" stroke="#71838e" stroke-width="2" opacity=".5"/>
+    <path d="M35 87Q128-3 221 87M45 86Q128 16 211 86" fill="none" stroke="#c0b7a9" opacity=".27"/>
+    <circle cx="62" cy="58" r="20" fill="#e7d6c2"/>
+    <circle cx="70" cy="51" r="18" fill="#2b3e57"/>
+    <g fill="#f6e3be"><path d="m188 39 2 6 6 2-6 2-2 6-2-6-6-2 6-2Z"/><path d="m222 110 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5Z"/><circle cx="31" cy="139" r="1.5"/><circle cx="88" cy="29" r="1"/><circle cx="204" cy="75" r="1.3"/><circle cx="169" cy="28" r="1"/></g>
+    <path d="m21 267 13-20-5-27 16 18 9-38 5 48 18 8-12 16M194 278l18-25-4-33 15 25 15-16-6 32 12 18" fill="#587f7e" opacity=".6"/>
+    <g fill="#b883a6" opacity=".75"><path d="m29 249-7-8 6-6 7 3 5 8-5 6Z"/><path d="m48 225-7-8 5-6 8 2 6 8-5 5Z"/><path d="m223 252-8-8 6-7 8 3 4 9-6 5Z"/><path d="m233 280-9-7 3-7 9 1 5 8-3 7Z"/></g>
+    <!-- The portrait shares the in-game mage's asymmetric bob and tailored coat. -->
+    <path d="M74 315 76 224 96 195H149L178 222 185 320Z" fill="#192b45" stroke="#0e1d32" stroke-width="5"/>
+    <path d="M83 315 86 227 103 200 143 200 165 225 172 320Z" fill="url(#dress)"/>
+    <path d="M99 217 91 306 104 320 122 320 116 223ZM145 222 149 320 169 320 158 241Z" fill="#2a3f5d"/>
+    <path d="M106 180 106 201 120 215 140 201 139 176Z" fill="#e6b09f" stroke="#a27e83" stroke-width="1.5"/>
+    <path d="m104 189 15 12 20-14v10l-20 16-14-15Z" fill="#f4ceba"/>
+    <!-- Pale collar and wide shoulder cape emphasize adult shoulders. -->
+    <path d="M101 193 79 204 57 227 47 269 79 257 105 219 118 217 136 213 158 248 183 262 181 230 157 204 141 194 121 212Z" fill="url(#cloak)" stroke="#35465e" stroke-width="3"/>
+    <path d="m100 197-19 16-19 23-8 23 24-10 23-34 15 1Z" fill="#fff1d9"/>
+    <path d="m143 199 16 17 14 27-12-8-21-26Z" fill="#b5c0c7"/>
+    <path d="m57 259 19-7 24-34m43-10 19 34 15 11" fill="none" stroke="#c3a894" stroke-width="2"/>
+    <path d="m107 198 13 14 17-15-7 24-20-3Z" fill="#fcf0dc" stroke="#b7ada7" stroke-width="1.5"/>
+    <path d="m122 208 10 11-8 13-10-12Z" fill="url(#gem)" stroke="#c6b294" stroke-width="2"/>
+    <!-- Back hair. -->
+    <path d="M72 147Q63 108 77 81Q91 51 124 56Q160 51 178 84Q187 111 174 154L162 188 145 182 93 185 76 172Z" fill="#877991" stroke="#343249" stroke-width="4"/>
+    <path d="M78 102 75 151 84 177 96 176 91 134ZM164 96 176 115 169 161 155 180 145 174 151 130Z" fill="#c5adc6"/>
+    <!-- Small ears, warm cheek planes and a defined adult chin. -->
+    <path d="M86 123Q74 116 77 133Q79 144 88 142M157 121Q170 116 165 134Q163 145 154 142" fill="#edbda9" stroke="#bd8f93" stroke-width="1.5"/>
+    <path d="M88 96Q119 79 154 96L158 130Q158 162 128 179Q113 183 94 162Q85 151 84 126Z" fill="url(#face)" stroke="#b68b92" stroke-width="1.7"/>
+    <path d="M91 129Q88 151 103 166L114 175Q99 169 93 160Q83 146 84 128Z" fill="#dda99d" opacity=".5"/>
+    <path d="m99 127 14-1m20-1 14 1" stroke="#926d82" stroke-width="2" stroke-linecap="round" fill="none"/>
+    <path d="M96 136q8-8 17-1m20-1q8-7 16 1" fill="none" stroke="#54475e" stroke-width="2.7" stroke-linecap="round"/>
+    <path d="M99 135q2 12 8 11 6-2 5-11ZM135 134q0 12 7 12 6-2 5-11Z" fill="#55778c"/>
+    <path d="M102 135v8m36-9v9" stroke="#2b425c" stroke-width="3"/>
+    <path d="m101 135 3 1m34-1 3 1" stroke="#ecf8e8" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="m122 141-2 8 4 1" fill="none" stroke="#c49491" stroke-width="1.2" stroke-linecap="round"/>
+    <path d="M115 158q8 5 16-1" fill="none" stroke="#a9677e" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M117 162q5 2 10 0" fill="none" stroke="#f8ddcc" stroke-width="1.5" stroke-linecap="round"/>
+    <ellipse cx="97" cy="151" rx="7" ry="3" fill="#d999ac" opacity=".45"/><ellipse cx="147" cy="150" rx="7" ry="3" fill="#d999ac" opacity=".45"/>
+    <!-- Swept silver-rose fringe; no oversized childlike head or school uniform. -->
+    <path d="M76 124Q65 89 89 67Q109 46 143 61Q173 69 175 101L165 130 160 166 151 176 155 139 150 108 134 90Q124 108 105 113L91 126 89 167 80 157 78 132Z" fill="url(#hair)" stroke="#766780" stroke-width="2.4"/>
+    <path d="M81 106Q83 73 114 65Q135 61 151 75Q129 67 112 84Q100 99 91 108L86 130 87 153 81 143Z" fill="#f3dedf" opacity=".9"/>
+    <path d="M135 70q-5 26-26 39m45-24 7 31 0 34M98 78q-14 17-15 33" fill="none" stroke="#b292b0" stroke-width="2" stroke-linecap="round"/>
+    <path d="M111 72q15-10 30-3m-48 20 7-8" fill="none" stroke="#fff0e8" stroke-width="3" stroke-linecap="round"/>
+    <path d="m161 104 3 8 9 3-9 3-3 9-3-9-8-3 8-3Z" fill="#f5d7a7" stroke="#8c7490" stroke-width="1.5"/>
+    <path d="m161 110 1 4 4 1-4 1-1 4-1-4-4-1 4-1Z" fill="#fff0cd"/>
+    <circle cx="158" cy="143" r="2.7" fill="#f1d1aa"/>
+    <!-- Staff and a relaxed gloved arm. -->
+    <path d="m198 316 2-161" stroke="#2f3d54" stroke-width="8"/><path d="m198 316 2-161" stroke="#d3b79d" stroke-width="5"/><path d="m197 315 2-148" stroke="#f1ddbc" stroke-width="1"/>
+    <path d="m200 120 19 25-14 25-5 13-9-16-12-22Z" fill="#6c647f" stroke="#d7bfaa" stroke-width="2"/>
+    <path d="m200 127 13 18-9 19-4 10-8-15-7-14Z" fill="url(#gem)"/>
+    <path d="m200 127 0 47-8-15-7-14Z" fill="#e5f6df" opacity=".6"/>
+    <path d="m176 146 47 0" stroke="#c7aa92" stroke-width="3"/>
+    <path d="m180 140 5 6-5 6-5-6Zm40 0 5 6-5 6-5-6Z" fill="#f4d3af"/>
+    <path d="M167 241q12 10 22 5l9-5 7 4-1 10-10 6-28-4Z" fill="#d9dbd3" stroke="#596783" stroke-width="2"/>
+    <path d="m191 244 8-6 6 3-2 9-8 6-6-1Z" fill="url(#face)" stroke="#b99295" stroke-width="1.2"/>
+    <path d="m198 243 5 1m-7 3 6 1" stroke="#d1a096" stroke-width="1.1"/>
+    <path d="M80 262 96 265 92 293 73 289Z" fill="#ac8e9c" stroke="#26364e" stroke-width="2"/><path d="m80 267 11 2-3 19-11-2Z" fill="#e7d5be"/>
+    <path d="m80 272 7 7m-7-3 6-2m-3 9 4-1" stroke="#768a9e" stroke-width="1.3"/>
+    <path d="M93 292 70 319M149 272l9 47" fill="none" stroke="#8094a5" stroke-width="2" opacity=".5"/>
+    <g fill="#c7c6c1"><path d="m132 247 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"/><path d="m113 277 1.3 4 4 1.3-4 1.3-1.3 4-1.3-4-4-1.3 4-1.3Z"/><circle cx="138" cy="283" r="1.8"/></g>
+    <path d="M8 293Q79 305 128 300T248 291V320H8Z" fill="#16263b" opacity=".22"/>
+  </g>
+  <rect x="8" y="8" width="240" height="304" rx="34" fill="none" stroke="#c6b29c" stroke-width="1.5"/>
+  <path d="M33 20H21v12M223 20h12v12M21 288v12h12m202-12v12h-12" fill="none" stroke="#e9d3b3" stroke-width="2"/>
+  <path d="m128 7 4 6-4 6-4-6Z" fill="#ebc3d3"/>
+</svg>

@@ -42,12 +42,12 @@ assert.ok(ctx.calls.some(call => call.name==='arc' && call.args[0]===480 && call
 assert.ok(ctx.calls.some(call => call.name==='fillText' && call.args[0]==='回復靈泉'),'healing pool is labelled');
 assert.equal(ctx.depth,0);
 
-const spriteIds=['slime','eye','mushroom','bat','raven','ghost','knight','spider','skeleton','thorn','witch','king'];
+const spriteIds=['slime','eye','mushroom','bat','raven','ghost','knight','spider','skeleton','thorn','witch','king','stardust','starling','astrolabe','astral','constellation'];
 let frames=0;
-for(let region=0;region<3;region++) {
+for(let region=0;region<4;region++) {
   for(const sprite of spriteIds) {
     const run=sample(31); run.region=region;
-    const boss=['thorn','witch','king'].includes(sprite);
+    const boss=['thorn','witch','king','astral','constellation'].includes(sprite);
     run.arena.enemies[0].sprite=sprite;run.arena.enemies[0].kind=boss?'boss':'chaser';run.arena.enemies[0].phase=2;
     run.arena.player.dashTime=.1;run.arena.player.invulnerable=.2;
     run.arena.hazards=[
@@ -91,7 +91,7 @@ explorationRun.exploration.dialogId='merchant';ctx.calls=[];renderer.draw({run:e
 assert.equal(ctx.calls.filter(call=>call.name==='fillText'&&call.args[0]==='交談中').length,1,'open conversation is visibly identified');
 assert.equal(ctx.depth,0);
 
-const npcIds=['merchant','healer','smith','cartographer','ferryman','lantern','echo','sentinel'],npcCalls=[],npcDraw=renderer.npc;
+const npcIds=['merchant','healer','smith','cartographer','ferryman','lantern','echo','sentinel','lumina'],npcCalls=[],npcDraw=renderer.npc;
 renderer.npc=function(...args){npcCalls.push({id:args[1],boss:args[5],phase:args[6]});return npcDraw.apply(this,args);};
 const signatures=new Set();
 for(const npcId of npcIds){
@@ -106,7 +106,7 @@ for(const npcId of npcIds){
   renderer.draw({run:bossRun,reducedMotion:frames%2===0},2600+frames++*16);assert.equal(ctx.depth,0);
   assert.ok(npcCalls.some(call=>call.id===npcId&&call.boss&&call.phase===2),'NPC battle renders the matching enlarged angry silhouette');
 }
-assert.equal(signatures.size,8,'eight NPCs have distinct pixel silhouettes');
+assert.equal(signatures.size,9,'nine NPCs have distinct pixel silhouettes');
 // Every reward prop, training option and a dashing exploration player is drawable.
 explorationRun.status='reward';explorationRun.exploration.key='loot';explorationRun.exploration.player.dashTime=.12;
 explorationRun.exploration.objects=['item','supply','upgrade'].map((rewardKind,i)=>({id:rewardKind,kind:'reward',rewardKind,name:rewardKind,x:220+i*260,y:240,interactionRadius:85}));
@@ -114,7 +114,7 @@ explorationRun.exploration.objects.push({id:'camp-train',kind:'camp',name:'訓�
 renderer.draw({run:explorationRun},3000);renderer.draw({run:explorationRun},3016);assert.equal(ctx.depth,0);
 
 const companionRun=sample(36);
-const companions=['lantern','echo','sentinel'].map((npcId,i)=>({id:'companion-'+npcId,npcId,x:180+i*42,y:340,r:11,name:'同行者・'+npcId,color:'#b1e6e7'}));
+const companions=['lantern','echo','sentinel','lumina'].map((npcId,i)=>({id:'companion-'+npcId,npcId,x:180+i*42,y:340,r:11,name:'同行者・'+npcId,color:'#b1e6e7'}));
 companionRun.arena.companions=companions;
 companionRun.arena.effects=[{id:'echo-cast',kind:'companion-cast',fromX:221,fromY:341,targetX:651,targetY:281,spellWord:'frost',spellType:'attack',life:.6,maxLife:.6}];
 ctx.calls=[];renderer.draw({run:companionRun,reducedMotion:true},3100);
@@ -131,11 +131,11 @@ for(const ally of companions)assert.ok(ctx.calls.some(call=>call.name==='fillTex
 const roomRun=sample(44),roomSignatures=new Set();roomRun.arena.effects=[];
 const hazard={kind:'line',x:111,y:145,x2:822,y2:377,width:32,delay:.8,life:.3};roomRun.arena.hazards=[hazard];
 const untouchedHazard=JSON.stringify(hazard);
-for(const id of ['tempest','meteor','mirrors','eclipse']){
+for(const id of ['tempest','meteor','mirrors','eclipse','starlanes','bloom','comet','constellation']){
   roomRun.arena.room={id};ctx.calls=[];renderer.draw({run:roomRun,reducedMotion:true},3200);
   roomSignatures.add(JSON.stringify(ctx.calls));assert.equal(JSON.stringify(hazard),untouchedHazard,'art does not mutate trap geometry');assert.equal(ctx.depth,0);
 }
-assert.equal(roomSignatures.size,4,'four new room themes have different visible decoration');
+assert.equal(roomSignatures.size,8,'eight dressed room themes have different visible decoration');
 const palette={light:'#d7f4e5',glow:'#8ecabb',void:'#101929',hot:'#f7b6a3'};
 const spellSignatures=new Set(),spellGeometry=new Map();
 const skillFixtures=[['attack','fire'],['attack','frost'],['attack','storm'],['attack','wind'],['attack','rune'],['signature','robot'],['heal','bloom'],['shield','ward']];
@@ -189,8 +189,8 @@ for(const id of ['bat','raven','ghost']){
   assert.equal(geometry(ctx.calls),first,'reduced motion freezes '+id+' wings and body geometry');
 }
 assert.equal(beastGeometry.size,3,'bat membranes, raven feathers and ghost shroud have distinct silhouettes');
-for(const id of ['slime','eye','bat','raven','ghost','knight','thorn','witch','king']){
-  const boss=['thorn','witch','king'].includes(id);ctx.globalAlpha=.24;ctx.calls=[];
+for(const id of ['slime','eye','bat','raven','ghost','knight','thorn','witch','king','stardust','starling','astrolabe','astral','constellation']){
+  const boss=['thorn','witch','king','astral','constellation'].includes(id);ctx.globalAlpha=.24;ctx.calls=[];
   renderer.legacy.enemy.call(renderer.legacy,ctx,0,0,{id,boss},0,palette,true,0);
   assert.ok(ctx.calls.every(call=>call.alpha<=.24),'spawn/death opacity survives all '+id+' material and glow details');
   assert.equal(ctx.globalAlpha,.24,'sprite restores its caller opacity');assert.equal(ctx.depth,0);
@@ -248,7 +248,7 @@ for(const spellType of ['heal','shield']){
   assert.ok(ctx.calls.some(call=>call.name==='ellipse'&&call.args[0]===480&&call.args[1]===280),'copied support spell surrounds its player target');
   assert.ok(!ctx.calls.some(call=>call.name==='ellipse'&&call.args[0]===200&&call.args[1]===330),'support ring is not mistakenly centered on its companion caster');
 }
-for(const [npcId,label] of [['lantern','護持'],['sentinel','援擊']]){
+for(const [npcId,label] of [['lantern','護持'],['sentinel','援擊'],['lumina','星誓']]){
   ctx.calls=[];renderer.effect(ctx,{kind:'companion-cast',npcId,fromX:200,fromY:350,targetX:480,targetY:300,spellType:npcId==='lantern'?'shield':'strike',life:.5,maxLife:.6},palette,0,true);
   assert.ok(ctx.calls.some(call=>call.name==='fillText'&&call.args[0]===label),'non-mimic companion effect uses its actual support role');
 }
@@ -290,4 +290,39 @@ assert.ok(ctx.calls.some(call=>call.name==='fillText'&&call.args[0]==='回聲學
 assert.ok(ctx.calls.some(call=>call.name==='fillRect'&&call.args[0]===24&&call.args[1]===52),'boss pressure frame remains outside collision bounds');
 for(const shape of ['coin','paper','lantern','crystal'])renderer.projectile(ctx,{shape,x:400,y:200,r:6,vx:1,vy:1},palette,0,true);
 assert.equal(ctx.depth,0);
-console.log('Renderer checks passed: eight NPC silhouettes/Boss forms, followers, echo origins, eight distinct skill silhouettes and animation, bounded effects, four room themes, boss entrances, death persistence/expiration, player death, reduced motion, exact hazard geometry, balanced Canvas state.');
+
+// Chronicle art: four cached biomes, five original celestial silhouettes and a
+// readable collectable that matches the new room mechanic's exact pickup radius.
+assert.equal(renderer.backdrops.length,4,'all four regions have a pre-rendered background');
+const regionRun=sample(83);regionRun.region=3;ctx.calls=[];renderer.draw({run:regionRun,reducedMotion:true},5300);
+assert.ok(ctx.calls.some(call=>call.name==='drawImage'&&call.args[0]===renderer.backdrops[3]),'numeric astral region selects its glasshouse backdrop');
+regionRun.region='astral';ctx.calls=[];renderer.draw({run:regionRun,reducedMotion:true},5316);
+assert.ok(ctx.calls.some(call=>call.name==='drawImage'&&call.args[0]===renderer.backdrops[3]),'named astral region selects the same backdrop');
+const newSilhouettes=new Set();
+for(const id of ['stardust','starling','astrolabe','astral','constellation']){
+  const actor={id,boss:['astral','constellation'].includes(id),phase:2};
+  ctx.calls=[];renderer.legacy.enemy.call(renderer.legacy,ctx,0,0,actor,0,palette,true,3);const first=geometry(ctx.calls);
+  newSilhouettes.add(first);assert.ok(ctx.calls.length<600,'celestial actor has a bounded mobile draw cost');
+  ctx.calls=[];renderer.legacy.enemy.call(renderer.legacy,ctx,0,0,actor,99,palette,true,3);
+  assert.equal(geometry(ctx.calls),first,'reduced motion freezes '+id+' model');assert.equal(ctx.depth,0);
+}
+assert.equal(newSilhouettes.size,5,'the new enemies and two bosses have distinct geometry');
+for(const boss of [false,true]){
+  ctx.calls=[];renderer.npc(ctx,'lumina',palette,0,true,boss,2);const first=geometry(ctx.calls);
+  ctx.calls=[];renderer.npc(ctx,'lumina',palette,9,true,boss,2);
+  assert.equal(geometry(ctx.calls),first,'Lumina respects reduced motion in conversation and sparring');
+  ctx.globalAlpha=.24;ctx.calls=[];renderer.npc(ctx,'lumina',palette,0,true,boss,2);
+  assert.ok(ctx.calls.every(call=>call.alpha<=.24),'Lumina materials respect inherited spawn/death alpha');
+  assert.equal(ctx.globalAlpha,.24);ctx.globalAlpha=1;assert.equal(ctx.depth,0);
+}
+const blossom={x:260,y:170,r:28,ready:true},blossomBefore=JSON.stringify(blossom);
+ctx.calls=[];renderer.bloomBlossom(ctx,blossom,0);const blooming=geometry(ctx.calls);
+assert.ok(ctx.calls.some(call=>call.name==='arc'&&call.args[0]===260&&call.args[1]===170&&call.args[2]===28),'blossom marks the exact collection radius');
+assert.ok(ctx.calls.some(call=>call.name==='fillText'&&call.args[0]==='+ 回復'),'ready healing blossom announces its benefit');
+assert.equal(JSON.stringify(blossom),blossomBefore,'drawing the pickup cannot collect or mutate it');
+ctx.calls=[];renderer.bloomBlossom(ctx,{...blossom,ready:false},0);
+assert.notEqual(geometry(ctx.calls),blooming,'spent healing blossom visibly differs from the ready state');
+assert.ok(!ctx.calls.some(call=>call.name==='fillText'&&call.args[0]==='+ 回復'),'spent blossom does not advertise unavailable healing');
+ctx.calls=[];renderer.bloomBlossom(ctx,blossom,300);assert.equal(geometry(ctx.calls),blooming,'flower cue does not pulse or depend on animation time');
+assert.equal(ctx.depth,0);
+console.log('Renderer checks passed: nine NPC/Boss forms, four followers, four cached biomes, celestial enemies and bosses, exact blossom pickup geometry, eight spell silhouettes, bounded effects, room themes, death persistence, reduced motion and balanced Canvas state.');

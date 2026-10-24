@@ -23,6 +23,48 @@ const value = (ctx,key) => JSON.parse(ctx.map.get(key));
 const tests = [];
 function test(name, body) { tests.push({name, body}); }
 
+test('relationship gifts and romance persist across runs without duplicate settlement',async()=>{
+  const ctx=setup({enroot_cards:owned(3)}),initial=await ctx.api.load();
+  assert.equal(initial.relationship.affection,0);
+  const entry=await ctx.api.consumeEntry('fire',cards,seedRun);
+  const profile={version:1,affection:80,gifts:{flower:2,tea:1,star:0},scenes:['first-light','promise'],dating:true,questCleared:true};
+  const next={...entry.run,relationship:profile};
+  assert.equal((await ctx.api.saveRun(next,entry.receipt.id)).ok,true);
+  profile.gifts.flower=999;
+  assert.equal((await ctx.api.load()).relationship.gifts.flower,2,'save owns an isolated snapshot');
+  await ctx.api.finishRun(entry.receipt.id,{won:false,shards:0,floor:4});
+  await ctx.api.finishRun(entry.receipt.id,{won:false,shards:0,floor:4},seedRun);
+  await ctx.api.abandonRun(entry.receipt.id);
+  const reload=setup(Object.fromEntries(ctx.map)),fresh=await reload.api.consumeEntry('fire',cards,seedRun);
+  assert.equal(fresh.run.relationship.affection,80);assert.equal(fresh.run.relationship.gifts.flower,2);
+  assert.equal(fresh.run.relationship.dating,true);assert.equal(fresh.run.relationship.questCleared,true);
+});
+test('relationship writes are atomic with the run and reject stale windows',async()=>{
+  const ctx=setup({enroot_cards:owned(2)}),entry=await ctx.api.consumeEntry('fire',cards,seedRun);
+  const stale=setup(null,true,ctx.map);await stale.api.load();
+  const next={...entry.run,relationship:{...entry.run.relationship,affection:20,gifts:{flower:1,tea:0,star:0}}};
+  ctx.failures.push('enroot_dungeon_v1');
+  assert.equal((await ctx.api.saveRun(next,entry.receipt.id)).ok,false);
+  assert.equal((await ctx.api.load()).relationship.affection,0);
+  assert.equal((await ctx.api.saveRun(next,entry.receipt.id)).ok,true);
+  assert.equal((await stale.api.saveRun(entry.run,entry.receipt.id)).code,'STALE_RUN');
+  assert.equal((await ctx.api.load()).relationship.affection,20);
+});
+test('legacy saves migrate without resetting progress and corrupt relationship data is preserved',async()=>{
+  const legacy={version:1,active:null,stats:{runs:7,wins:1,shards:0,bestFloor:18}};
+  const ctx=setup({enroot_dungeon_v1:JSON.stringify(legacy)});
+  assert.equal((await ctx.api.load()).stats.runs,7);assert.equal((await ctx.api.load()).relationship.affection,0);
+  const corrupt=JSON.stringify({...legacy,relationship:{version:1,affection:-1}});
+  const bad=setup({enroot_dungeon_v1:corrupt});assert.equal((await bad.api.load()).code,'CORRUPT_RELATIONSHIP');
+  assert.equal(bad.map.get('enroot_dungeon_v1'),corrupt);assert.equal(bad.calls.length,0);
+});
+test('practice profile changes cannot overwrite the formal relationship',async()=>{
+  const ctx=setup({enroot_cards:owned(1)}),entry=await ctx.api.consumeEntry('fire',cards,seedRun);
+  const practice={...entry.run,practice:true,relationship:{...entry.run.relationship,affection:100}};
+  await ctx.api.saveRun(practice,entry.receipt.id);
+  assert.equal((await ctx.api.load()).relationship.affection,0);
+});
+
 test('debits exactly one and preserves all original metadata at zero', async () => {
   const ctx = setup({enroot_cards:owned(1)});
   assert.equal(ctx.api.listOwned(cards).cards.length, 2);

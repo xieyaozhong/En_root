@@ -23,7 +23,7 @@ function harness(options = {}) {
   class Node {
     constructor(context) {
       this.context = context; this.disconnected = false;
-      for (const key of ['gain', 'frequency', 'detune', 'Q', 'pan', 'threshold', 'knee', 'ratio', 'attack', 'release']) this[key] = new Param();
+      for (const key of ['gain', 'frequency', 'detune', 'Q', 'pan', 'threshold', 'knee', 'ratio', 'attack', 'release', 'delayTime']) this[key] = new Param();
       context.nodes.push(this);
     }
     connect(node) { assert.ok(node); return node; }
@@ -44,6 +44,7 @@ function harness(options = {}) {
     createDynamicsCompressor() { return new Node(this); }
     createBiquadFilter() { return new Node(this); }
     createStereoPanner() { return new Node(this); }
+    createDelay() { this.delayCount = (this.delayCount || 0) + 1; return new Node(this); }
     createOscillator() { return new Source(this); }
     createBufferSource() { return new Source(this); }
     createBuffer(channels, length) { const data = new Float32Array(length); return { getChannelData() { return data; } }; }
@@ -122,12 +123,13 @@ function harness(options = {}) {
     await h.audio.setEnabled(false); silence(); h.audio.dispose();
   });
 
-  await test('all three regional compositions schedule a full 32-bar cycle safely', async () => {
+  await test('all four regional compositions schedule a full 32-bar cycle safely', async () => {
     const h = harness(); await h.audio.setEnabled(true);
-    assert.equal(h.window.DungeonAudio.THEMES.length, 3);
+    assert.equal(h.window.DungeonAudio.THEMES.length, 4);
     assert.match(h.audio.themeName, /Fireflies/);
-    for (let region = 0; region < 3; region++) {
-      h.audio.setScene({ region, combat: true, boss: region === 2 });
+    for (let region = 0; region < 4; region++) {
+      h.audio.setScene({ region, combat: true, boss: false });
+      assert.equal(h.audio.getTrackInfo().id, 'region-' + region);
       const theme = h.window.DungeonAudio.THEMES[region]; assert.equal(theme.bars, 32);
       let wrapped = false, previous = h.audio._step;
       for (let i = 0; i < 4000; i++) {
@@ -146,13 +148,13 @@ function harness(options = {}) {
     const voices = [...h.audio._voices], music = voices.filter(v => v.channel === 'music'), sfx = voices.filter(v => v.channel === 'sfx');
     const effectStops = sfx.map(v => v.source.stopTime);
     h.audio.setScene({ region: 1 }); assert.match(h.audio.themeName, /Library/);
-    assert.ok(music.every(v => v.source.stopTime === 0.035));
+    assert.ok(music.every(v => v.source.stopTime === 0.16));
     assert.deepEqual(sfx.map(v => v.source.stopTime), effectStops);
     h.audio.dispose();
   });
 
   await test('every boss and special NPC selects a distinct original score and completes its loop', async () => {
-    const h = harness(), ids = ['thorn', 'witch', 'king', 'merchant', 'healer', 'smith', 'cartographer', 'ferryman', 'lantern', 'echo', 'sentinel'];
+    const h = harness(), ids = ['thorn', 'witch', 'king', 'merchant', 'healer', 'smith', 'cartographer', 'ferryman', 'lantern', 'echo', 'sentinel', 'astral', 'lumina', 'constellation'];
     const catalog = h.window.DungeonAudio.BOSS_THEMES;
     assert.equal(catalog.length, ids.length);
     assert.equal(new Set(catalog.map(track => track.name)).size, ids.length);
@@ -196,7 +198,7 @@ function harness(options = {}) {
     assert.deepEqual(music.map(v => v.source.stopTime), musicStops, 'rendering the same scene does not restart music');
     h.audio.setScene({ phase: 2 });
     assert.equal(h.audio.getTrackInfo().tempo, tempo + 16); assert.equal(h.audio.getTrackInfo().phase, 2);
-    assert.ok(music.every(v => Math.abs(v.source.stopTime - 0.135) < 0.00001));
+    assert.ok(music.every(v => Math.abs(v.source.stopTime - 0.26) < 0.00001));
     assert.deepEqual(effects.map(v => v.source.stopTime), effectStops);
     assert.equal(h.timers.size, 1); assert.equal(h.contexts[0].resumeCalls, 1);
     h.audio.setScene({ bossId: 'echo' });
@@ -204,6 +206,85 @@ function harness(options = {}) {
     h.audio.setScene({ boss: false, combat: false, region: 1 });
     assert.equal(h.audio.getTrackInfo().id, 'region-1'); assert.match(h.audio.themeName, /Library/);
     h.audio.dispose();
+  });
+
+  await test('Lumina conversation, romance and story quest have original full-length arrangements', async () => {
+    const h = harness(), signatures = new Set();
+    assert.equal(h.window.DungeonAudio.STORY_THEMES.length, 3);
+    const scenes = [
+      { scene: { npcId: 'lumina', romance: false, story: false }, id: 'npc-lumina', kind: 'conversation' },
+      { scene: { npcId: 'lumina', romance: true, story: false }, id: 'romance-lumina', kind: 'romance' },
+      { scene: { npcId: '', romance: true, story: true }, id: 'story-chronicle', kind: 'story' }
+    ];
+    await h.audio.setEnabled(true);
+    for (const { scene, id, kind } of scenes) {
+      h.audio.setScene({ ...scene, combat: false, boss: false, region: 3 });
+      assert.equal(h.audio.getTrackInfo().id, id); assert.equal(h.audio.getTrackInfo().kind, kind);
+      const start = h.contexts[0].sources.length;
+      let wrapped = false, previous = h.audio._step;
+      for (let i = 0; i < 4800; i++) {
+        h.advance(0.025);
+        assert.ok(h.audio._voices.size <= 96);
+        if (h.audio._step < previous) wrapped = true;
+        previous = h.audio._step;
+      }
+      assert.ok(wrapped, id + ' completes its composition');
+      signatures.add(JSON.stringify(h.contexts[0].sources.slice(start).filter(source => source.type).slice(0, 160)
+        .map(source => [source.type, source.frequency.events.find(event => event.kind === 'set').value])));
+    }
+    assert.equal(signatures.size, 3, 'arrangements differ in emitted harmony and melody');
+    h.audio.setScene({ combat: true });
+    assert.equal(h.audio.getTrackInfo().id, 'story-chronicle', 'quest combat retains its story score');
+    h.audio.setScene({ story: false });
+    assert.equal(h.audio.getTrackInfo().id, 'region-3');
+    h.audio.dispose();
+  });
+
+  await test('boss priority, conversation exit and all story scene lifecycle states remain predictable', async () => {
+    const h = harness();
+    h.audio.setScene({ region: 3, npcId: 'lumina', romance: true, story: true });
+    assert.equal(h.audio.getTrackInfo().id, 'romance-lumina');
+    assert.equal(h.contexts.length, 0);
+    await h.audio.setEnabled(true);
+    for (const id of ['astral', 'lumina', 'constellation']) {
+      h.audio.setScene({ boss: true, combat: true, bossId: id });
+      assert.equal(h.audio.getTrackInfo().id, 'boss-' + id, 'conversation cannot override boss music');
+      const stops = [...h.audio._voices].map(voice => voice.source.stopTime);
+      h.audio.setScene({ npcId: 'lumina', romance: false, story: false });
+      assert.deepEqual([...h.audio._voices].map(voice => voice.source.stopTime), stops, 'unrelated fields do not restart boss music');
+    }
+    h.audio.setScene({ boss: false, combat: false, npcId: 'lumina', romance: true });
+    assert.equal(h.audio.getTrackInfo().id, 'romance-lumina');
+    h.audio.setScene({ paused: true }); h.advance(1);
+    assert.equal(h.timers.size, 0); assert.equal(h.audio._voices.size, 0);
+    h.audio.setScene({ paused: false }); assert.equal(h.timers.size, 1);
+    h.hidden(true); h.advance(1); assert.equal(h.audio._voices.size, 0);
+    h.hidden(false); h.audio.setScene({ focus: true });
+    assert.equal(h.audio._music.gain.value, 0.4);
+    h.audio.setScene({ npcId: null }); assert.equal(h.audio.getTrackInfo().id, 'region-3');
+    h.audio.setScene({ npcId: 'constructor' }); assert.equal(h.audio.getTrackInfo().id, 'region-3');
+    await h.audio.setEnabled(false);
+    h.audio.setScene({ story: true }); h.advance(1);
+    assert.equal(h.timers.size, 0); assert.equal(h.audio._voices.size, 0);
+    h.audio.dispose();
+  });
+
+  await test('music instruments have soft attacks and decaying sustain with one bounded shared room', async () => {
+    const h = harness(); h.audio.setScene({ npcId: 'lumina', combat: false });
+    await h.audio.setEnabled(true);
+    const tones = [...h.audio._voices].filter(voice => voice.source.type);
+    assert.ok(tones.length >= 5);
+    for (const voice of tones) {
+      const ramps = voice.envelope.gain.events.filter(event => event.kind === 'linear');
+      assert.ok(ramps.length >= 2);
+      assert.ok(ramps[0].time - voice.source.startTime >= 0.007, 'no hard-edged attack');
+      assert.ok(ramps[1].value < ramps[0].value, 'instrument settles after its attack');
+      assert.ok(ramps[1].time >= ramps[0].time);
+      assert.ok(voice.envelope.gain.events.some(event => event.kind === 'exponential' && event.value < 0.001));
+    }
+    for (let i = 0; i < 400; i++) h.advance(0.025);
+    assert.equal(h.contexts[0].delayCount, 1, 'room processor is shared across notes');
+    h.audio.dispose(); assert.ok(h.contexts[0].nodes.every(node => node.disconnected));
   });
 
   await test('phase two adds musical pressure while all boss effects obey mute, pause and visibility', async () => {
@@ -242,6 +323,8 @@ function harness(options = {}) {
     h.audio.setScene({ bossId: '__proto__' }); assert.equal(h.audio.getTrackInfo().bossId, 'king');
     h.audio.setScene({ bossId: 'constructor' }); assert.equal(h.audio.getTrackInfo().bossId, 'king');
     h.audio.setScene({ bossId: null, region: 0 }); assert.equal(h.audio.getTrackInfo().bossId, 'thorn');
+    h.audio.setScene({ bossId: null, region: 99 }); assert.equal(h.audio.getTrackInfo().bossId, 'astral');
+    h.audio.setScene({ region: 0 });
     h.audio.setScene({ boss: false, combat: false }); assert.equal(h.audio.getTrackInfo().id, 'region-0');
     assert.equal(h.audio.getTrackInfo().tempo, h.window.DungeonAudio.THEMES[0].tempo);
     assert.equal(h.contexts.length, 0); h.audio.dispose();

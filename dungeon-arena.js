@@ -17,7 +17,10 @@
     { id: 'tempest', type: 'wind', name: '風暴天橋', description: '兩側風牆交替掃過，金色箭頭預告風向。避開光帶，或逆風衝刺脫離。', mutator: '風牆推移' },
     { id: 'meteor', type: 'meteor', name: '落星殘庭', description: '星隕會記住你停留的位置，稍後落下。看見圓形預警便移動，不要回到原點。', mutator: '追蹤星隕' },
     { id: 'mirrors', type: 'mirrors', name: '稜鏡觀測所', description: '稜鏡依序掃出橫向、縱向光束。石柱提供掩體，預警線之間留有安全空隙。', mutator: '交錯光束' },
-    { id: 'eclipse', type: 'eclipse', name: '蝕月祭壇', description: '中央祭壇依序放出擴散月環。留在環與環之間，或趁預警衝過將爆發的月環。', mutator: '擴散月環' }
+    { id: 'eclipse', type: 'eclipse', name: '蝕月祭壇', description: '中央祭壇依序放出擴散月環。留在環與環之間，或趁預警衝過將爆發的月環。', mutator: '擴散月環' },
+    { id: 'starlanes', type: 'starlanes', name: '流轉星軌', description: '四條星軌輪流留下一條安全通道。金粉浮起後，找到沒有光帶的那一列再施法。', mutator: '移動安全通道' },
+    { id: 'bloom', type: 'bloom', name: '月花願庭', description: '三朵月花每八秒甦醒，走入花心可恢復 6 點生命；花外圓環稍後爆發，別停在花瓣邊緣。', mutator: '採集治癒月花' },
+    { id: 'comet', type: 'comet', name: '彗光渡橋', description: '細線預告彗星航道，稍後真正的星核會從兩側掠過。避開飛行中的星核，善用它們之間的空隙。', mutator: '雙向彗星穿越' }
   ];
   var ACTOR_NAMES = { chaser: '逐光獵影', ranged: '符箭侍從', charger: '重甲破陣者' };
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -76,6 +79,8 @@
     }
     var boss = run.enemy.kind === 'boss', roomIndex = (hash(run.seed) + run.encounter) % ROOMS.length;
     var room = Object.assign({}, ROOMS[roomIndex]);
+    if (run.region === 3) room = Object.assign({}, ROOMS[10 + (hash(run.seed) + run.encounter) % 3]);
+    if (run.currentRoute && run.currentRoute.storyRoom) room = Object.assign({}, ROOMS.find(function (r) { return r.id === run.currentRoute.storyRoom; }) || room);
     if (boss) room = { id: 'boss-' + run.enemy.id, type: 'boss', name: run.enemy.name + '・封印殿',
       description: run.enemy.description, mutator: '雙階段首領戰' };
     var a = run.arena = {
@@ -97,6 +102,8 @@
       hazard(a, { source: 'trap', x: 620, y: 380, r: 63, delay: 1.5, life: 100000, damage: 6, repeat: true, color: '#f08a55' });
     }
     if (room.id === 'spring') a.room.spring = { x: 480, y: 280, r: 48, heal: 3 };
+    if (room.id === 'bloom') a.room.blossoms = [{ x: 260, y: 170, r: 28, ready: false }, { x: 700, y: 170, r: 28, ready: false }, { x: 480, y: 405, r: 28, ready: false }];
+    if (room.id === 'comet') a.room.comets = [];
     var count = boss ? 1 : room.id === 'waves' ? 5 : run.enemy.kind === 'elite' ? 5 : 3 + run.region % 2;
     var original = run.enemy.maxHp, remaining = run.enemy.hp, maxUsed = 0, hpUsed = 0;
     var spots = [[640, 280], [760, 135], [760, 435], [520, 110], [540, 450]];
@@ -106,7 +113,7 @@
       var kind = boss ? 'boss' : ['chaser', 'ranged', 'charger'][i % 3];
       var spawnAt = room.id === 'waves' ? i < 2 ? 0 : i < 4 ? 4.5 : 9 : 0;
       var enemy = { id: boss ? run.enemy.id : run.enemy.id + '-' + i, kind: kind, npcId: run.enemy.npcId || null,
-        sprite: boss ? run.enemy.sprite || run.enemy.id : kind === 'ranged' ? 'eye' : kind === 'charger' ? 'knight' : run.enemy.id,
+        sprite: boss ? run.enemy.sprite || run.enemy.id : run.region === 3 || run.bondQuest && run.bondQuest.active ? ['stardust', 'starling', 'astrolabe'][i % 3] : kind === 'ranged' ? 'eye' : kind === 'charger' ? 'knight' : run.enemy.id,
         name: boss ? run.enemy.name : ACTOR_NAMES[kind], x: 0, y: 0, r: boss ? 30 : kind === 'charger' ? 20 : 16,
         hp: hp, maxHp: maxHp, alive: hp > 0, active: spawnAt === 0, spawnAt: spawnAt, phase: run.enemy.phase,
         cooldown: 1.8 + i * 0.3, telegraph: 0, chargeX: 0, chargeY: 0, chargeTime: 0, volley: null, hurt: 0 };
@@ -119,9 +126,12 @@
   }
   function syncCompanions(run, a) {
     var saved = Array.isArray(a.companions) ? a.companions : [];
+    var opponent = run.enemy && run.enemy.isNpcBoss ? run.enemy.npcId : null;
     a.companions = (Array.isArray(run.companions) ? run.companions : []).filter(function (c, index, list) {
-      return c && ['lantern', 'echo', 'sentinel'].indexOf(c.id) >= 0 && list.findIndex(function (other) { return other && other.id === c.id; }) === index;
-    }).slice(0, 3).map(function (c, i) {
+      // A recruited traveler can be met again. During their duel they appear
+      // only as the opponent; the run roster remains intact for the next room.
+      return c && c.id !== opponent && ['lantern', 'echo', 'sentinel', 'lumina'].indexOf(c.id) >= 0 && list.findIndex(function (other) { return other && other.id === c.id; }) === index;
+    }).slice(0, 4).map(function (c, i) {
       var existing = saved.find(function (body) { return body.npcId === c.id; });
       var body = Object.assign({ x: a.player.x - 36, y: a.player.y + (i - 1) * 26, r: 11, cooldown: c.id === 'echo' ? 0 : 2 + i, castFlash: 0 }, existing || {},
         { id: 'companion-' + c.id, npcId: c.id, name: c.name, sprite: c.sprite || c.id, color: c.color || '#b9deff', role: c.role });
@@ -129,6 +139,7 @@
       return body;
     });
     if (!Array.isArray(a.echoQueue)) a.echoQueue = [];
+    else if (opponent) a.echoQueue = a.echoQueue.filter(function (echo) { return (echo.npcId || 'echo') !== opponent; });
   }
   function companionCast(a, companion, target, spellType, spellWord) {
     companion.castFlash = 0.45;
@@ -150,6 +161,12 @@
         var shield = Math.min(6, Math.max(0, 24 - run.player.shield));
         c.cooldown = 8;
         if (shield) { run.player.shield += shield; companionCast(a, c, a.player, 'shield'); effect(a, 'companion-shield', a.player.x, a.player.y, { r: 35, color: c.color, life: 0.7 }); }
+      } else if (c.npcId === 'lumina') {
+        c.cooldown = 10;
+        var recovery = Engine.healPlayer(run, 4);
+        var starShield = Math.min(2, Math.max(0, 24 - run.player.shield));
+        run.player.shield += starShield;
+        if (recovery || starShield) companionCast(a, c, a.player, recovery ? 'heal' : 'shield', 'light');
       } else if (c.npcId === 'sentinel') {
         var target = targets(a, c).find(function (enemy) { return dist(enemy, c) <= 230; });
         if (target) { c.cooldown = 4.5; companionCast(a, c, target, 'strike'); directDamage(run, a, target, 5 + Math.min(3, run.region)); }
@@ -159,7 +176,7 @@
       echo.delay -= dt;
       if (echo.delay > 0 || echo.done || run.status !== 'combat') return;
       echo.done = true;
-      var companion = a.companions.find(function (c) { return c.npcId === 'echo'; });
+      var companion = a.companions.find(function (c) { return c.npcId === (echo.npcId || 'echo'); });
       if (!companion) return;
       if (echo.heal > 0 || echo.shield > 0) {
         if (echo.heal > 0) Engine.healPlayer(run, echo.heal);
@@ -233,7 +250,17 @@
     var base = { source: 'boss', ownerId: boss.id, damage: damage, color: npc.color };
     function mark(spec) { return hazard(a, Object.assign({}, base, spec)); }
     a.lastPattern = npc.patterns[turn % 2];
-    if (npc.id === 'merchant') {
+    if (npc.id === 'lumina') {
+      if (turn % 2 === 0) {
+        [0, 1, 2].forEach(function (i) {
+          var x = 210 + i * 265;
+          mark({ kind: 'line', x: x, y: 85, x2: 960 - x, y2: 475, width: phase === 2 ? 38 : 26, delay: 1.25 + i * 0.35, life: 0.4 });
+        });
+      } else {
+        [115, 215].forEach(function (radius, i) { mark({ kind: 'ring', x: 480, y: 280, r: radius, innerR: radius - 26, delay: 1.3 + i * 0.55, life: 0.45 }); });
+        if (phase === 2) mark({ x: p.x, y: p.y, r: 48, delay: 2.4, life: 0.4 });
+      }
+    } else if (npc.id === 'merchant') {
       if (turn % 2 === 0) {
         boss.volley = { delay: 1.15, radial: phase === 2 ? 26 : 16, rotation: turn * 0.23,
           damage: damage, color: '#ffd36e', shape: 'coin', speed: phase === 2 ? 150 : 125 };
@@ -327,6 +354,34 @@
     a.patternCount += 1;
     if (run.enemy.isNpcBoss && Engine.NPCS[run.enemy.npcId]) {
       npcPattern(run, a, boss, intent, turn, phase);
+    } else if (run.enemy.id === 'constellation') {
+      a.lastPattern = turn % 2 === 0 ? '未寄出的回聲' : '雙星斷章';
+      if (turn % 2 === 0) {
+        [0, 1, phase === 2 ? 2 : null].filter(function (i) { return i !== null; }).forEach(function (i) {
+          hazard(a, { source: 'boss', ownerId: boss.id, x: clamp(p.x + (i - 1) * 90, 100, 860), y: p.y, r: 48,
+            delay: 1.3 + i * 0.55, life: 0.7, damage: damage, color: '#dc96d0' });
+        });
+      } else {
+        var left = turn % 4 === 1;
+        hazard(a, { kind: 'line', source: 'boss', ownerId: boss.id, x: 100, y: left ? 120 : 440, x2: 860, y2: left ? 440 : 120,
+          width: phase === 2 ? 60 : 42, delay: 1.4, life: 0.8, damage: damage, color: '#d8a8f5' });
+        hazard(a, { kind: 'ring', source: 'boss', ownerId: boss.id, x: p.x, y: p.y, r: 125, innerR: 92,
+          delay: 2.05, life: 0.45, damage: damage, color: '#f2b6dc' });
+      }
+    } else if (run.enemy.id === 'astral') {
+      a.lastPattern = ['龍翼星軌', '忘誓流星', '花庭星環'][turn % 3];
+      if (turn % 3 === 0) {
+        [0, 1, 2].forEach(function (wing) {
+          hazard(a, { kind: 'line', source: 'boss', ownerId: boss.id, x: 90, y: 105 + wing * 125, x2: 870, y2: 175 + wing * 125,
+            width: phase === 2 ? 48 : 32, delay: 1.3 + wing * 0.3, life: 0.55, damage: damage, color: '#edacd9' });
+        });
+      } else if (turn % 3 === 1) {
+        boss.volley = { delay: 1.4, radial: phase === 2 ? 20 : 12, rotation: turn * 0.43, damage: damage - 4, color: '#d7b6ff', shape: 'star', speed: 145 };
+        [0, 1, 2].forEach(function (i) { hazard(a, { source: 'boss', ownerId: boss.id, x: clamp(p.x + (i - 1) * 105, 95, 865), y: clamp(p.y + (i % 2 ? 80 : -30), 105, 450), r: 46, delay: 1.8 + i * 0.4, damage: damage, color: '#ffd4e9' }); });
+      } else {
+        [110, 205, 300].forEach(function (radius, i) { hazard(a, { kind: 'ring', source: 'boss', ownerId: boss.id, x: 480, y: 280, r: radius, innerR: radius - 27, delay: 1.3 + i * 0.5, life: 0.4, damage: damage, color: '#dca9ef' }); });
+        if (phase === 2) hazard(a, { kind: 'line', source: 'boss', ownerId: boss.id, x: p.x, y: 75, x2: p.x, y2: 485, width: 36, delay: 2.9, damage: damage, color: '#ffbfda' });
+      }
     } else if (run.enemy.id === 'thorn') {
       if (turn % 2 === 0) {
         a.lastPattern = '荊棘追跡';
@@ -384,6 +439,53 @@
   }
   function advanceRoom(run, a, dt) {
     a.roomClock -= dt;
+    if (a.room.id === 'starlanes' && a.roomClock <= 0) {
+      a.roomClock += 6; a.roomPulse += 1;
+      var safeLane = (a.roomPulse + run.encounter) % 4;
+      a.room.safeLane = safeLane;
+      for (var lane = 0; lane < 4; lane++) if (lane !== safeLane) {
+        hazard(a, { kind: 'rect', source: 'trap', x: 50, y: 65 + lane * 105, w: 860, h: 100,
+          delay: 1.8, life: 1, damage: 9 + run.region, color: '#e0b3ec' });
+      }
+    }
+    if (a.room.id === 'bloom') {
+      if (!Array.isArray(a.room.blossoms)) a.room.blossoms = [{ x: 260, y: 170, r: 28 }, { x: 700, y: 170, r: 28 }, { x: 480, y: 405, r: 28 }];
+      if (a.roomClock <= 0) {
+        a.roomClock += 8; a.roomPulse += 1;
+        a.room.blossoms.forEach(function (flower) {
+          flower.ready = true;
+          hazard(a, { kind: 'ring', source: 'trap', x: flower.x, y: flower.y, r: 65, innerR: 44,
+            delay: 2, life: 0.6, damage: 8 + run.region, color: '#e7b1dd' });
+        });
+      }
+      a.room.blossoms.forEach(function (flower) {
+        if (flower.ready && dist(a.player, flower) <= flower.r && run.player.hp < run.player.maxHp) {
+          flower.ready = false;
+          var recovered = Engine.healPlayer(run, 6);
+          if (recovered) effect(a, 'heal', flower.x, flower.y, { color: '#b5f2da', r: 34, life: 0.65 });
+        }
+      });
+    }
+    if (a.room.id === 'comet') {
+      if (!Array.isArray(a.room.comets)) a.room.comets = [];
+      if (a.roomClock <= 0) {
+        a.roomClock += 5.6; a.roomPulse += 1;
+        [0, 1, 2].forEach(function (i) {
+          var fromLeft = (i + a.roomPulse) % 2 === 0, y = 120 + i * 150;
+          hazard(a, { kind: 'line', source: 'trap', x: 55, y: y, x2: 905, y2: y, width: 10,
+            delay: 1.5 + i * 0.2, life: 0.05, damage: 0, cosmetic: true, color: '#bfe9ff' });
+          a.room.comets.push({ delay: 1.5 + i * 0.2, x: fromLeft ? 55 : 905, y: y, angle: fromLeft ? 0 : Math.PI });
+        });
+      }
+      a.room.comets.forEach(function (comet) {
+        comet.delay -= dt;
+        if (comet.delay <= 0 && !comet.fired) {
+          comet.fired = true;
+          projectile(run, a, 'comet-room', comet.x, comet.y, comet.angle, 310, 11 + run.region, { r: 13, color: '#d1eaff', shape: 'star', source: 'trap', life: 3.4 });
+        }
+      });
+      a.room.comets = a.room.comets.filter(function (comet) { return !comet.fired; });
+    }
     if (a.room.id === 'lanes' && a.roomClock <= 0) {
       a.roomClock += 5; a.roomPulse += 1;
       var vertical = a.roomPulse % 2;
@@ -481,7 +583,7 @@
       move(a, e, direction.x * 36 * sign * dt * motionScale, direction.y * 36 * sign * dt * motionScale);
       if (e.cooldown <= 0 && !e.volley) {
         e.cooldown = 3.8; e.telegraph = 0.7;
-        e.volley = { delay: 0.7, x: p.x, y: p.y, spread: run.region === 2 ? 1 : 0, damage: 7 + run.region * 2 };
+        e.volley = { delay: 0.7, x: p.x, y: p.y, spread: run.region >= 2 ? 1 : 0, damage: 7 + run.region * 2 };
         hazard(a, { kind: 'line', x: e.x, y: e.y, x2: p.x, y2: p.y, width: 4, delay: 0.7, life: 0.08, damage: 0,
           ownerId: e.id, cosmetic: true, color: '#e4bba2' });
       }
@@ -601,13 +703,13 @@
     effect(a, 'cast', a.player.x, a.player.y, { x2: target.x, y2: target.y, targetId: target.id,
       spellType: type, spellWord: word, color: type === 'heal' ? '#88e7bf' : type === 'shield' ? '#89d6ff' : type === 'signature' ? '#f8d294' : '#c2a3ff', life: 0.45 });
     distribute(a, result.damage || 0, target);
-    var echo = a.companions.find(function (c) { return c.npcId === 'echo' && c.cooldown <= 0; });
-    if (echo && run.status === 'combat') {
-      echo.cooldown = 2.5;
-      a.echoQueue.push({ delay: 0.65, targetId: target.id, spellType: type, spellWord: word,
-        damage: result.damage > 0 ? clamp(Math.round(result.damage * 0.3), 3, 12) : 0,
+    a.companions.filter(function (c) { return (c.npcId === 'echo' && c.cooldown <= 0) || (c.npcId === 'lumina' && (c.echoCooldown || 0) <= a.time); }).forEach(function (echo) {
+      if (run.status !== 'combat') return;
+      if (echo.npcId === 'echo') echo.cooldown = 2.5; else echo.echoCooldown = a.time + 4;
+      a.echoQueue.push({ npcId: echo.npcId, delay: echo.npcId === 'lumina' ? 0.85 : 0.65, targetId: target.id, spellType: type, spellWord: word,
+        damage: result.damage > 0 ? clamp(Math.round(result.damage * (echo.npcId === 'lumina' ? 0.22 : 0.3)), 3, echo.npcId === 'lumina' ? 8 : 12) : 0,
         heal: clamp(Math.round((result.heal || 0) * 0.3), 0, 8), shield: clamp(Math.round((result.shield || 0) * 0.3), 0, 8) });
-    }
+    });
     if (has(run, 'starlace') && run.status === 'combat') {
       var chained = targets(a, target).find(function (e) { return e.id !== target.id && dist(e, target) <= 180 + e.r; });
       if (chained) { var extra = directDamage(run, a, chained, 8); result.damage += extra;

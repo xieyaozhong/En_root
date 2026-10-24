@@ -7,7 +7,8 @@
   const PAL=[
     {void:'#0b171c',wall:'#152d31',stone:'#254447',edge:'#375c59',floor:'#1c3638',line:'#12282e',light:'#b6efbd',glow:'#6ccbad',trim:'#618676',accent:'#dbc798',leaf:'#527c62',hot:'#ffa692'},
     {void:'#101426',wall:'#1c223c',stone:'#2c3452',edge:'#424b69',floor:'#252d48',line:'#192138',light:'#d6c6ff',glow:'#a28bed',trim:'#74759b',accent:'#dfc397',leaf:'#646582',hot:'#ffa6ae'},
-    {void:'#1c111e',wall:'#321e30',stone:'#472c3c',edge:'#684351',floor:'#372a36',line:'#281d2c',light:'#ffd1b4',glow:'#f394a0',trim:'#956575',accent:'#ebba84',leaf:'#785469',hot:'#ffc09c'}
+    {void:'#1c111e',wall:'#321e30',stone:'#472c3c',edge:'#684351',floor:'#372a36',line:'#281d2c',light:'#ffd1b4',glow:'#f394a0',trim:'#956575',accent:'#ebba84',leaf:'#785469',hot:'#ffc09c'},
+    {void:'#111a2e',wall:'#26384a',stone:'#3b5060',edge:'#6f8691',floor:'#243b4c',line:'#1a2d42',light:'#f8e4da',glow:'#b9dfe7',trim:'#adaca6',accent:'#ecd6ae',leaf:'#8ca899',hot:'#ffb4ca'}
   ];
   const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
   const val=(n,d=0)=>Number.isFinite(Number(n))?Number(n):d;
@@ -19,8 +20,8 @@
   function aura(c,x,y,r,color,alpha=.1){c.save();const opacity=c.globalAlpha;for(let i=3;i>0;i--){c.globalAlpha=opacity*alpha/i;oval(c,x,y,r*i*.6,r*i*.45,color);}c.restore();}
   function gem(c,x,y,r,color){c.fillStyle=color;c.beginPath();c.moveTo(x,y-r);c.lineTo(x+r*.65,y);c.lineTo(x,y+r);c.lineTo(x-r*.65,y);c.closePath();c.fill();}
   function poly(c,points,color){c.fillStyle=color;c.beginPath();points.forEach((p,i)=>i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));c.closePath();c.fill();}
-  const regionOf=(run)=>typeof run?.region==='string'?({forest:0,mirror:1,library:1,void:2,obsidian:2}[run.region]??0):clamp(val(run?.region),0,2);
-  const NPC_IDS=new Set(['merchant','healer','smith','cartographer','ferryman','lantern','echo','sentinel']);
+  const regionOf=(run)=>typeof run?.region==='string'?({forest:0,mirror:1,library:1,void:2,obsidian:2,astral:3}[run.region]??0):clamp(val(run?.region),0,3);
+  const NPC_IDS=new Set(['merchant','healer','smith','cartographer','ferryman','lantern','echo','sentinel','lumina']);
   const EXPLORATION_STATES=new Set(['route','shop','npc','camp','reward']);
 
   class DungeonArenaRenderer {
@@ -68,15 +69,68 @@
         [106,194,680,768].forEach(x=>this.shelf(c,x,17,76,48,p,rnd));
         this.bookPile(c,85,134,p);this.bookPile(c,881,391,p);this.bookPile(c,97,476,p);
         [324,613].forEach(x=>{box(c,x,6,23,56,'#514067');box(c,x+3,7,17,48,'#79618c');gem(c,x+11,28,10,p.accent);});
-      }else{
+      }else if(region===2){
         [[68,111],[882,100],[83,466],[880,469]].forEach(([x,y],i)=>this.crystal(c,x,y,20+i%2*8,p));
         for(let i=0;i<8;i++){const x=i%2?895:56,y=140+i*43;stroke(c,x,y,x+(i%2?-1:1)*25,y+21,'#643a48',4);stroke(c,x,y,x+(i%2?-1:1)*25,y+21,'#aa615f',1);}
         [175,765].forEach(x=>{box(c,x-10,14,20,51,'#432435');gem(c,x,26,24,'#8d506b');gem(c,x-2,22,15,'#bd7c89');});
+      }else{
+        // A moonlit glasshouse: ivory ribs and rose beds frame a calm blue stage.
+        for(const x of [124,213,747,836]){
+          poly(c,[[x-37,45],[x-32,10],[x,0],[x+32,10],[x+37,45]],'#172a43');
+          poly(c,[[x-30,40],[x-27,14],[x,4],[x+27,14],[x+30,40]],'#49768a');
+          stroke(c,x-26,18,x+23,35,'#90bbc5',2);stroke(c,x,5,x,43,'#d3c8b0',3);
+          stroke(c,x-36,44,x-31,11,'#c3c1b1',3);stroke(c,x+36,44,x+31,11,'#c3c1b1',3);
+          box(c,x-39,43,78,5,'#dbd0b6');
+        }
+        for(const x of [73,887])for(const y of [144,388])this.roseBed(c,x,y,p);
+        [308,652].forEach(x=>{box(c,x-9,5,18,38,'#e0d2ba');box(c,x-5,8,10,26,'#8d9da6');gem(c,x,22,8,'#f4c2cc');});
+        c.save();c.globalAlpha=.2;for(let i=0;i<10;i++){
+          const x=150+i*73,y=116+(i%3)*143;gem(c,x,y,4,'#eac2d0');box(c,x-1,y-1,2,2,'#fff1cf');
+        }c.restore();
       }
       // Lamps and grounded scattered props add scale.
       [282,679].forEach(x=>{box(c,x-5,47,10,14,p.trim);box(c,x-8,44,16,5,p.accent);});
       this.crystal(c,39,301,12,p);this.crystal(c,923,274,14,p);
+      this.architecture(c,p,region,rnd);
       return canvas;
+    }
+    architecture(c,p,region,rnd){
+      // Pre-rendered material, skylight and foreground depth cost one bitmap per
+      // frame. The luminous seams never resemble red enemy warning geometry.
+      c.save();
+      c.globalAlpha=.1;
+      for(const x of [115,770])poly(c,[[x,53],[x+38,53],[x+108,489],[x+30,489]],p.light);
+      c.globalAlpha=.22;
+      for(const x of [30,930]){box(c,x,58,2,437,p.accent);for(let y=84;y<500;y+=28)box(c,x-2,y,6,3,p.trim);}
+      // A quiet, worn runner leads through the chamber without changing bounds.
+      c.globalAlpha=.1;box(c,428,72,104,405,p.glow);c.globalAlpha=.21;
+      stroke(c,428,75,428,475,p.trim,1);stroke(c,532,75,532,475,p.trim,1);
+      for(let i=0;i<36;i++){
+        const x=110+rnd()*738,y=89+rnd()*382;
+        c.globalAlpha=.08;box(c,x,y,11+rnd()*18,1,p.light);box(c,x+2,y+3,5,1,p.light);
+      }
+      c.globalAlpha=1;
+      // Side reliefs and foreground cornices give every room an inhabited scale.
+      for(const x of [53,907]){
+        box(c,x-15,237,30,9,p.void);box(c,x-12,229,24,9,p.stone);box(c,x-14,227,28,4,p.edge);
+        if(region===0){poly(c,[[x-9,226],[x-13,198],[x,187],[x+13,198],[x+9,226]],'#446956');gem(c,x,208,10,'#9ab995');}
+        else if(region===1){box(c,x-10,198,20,28,'#726183');box(c,x-8,200,16,23,'#baa5b5');stroke(c,x-5,207,x+5,207,'#685b84',2);stroke(c,x-5,214,x+2,214,'#685b84',2);}
+        else if(region===2){gem(c,x,211,22,'#734855');gem(c,x-2,206,14,'#ca8c94');gem(c,x-3,202,5,'#ffcbab');}
+        else{stroke(c,x,227,x,197,'#baafa0',3);gem(c,x,196,10,'#f4c1d1');gem(c,x,194,5,'#fce7d9');}
+      }
+      for(const x of [108,852]){
+        box(c,x-58,518,116,10,p.wall);box(c,x-61,515,122,5,p.trim);box(c,x-59,515,118,2,p.accent);
+        for(let i=0;i<7;i++){box(c,x-51+i*17,523,9,14,p.stone);box(c,x-50+i*17,523,2,14,p.edge);}
+      }
+      c.restore();
+    }
+    roseBed(c,x,y,p){
+      oval(c,x+3,y+5,31,7,p.void);box(c,x-24,y-9,48,13,'#657684');box(c,x-28,y-13,56,6,'#b5b4ac');
+      for(const [dx,dy] of [[-15,-24],[0,-31],[16,-22],[-4,-16]]){
+        stroke(c,x+dx,y-12,x+dx,y+dy,'#72978c',2);
+        poly(c,[[x+dx,y+dy+7],[x+dx-11,y+dy+3],[x+dx-5,y+dy+13]],'#8baa98');
+        pixelDisk(c,x+dx,y+dy,7,'#c6819e');pixelDisk(c,x+dx-2,y+dy-2,5,'#f0b7c9');box(c,x+dx-2,y+dy-3,3,3,'#ffe5d8');
+      }
     }
     staticPillar(c,x,y,p,w=28){
       oval(c,x+7,y+5,w*.7,9,'#111d28');box(c,x-w*.65,y-6,w*1.3,11,p.void);box(c,x-w*.55,y-10,w*1.1,10,p.trim);
@@ -85,7 +139,7 @@
     }
     gate(c,x,y,p,region){
       box(c,x-48,y-39,96,44,p.void);box(c,x-41,y-34,82,39,p.wall);box(c,x-31,y-29,62,34,'#111729');
-      box(c,x-27,y-25,54,30,region===0?'#244f4b':region===1?'#343563':'#643b54');box(c,x-20,y-21,40,26,p.glow);
+      box(c,x-27,y-25,54,30,region===0?'#244f4b':region===1?'#343563':region===3?'#456b88':'#643b54');box(c,x-20,y-21,40,26,p.glow);
       box(c,x-11,y-17,22,22,p.light);box(c,x-49,y-37,8,43,p.trim);box(c,x+41,y-37,8,43,p.trim);box(c,x-50,y-39,100,6,p.accent);
       box(c,x-56,y+5,112,5,p.edge);box(c,x-63,y+10,126,5,p.stone);box(c,x-69,y+15,138,5,p.wall);
     }
@@ -140,6 +194,13 @@
       aura(c,480,61,51,p.glow,.035);
       for(let i=0;i<16;i++){const x=54+(i*139.83)%850+Math.sin(t*.25+i)*8,y=63+(i*73.17+t*(i%3+1)*2)%423;c.save();c.globalAlpha=.14+Math.sin(t+i)**2*.3;box(c,x,y,2,2,i%4===0?p.accent:p.light);c.restore();}
       if(region===2){for(let i=0;i<4;i++){c.save();c.globalAlpha=.1+.06*Math.sin(t+i);box(c,i%2?918:27,160+i*75,7,46,p.hot);c.restore();}}
+      if(region===3){
+        c.save();c.globalAlpha=.4;
+        for(let i=0;i<8;i++){
+          const x=i%2?882+Math.sin(t*.35+i)*13:64+Math.sin(t*.35+i)*13,y=95+(i*67+(still?0:t*5))%386;
+          poly(c,[[x,y-3],[x+5,y],[x+1,y+3],[x-4,y+1]],i%2?'#e6b3c8':'#b4d9df');
+        }c.restore();
+      }
     }
     drawArena(c,a,run,scene,p,region,t,dt,still){
       const player=a.player||{x:260,y:320,r:12},enemies=Array.isArray(a.enemies)?a.enemies:[];
@@ -150,6 +211,7 @@
       const boss=active.find(e=>e.kind==='boss'||e.boss);
       if(boss)this.bossPresence(c,boss,a,p,t,still);
       if(a.room?.spring)this.spring(c,a.room.spring,player,t,still);
+      for(const blossom of a.room?.blossoms||[])this.bloomBlossom(c,blossom,still?0:t);
       // Hazards live below all actors, with separate warning and active states.
       (a.hazards||[]).forEach(h=>this.hazard(c,h,p,t,still));
       (a.effects||[]).filter(e=>/dash|spawn/.test(e.kind)).forEach(e=>this.effect(c,e,p,t,still));
@@ -211,7 +273,7 @@
     }
     roomAtmosphere(c,a,p,t,still){
       const id=a.room?.id;
-      if(!['tempest','meteor','mirrors','eclipse'].includes(id))return;
+      if(!['tempest','meteor','mirrors','eclipse','starlanes','bloom','comet','constellation'].includes(id))return;
       c.save();
       if(id==='tempest'){
         // Wind wisps stay at the room edges; they are not damage telegraphs.
@@ -231,16 +293,46 @@
           poly(c,[[x,y-34],[x+13,y-19],[x+10,y+15],[x-10,y+15],[x-13,y-19]],'#39546e');
           stroke(c,x-6,y+6,x+7,y-22,'#b6ddec',2);box(c,x-21,y+22,42,5,p.trim);
         }));
-      }else{
+      }else if(id==='eclipse'){
         c.globalAlpha=.28;c.strokeStyle='#b09cdb';c.lineWidth=2;
         c.beginPath();c.ellipse(480,284,338,198,0,0,TAU);c.stroke();
         for(let i=0;i<12;i++){const angle=i*TAU/12;gem(c,480+Math.cos(angle)*338,284+Math.sin(angle)*198,4,'#ccb8f1');}
         c.globalAlpha=.7;pixelDisk(c,480,67,13,'#c5b4eb');pixelDisk(c,486,62,12,p.void);
+      }else if(id==='starlanes'){
+        // These stars sit outside the active lanes; hazards are rendered later.
+        for(const x of [45,915])for(let i=0;i<5;i++){
+          const y=105+i*77;stroke(c,x,y-24,x,y+24,'#738baf',2);gem(c,x,y,7,i%2?'#e2b7cf':'#d0e8ed');
+          box(c,x-12,y-1,24,2,'#769ab2');
+        }
+      }else if(id==='bloom'){
+        for(const x of [73,887])for(const y of [161,400])this.roseBed(c,x,y,p);
+        for(let i=0;i<5;i++){const x=292+i*94;gem(c,x,68,4,'#f0c3cd');stroke(c,x-31,70,x+31,70,'#768f95',1);}
+      }else if(id==='comet'){
+        [69,891].forEach((x,i)=>{
+          poly(c,[[x-11,118],[x,101],[x+11,118],[x+7,151],[x-7,151]],'#a4bbc5');
+          gem(c,x,124,10,'#6e8aab');gem(c,x-2,122,5,'#e2eaf4');
+          for(let j=0;j<3;j++)stroke(c,x+(i?-1:1)*j*7,418+j*15,x+(i?-1:1)*(j*7+17),430+j*15,'#c7b5d6',2);
+        });
+      }else{
+        // The broken promise is a constellation in the boundary architecture.
+        const stars=[[155,70],[300,65],[480,78],[660,65],[805,70]];
+        stars.forEach(([x,y],i)=>{gem(c,x,y,i===2?8:4,'#e2b1d1');if(i)stroke(c,stars[i-1][0],stars[i-1][1],x,y,'#766191',1);});
       }
       c.restore();
     }
+    bloomBlossom(c,blossom,t){
+      const x=val(blossom.x),y=val(blossom.y),r=Math.max(1,val(blossom.r,28)),ready=blossom.ready===true;
+      c.save();c.globalAlpha*=ready?.72:.2;c.strokeStyle=ready?'#b8efd1':'#a6b4bd';c.lineWidth=1;
+      c.setLineDash(ready?[]:[2,5]);c.beginPath();c.arc(x,y,r,0,TAU);c.stroke();c.setLineDash([]);
+      if(ready){
+        for(let i=0;i<5;i++){const angle=-Math.PI/2+i*TAU/5;gem(c,x+Math.cos(angle)*7,y-7+Math.sin(angle)*6,5,'#c2f3d8');}
+        box(c,x-2,y-9,4,4,'#fff2bb');stroke(c,x,y-2,x,y+8,'#9ad5b8',2);
+        c.font='bold 10px sans-serif';c.textAlign='center';c.fillStyle='#ccecd7';c.fillText('+ 回復',x,y+r+13);
+      }else{stroke(c,x-5,y,x+5,y,'#b3bbc6',1);stroke(c,x,y-5,x,y+5,'#b3bbc6',1);}
+      c.restore();
+    }
     bossPresence(c,boss,a,p,t,still){
-      const phase=val(boss.phase,1),color=boss.npcId==='lantern'?'#90eddf':boss.npcId==='echo'?'#c9b9ff':boss.npcId==='sentinel'?'#ffe2a0':p.hot;
+      const phase=val(boss.phase,1),color=boss.npcId==='lumina'?'#f4c1d5':boss.npcId==='lantern'?'#90eddf':boss.npcId==='echo'?'#c9b9ff':boss.npcId==='sentinel'?'#ffe2a0':p.hot;
       c.save();
       // All pressure cues stay outside the collision bounds or behind the actor.
       c.globalAlpha=phase>1?.66:.4;box(c,24,52,912,4,color);box(c,24,505,912,4,color);
@@ -262,7 +354,7 @@
       c.save();c.globalAlpha*=.4;oval(c,x,y+2,17,5,p.void);c.restore();
       this.actorMarker(c,actor,'ally');
       c.save();c.translate(Math.round(x),Math.round(y));c.scale(.52,.52);this.npc(c,id,p,t,still,false,1);c.restore();
-      const name=String(actor.name||({lantern:'路米',echo:'伊可',sentinel:'折鋒'}[id]||'同行者')).split('・').pop();
+      const name=String(actor.name||({lantern:'路米',echo:'伊可',sentinel:'折鋒',lumina:'露米娜'}[id]||'同行者')).split('・').pop();
       c.save();c.font='bold 11px sans-serif';c.textAlign='center';c.fillStyle=color;c.fillText('◆ '+name,x,y+24);c.restore();
     }
     interactable(c,o,p,t,still,near){
@@ -354,6 +446,8 @@
         box(c,-6,-34,11,25,'#dbbce7');gem(c,0,-30,6,'#eee3ff');
         stroke(c,29,-7,29,-47,'#af92c7',4);gem(c,29,-58,18,'#d8bded');gem(c,29,-58,12,'#779bc1');stroke(c,24,-52,33,-64,'#e3e7ff',2);
         poly(c,[[-39,-46],[-25,-49],[-22,-28],[-36,-25]],'#d4caee');stroke(c,-35,-39,-28,-40,'#8373ad',2);stroke(c,-34,-33,-27,-34,'#8373ad',2);
+      }else if(id==='lumina'){
+        this.lumina(c,t,still,boss);
       }else if(id==='sentinel'){
         // Folded paper armour, a square shield and gold seams give a crisp outline.
         poly(c,[[-24,-12],[-19,-48],[0,-57],[20,-47],[25,-12]],'#d5c99b');
@@ -372,6 +466,44 @@
       this.npcMaterials(c,id,boss);
       if(boss&&phase>1){box(c,-18,-87,36,3,'#f3b09c');gem(c,0,-98,8,'#ffd1b0');}
       c.restore();
+    }
+    lumina(c,t,still,boss){
+      // Adult star-cartographer, rose-silver bob, tailored navy dress and an
+      // ivory shoulder cape. Her silhouette and long staff match her portrait.
+      const sway=still?0:Math.round(Math.sin(t*1.8)*2),eye=boss?'#d26594':'#3c536d';
+      box(c,-11,-12,8,15,'#25334a');box(c,7,-12,8,15,'#25334a');box(c,-11,-1,10,4,'#b6a5a1');box(c,7,-1,10,4,'#b6a5a1');
+      poly(c,[[-14,-49],[-23,-12],[-19,-5],[0,-9],[23,-5],[21,-17],[12,-49]],'#17253d');
+      poly(c,[[-11,-46],[-18,-13],[-10,-9],[0,-13],[17,-9],[13,-45]],'#405673');
+      poly(c,[[-12,-41],[-16,-15],[-10,-11],[-3,-16],[-5,-42]],'#6d8295');
+      poly(c,[[6,-43],[12,-43],[17,-10],[7,-14]],'#2e3b5a');
+      stroke(c,-16,-11,0,-15,'#d7bfaa',2);stroke(c,0,-15,17,-10,'#b59c9a',2);
+      box(c,-13,-29,26,4,'#d9bd98');gem(c,0,-27,4,'#f2cfdd');
+      // Cream cape splits behind the arms; a folded star map hangs at the hip.
+      poly(c,[[-12,-57],[-25,-45],[-25+sway,-27],[-15,-32],[-3,-49],[10,-51],[22,-33],[26,-43],[12,-57]],'#d0cfc8');
+      poly(c,[[-12,-55],[-21,-45],[-21+sway,-33],[-15,-37],[-4,-51]],'#fff0d9');
+      poly(c,[[9,-52],[22,-43],[22,-36],[13,-40]],'#9baeba');
+      stroke(c,-23,-43,-21,-30,'#dbb99c',2);stroke(c,21,-44,24,-36,'#dfc2aa',2);
+      box(c,-21,-26,12,17,'#bca1ac');box(c,-18,-25,8,14,'#f0ddc4');stroke(c,-16,-21,-12,-17,'#778ea3',1);gem(c,-14,-16,3,'#b17b9c');
+      // Neck and face use a smaller head than the apprentice sprites.
+      box(c,-5,-62,10,11,'#e3ad9d');box(c,-12,-80,25,25,'#766b89');
+      box(c,-10,-78,20,20,'#d8a393');box(c,-9,-77,18,17,'#f1c7b1');box(c,-9,-65,4,6,'#e7b3a2');
+      box(c,-6,-69,3,4,eye);box(c,4,-69,3,4,eye);box(c,-6,-69,1,1,'#edf5ed');box(c,4,-69,1,1,'#edf5ed');
+      box(c,-8,-64,4,2,'#df9eab');box(c,5,-64,4,2,'#df9eab');box(c,-1,-61,4,1,'#ad7185');
+      // Asymmetric silver-rose bob, one swept fringe and a star hairpin.
+      poly(c,[[-15,-65],[-15,-79],[-7,-86],[6,-86],[14,-79],[16,-60],[9,-56],[9,-72],[3,-78],[-8,-71],[-9,-56],[-16,-59]],'#ae91aa');
+      poly(c,[[-13,-77],[-6,-83],[6,-83],[10,-78],[3,-78],[-8,-71],[-9,-58],[-13,-60]],'#edcad6');
+      poly(c,[[6,-82],[12,-77],[14,-62],[10,-59],[9,-74]],'#c9b5cd');
+      box(c,-8,-81,10,3,'#f6e3df');stroke(c,-12,-70,-12,-61,'#d8bbce',2);
+      gem(c,12,-74,5,'#ffe8b9');box(c,11,-77,2,6,'#fff6d9');
+      // A restrained collar pendant and staff distinguish her friendly magic.
+      poly(c,[[-7,-57],[0,-49],[8,-57],[5,-47],[-5,-47]],'#f0e6d4');gem(c,0,-49,5,'#b9e4d8');
+      stroke(c,31,-1,31,-78,'#d4b69e',4);stroke(c,30,-75,30,-6,'#f0d6ba',1);
+      poly(c,[[31,-98],[41,-85],[34,-75],[31,-64],[24,-77],[22,-86]],'#66547c');
+      poly(c,[[31,-94],[37,-84],[32,-78],[29,-69],[27,-80],[26,-86]],'#d9bad5');
+      gem(c,31,-83,8,boss?'#f2a6c8':'#b5eddc');gem(c,30,-85,4,'#efffe5');
+      stroke(c,20,-83,42,-83,'#e8c5a8',2);gem(c,23,-83,3,'#f8daaf');gem(c,40,-83,3,'#f8daaf');
+      box(c,18,-39,12,7,'#d4cfc8');box(c,27,-39,6,7,'#efc1ac');
+      aura(c,31,-83,12,boss?'#eab1d0':'#b5e9d8',.06);
     }
     npcMaterials(c,id,boss){
       // Broad left-lit / right-shadowed planes add volume. Accessories remain
@@ -406,6 +538,9 @@
         poly(c,[[-17,-70],[-10,-84],[-8,-76],[-12,-68]],'#d7bff0');poly(c,[[1,-77],[13,-65],[3,-65]],'#8875b0');box(c,-21,-63,40,2,'#f5dbec');
         box(c,-16,-11,34,3,'#d8bddf');box(c,-5,-34,8,2,'#fff1da');gem(c,0,-29,3,'#fff3cf');box(c,-14,-29,8,12,'#64557c');box(c,-13,-28,3,10,'#e2c6b2');
         gem(c,27,-61,6,'#b5dcdf');box(c,25,-47,9,3,'#edc8dd');stroke(c,-35,-44,-31,-44,'#fff1db',2);
+      }else if(id==='lumina'){
+        // Small star embroidery stays distinct from the apprentice's mirror.
+        gem(c,-7,-19,3,'#cbd9dc');box(c,8,-37,2,7,'#d6c4b4');box(c,5,-35,7,2,'#d6c4b4');
       }else if(id==='sentinel'){
         poly(c,[[-14,-71],[-1,-78],[-1,-60]],'#fff1c3');poly(c,[[2,-78],[15,-70],[4,-60]],'#b5a16d');box(c,-17,-51,34,3,'#a18b5d');
         stroke(c,-15,-43,-3,-35,'#f6e8ba',2);stroke(c,3,-35,16,-43,'#fff0bd',2);gem(c,0,-32,6,'#9f8f65');gem(c,0,-33,3,'#fff2be');
@@ -442,6 +577,7 @@
         box(c,x+4,base-shaft*.55,w-8,2,p.wall);
         if(region===0){box(c,x+1,base-shaft-20,w-2,3,p.leaf);box(c,x+w-11,base-shaft-17,6,13,p.leaf);}
         if(region===2){gem(c,cx,base-shaft-21,8,p.glow);}
+        if(region===3){box(c,cx-2,base-shaft-13,4,shaft-2,'#a3b6bc');gem(c,cx,base-shaft-24,9,'#e7b1c9');gem(c,cx-1,base-shaft-26,4,'#ffe4db');}
       }
     }
     actorMarker(c,a,kind='player'){
@@ -489,7 +625,7 @@
       if(spawning){c.save();c.globalAlpha=.35;this.targetRing(c,e,p,t);c.restore();}
       c.save();if(spawning)c.globalAlpha*=.45;c.translate(Math.round(x),Math.round(y));c.scale(scale,scale);
       if(isNpc)this.npc(c,npcId,p,t,still,boss,val(e.phase,1));
-      else if(this.legacy?.enemy)this.legacy.enemy.call(this.legacy,c,0,0,{id:type,kind:boss?'boss':e.kind,boss,phase:e.phase},t,p,still,[1,0,2][region]);
+      else if(this.legacy?.enemy)this.legacy.enemy.call(this.legacy,c,0,0,{id:type,kind:boss?'boss':e.kind,boss,phase:e.phase},t,p,still,[1,0,2,3][region]);
       else this.fallbackFoe(c,e,p,boss);
       c.restore();
       if(val(e.chargeTime)>0){c.save();c.globalAlpha=.7;stroke(c,x-val(e.chargeX)*20,y-val(e.chargeY)*20,x-val(e.chargeX)*37,y-val(e.chargeY)*37,p.hot,3);c.restore();}
@@ -703,9 +839,19 @@
         const r=19+progress*6;c.strokeStyle=color;c.lineWidth=2;c.beginPath();c.moveTo(xx,yy-r);c.lineTo(xx+r,yy);c.lineTo(xx,yy+r);c.lineTo(xx-r,yy);c.closePath();c.stroke();
         gem(c,xx,yy,5,'#e7d5ff');
       }
+      if(!['heal','shield'].includes(element)){
+        // Small chiselled impact rays reveal the hit's direction, with a fixed
+        // footprint in reduced motion and no persistent emitters or full flashes.
+        c.globalAlpha=alpha*.55;
+        const impact=still?29:22+progress*14;
+        for(let i=0;i<4;i++){
+          const angle=Math.PI/4+i*TAU/4,ax=Math.cos(angle),ay=Math.sin(angle);
+          stroke(c,xx+ax*impact,yy+ay*impact*.65,xx+ax*(impact+5),yy+ay*(impact+5)*.65,color,1);
+        }
+      }
       if(echo){
         c.globalAlpha=alpha*.65;c.setLineDash([3,5]);stroke(c,x+nx*7,y+ny*7,xx+nx*7,yy+ny*7,'#e9dfff',1);c.setLineDash([]);
-        const label=e.npcId==='lantern'?'護持':e.npcId==='sentinel'?'援擊':'回聲';
+        const label=e.npcId==='lumina'?'星誓':e.npcId==='lantern'?'護持':e.npcId==='sentinel'?'援擊':'回聲';
         c.font='bold 12px sans-serif';c.textAlign='center';c.fillStyle=color;c.fillText(label,x,y-35-(still?0:progress*12));
       }
       c.restore();
