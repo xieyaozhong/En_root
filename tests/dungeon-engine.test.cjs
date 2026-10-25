@@ -18,8 +18,11 @@ function routeOf(kind) {
 }
 const same1=E.createRun({word:'robot'},false,24), same2=E.createRun({word:'robot'},false,24);
 assert.deepEqual(same1,same2,'seed reproduces run');
+assert.equal(same1.floorPlan.length,24);
+assert.ok(same1.bossRoster.every((id,region)=>E.BOSS_POOLS[region].includes(id)));
 assert.ok(same1.wordPool.length>20,'English words loaded from card bank');
 const s=E.createRun({word:'quarantine',zh:'隔離',rarity:'UR'},false,'test');
+s.floorPlan[0].omen='none'; // Isolate spell penalties from opening ward omens.
 assert.equal(s.status,'route');
 assert.equal(E.submit(s,'fire').ok,false);
 E.chooseRoute(s,'battle');
@@ -74,6 +77,7 @@ E.tick(lost,1);
 assert.equal(lost.elapsed,lostElapsed,'terminal states freeze combat');
 assert.equal(E.useItem(lost,'potion').ok,false);
 const mechanics=E.createRun({word:'rune'},true,31);
+mechanics.floorPlan[0].omen='none';
 mechanics.relics.push(E.RELICS.shell,E.RELICS.clock,E.RELICS.phoenix);
 E.chooseRoute(mechanics,'battle');
 assert.equal(mechanics.player.shield,18,'dragon relic grants opening shield');
@@ -86,6 +90,8 @@ mechanics.player.shield=0;mechanics.player.hp=1;mechanics.enemy.intent.remaining
 E.tick(mechanics,1);assert.equal(mechanics.status,'lost','phoenix works only once');
 for (const bossId of [3,7,11]) {
   const phase=E.createRun({word:'quarantine'},true,100);
+  delete phase.randomWorldVersion;delete phase.bossRoster;delete phase.floorPlan;
+  delete phase.regionCount;phase.nodesPerRegion=4; // Preserve the original three-boss timing fixture.
   phase.encounter=bossId;phase.region=Math.floor(bossId/4);phase.routes=[{id:'boss',type:'boss',name:'首領'}];
   E.chooseRoute(phase,'boss');
   phase.enemy.hp=Math.floor(phase.enemy.maxHp/2)+1;
@@ -95,6 +101,7 @@ for (const bossId of [3,7,11]) {
   assert.ok(phase.enemy.intent.duration>=9.5,'boss phase change is fairly telegraphed');
 }
 const consumables=E.createRun({word:'rune'},true,11);
+consumables.floorPlan[0].omen='none';
 E.chooseRoute(consumables,'battle');
 for(const id of ['hourglass','barrier','focus'])consumables.inventory.push({...E.ITEMS[id],count:1});
 const intentTime=consumables.enemy.intent.remaining;
@@ -122,6 +129,7 @@ for(let seed=0;seed<80;seed++) {
 const summaries=[];
 for(const seconds of [0,3,5,7]) {
   const run=E.createRun({word:'quarantine',zh:'隔離',rarity:'N'},false,77);
+  delete run.randomWorldVersion;delete run.bossRoster;delete run.floorPlan; // Fixed-world typing balance baseline.
   let guard=0;
   while(!['won','lost'].includes(run.status) && guard++<1000) {
     if(run.player.hp<run.player.maxHp-38) E.useItem(run,'potion');

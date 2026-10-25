@@ -242,7 +242,11 @@
     enemy(c,x,y,e,t,p,still,region){
       const tag=String(e.id||e.kind||e.name||'').toLowerCase();t=still?0:t;const bob=still?0:Math.round(Math.sin(t*2.3)*3);
       if(e.boss||e.kind==='boss'){
-        if(/constellation|失約/.test(tag))this.constellationBoss(c,x,y,t,p,bob);
+        if(tag==='spore')this.sporeBoss(c,x,y,t,p,bob,e.phase);
+        else if(tag==='prism')this.prismBoss(c,x,y,t,p,bob,e.phase);
+        else if(tag==='hollow')this.hollowBoss(c,x,y,t,p,bob,e.phase);
+        else if(tag==='cometqueen')this.cometQueenBoss(c,x,y,t,p,bob,e.phase);
+        else if(/constellation|失約/.test(tag))this.constellationBoss(c,x,y,t,p,bob);
         else if(/astral|星龍/.test(tag))this.astralBoss(c,x,y,t,p,bob,e.phase);
         else if(/thorn|root|tree|forest|wood|樹|森/.test(tag))this.treeBoss(c,x,y,t,p,bob);
         else if(/witch|lich|巫/.test(tag))this.lichBoss(c,x,y,t,p,bob);
@@ -261,6 +265,164 @@
       else if(/spider|蛛/.test(tag))this.spider(c,x,y+bob,p,t);
       else if(/skull|skeleton|bone|骷|骨/.test(tag))this.skeleton(c,x,y+bob,p);
       else this.slime(c,x,y+bob,p,t,region);
+    }
+    sporeBoss(c,x,y,t,p,bob,phase){
+      // The cap floats above a rooted stalk. Tendril tips keep a clear floor anchor.
+      const awake=phase>1,b=bob*.5,spread=awake?8:0;
+      c.save();c.translate(x,y);
+      for(const s of [-1,1]){
+        for(let i=0;i<3;i++){
+          const reach=22+i*16,flex=Math.round(Math.sin(t*1.4+i)*3);
+          facet(c,[[s*(9+i*3),-50+b],[s*(21+i*7),-32+b],[s*(reach+flex),-12],[s*(reach+12),-3],[s*(reach+1),0],[s*(reach-7),-8],[s*(15+i*6),-26]],'#253b32');
+          line(c,s*(14+i*3),-43+b,s*(reach+flex),-10,'#799764',4);
+          rect(c,s*(reach+7)-4,-4,8,4,'#bddb83');
+        }
+        facet(c,[[s*16,-86+b],[s*35,-73+b],[s*(44+spread),-47+b],[s*32,-53+b],[s*22,-68+b]],'#425f48');
+        diamond(c,s*(42+spread),-50+b,awake?10:7,'#d7ce83');
+      }
+      facet(c,[[-24,-88+b],[22,-88+b],[30,-57+b],[19,-19],[-19,-19],[-29,-53+b]],'#313e31');
+      facet(c,[[-18,-84+b],[15,-84+b],[22,-59+b],[12,-27],[-13,-25],[-22,-55+b]],'#b3b891');
+      facet(c,[[1,-82+b],[15,-84+b],[22,-59+b],[12,-27],[3,-25],[8,-51+b]],'#788565');
+      line(c,-13,-56+b,-9,-29,'#dfe0b0',3);line(c,15,-58+b,10,-35,'#4e6550',3);
+      facet(c,[[-67,-98+b],[-48,-78+b],[-20,-68+b],[20,-68+b],[48,-78+b],[67,-98+b]],'#332e36');
+      facet(c,[[-61,-98+b],[-44,-81+b],[-18,-73+b],[18,-73+b],[44,-81+b],[61,-98+b]],'#ca9d83');
+      for(let i=-4;i<=4;i++)line(c,i*14,-95+b,i*4,-75+b,i%2?'#906b68':'#e5bd93',3);
+      // A broad asymmetric mushroom dome, scalloped rim, and raised spore crown.
+      facet(c,[[-79,-99+b],[-63,-120+b],[-36,-137+b],[-4,-143+b],[33,-135+b],[61,-119+b],[79,-98+b],[62,-89+b],[34,-93+b],[9,-87+b],[-19,-93+b],[-47,-88+b]],'#24382f');
+      facet(c,[[-71,-101+b],[-57,-119+b],[-32,-132+b],[-3,-137+b],[30,-130+b],[55,-116+b],[70,-100+b],[49,-97+b],[24,-101+b],[-1,-95+b],[-26,-100+b],[-49,-95+b]],awake?'#aa5869':'#876b71');
+      facet(c,[[-56,-116+b],[-31,-129+b],[-4,-134+b],[14,-130+b],[-7,-124+b],[-31,-117+b],[-50,-106+b]],'#d29b8d');
+      facet(c,[[19,-127+b],[49,-113+b],[63,-102+b],[42,-101+b],[23,-106+b]],'#6c4c62');
+      for(const [px,py,size] of [[-46,-108,8],[-20,-123,9],[14,-115,11],[44,-109,6],[-9,-103,5]]){
+        disk(c,px,py+b,size,'#e1d3a0');disk(c,px-2,py-2+b,Math.max(2,size-4),'#f7e9bf');
+      }
+      for(let i=0;i<5;i++){
+        const px=(i-2)*15,py=-140-Math.abs(i-2)*-3+b-(awake?5:0);
+        line(c,px,-128+b,px,py,'#758f59',4);
+        facet(c,[[px-6,py],[px-7,py-7],[px,py-13],[px+7,py-7],[px+6,py]],'#394c35');
+        diamond(c,px,py-5,awake?9:6,awake?'#dcf0a6':'#a9c779');
+        if(awake){line(c,px-5,py-4,px-10,py-9,'#e6df9a',2);line(c,px+5,py-4,px+10,py-9,'#e6df9a',2);}
+      }
+      rect(c,-14,-66+b,8,5,'#293a35');rect(c,7,-66+b,8,5,'#293a35');
+      rect(c,-12,-66+b,4,3,'#e8f6b4');rect(c,9,-66+b,4,3,'#e8f6b4');
+      facet(c,[[-8,-55+b],[0,-51+b],[9,-55+b],[5,-45+b],[-5,-45+b]],'#546148');
+      if(awake){glow(c,0,-55+b,20,'#d0e896',.09);diamond(c,0,-53+b,6,'#e8f3b0');}
+      c.restore();
+    }
+    prismBoss(c,x,y,t,p,bob,phase){
+      // A low four-legged beast carries a rigid fan of individual mirror blades.
+      const awake=phase>1,flare=awake?8:0,sway=Math.round(Math.sin(t*1.1)*2);
+      c.save();c.translate(x,y);
+      for(const s of [-1,1]){
+        for(let i=0;i<4;i++){
+          const tipX=s*(40+i*18+flare),tipY=-148+i*23+sway;
+          const baseX=s*(12+i*4),baseY=-56+i*4;
+          facet(c,[[baseX-7,-42],[tipX-s*14,tipY+12],[tipX,tipY],[tipX+s*7,tipY+20],[baseX+9,baseY]],'#202c48');
+          facet(c,[[baseX,-47],[tipX-s*10,tipY+14],[tipX,tipY+5],[tipX+s*2,tipY+21]],i%2?'#7fafd0':'#b8cddd');
+          facet(c,[[baseX+3,baseY],[tipX,tipY+5],[tipX+s*2,tipY+21],[baseX+7,baseY+3]],i%2?'#5d628e':'#7892b5');
+          line(c,baseX,-48,tipX-s*2,tipY+10,'#e9f5ee',2);
+          diamond(c,tipX-s*3,tipY+18,4,awake?'#f4bbdb':'#d0f6e5');
+        }
+        facet(c,[[s*19,-44],[s*43,-39],[s*47,-11],[s*63,-6],[s*60,0],[s*34,0],[s*28,-23]],'#26354c');
+        facet(c,[[s*22,-40],[s*36,-35],[s*39,-13],[s*51,-8],[s*36,-6],[s*29,-24]],'#8daac4');
+        facet(c,[[s*14,-34],[s*25,-29],[s*24,-7],[s*35,-3],[s*33,1],[s*9,1],[s*11,-17]],'#4d6282');
+        line(c,s*18,-26,s*16,-6,'#c2e6e7',3);
+        for(let i=0;i<3;i++)rect(c,s*(38+i*8)-2,-3,4,4,'#def1e8');
+      }
+      facet(c,[[-43,-58],[-27,-86],[5,-94],[34,-80],[45,-51],[25,-26],[-21,-25]],'#24354d');
+      facet(c,[[-36,-57],[-24,-78],[3,-86],[29,-73],[36,-52],[20,-32],[-17,-31]],'#81a6c2');
+      facet(c,[[-24,-78],[3,-86],[1,-55],[-17,-31],[-36,-57]],'#c0d9df');
+      facet(c,[[3,-86],[29,-73],[36,-52],[1,-55]],'#656c9d');
+      facet(c,[[1,-55],[36,-52],[20,-32],[-17,-31]],'#496383');
+      diamond(c,0,-55,awake?23:17,'#233c54');diamond(c,-1,-57,awake?17:11,awake?'#e59bc9':'#9ee2dc');
+      diamond(c,-3,-61,6,'#f1f9e5');
+      // A forward-facing faceted muzzle gives the fan a visible living owner.
+      facet(c,[[-26,-88],[-23,-112],[-11,-103],[11,-103],[25,-116],[27,-87],[18,-66],[0,-57],[-19,-68]],'#243049');
+      facet(c,[[-20,-87],[-18,-102],[-9,-97],[9,-97],[20,-105],[21,-85],[13,-72],[0,-65],[-14,-74]],'#b8d4df');
+      facet(c,[[0,-97],[9,-97],[20,-105],[21,-85],[13,-72],[0,-65],[5,-82]],'#7a94ba');
+      line(c,-19,-88,-7,-84,'#364568',4);line(c,7,-84,19,-88,'#364568',4);
+      rect(c,-14,-87,5,3,'#f4c9e2');rect(c,10,-87,5,3,'#f4c9e2');
+      facet(c,[[-11,-76],[0,-80],[12,-76],[0,-68]],'#354b6b');diamond(c,0,-100,6,'#f5e1b7');
+      if(awake){line(c,-28,-64,-10,-56,'#f7d5e3',3);line(c,12,-52,28,-40,'#f7d5e3',3);diamond(c,-26,-65,5,'#fff4e3');diamond(c,29,-39,5,'#fff4e3');}
+      c.restore();
+    }
+    hollowBoss(c,x,y,t,p,bob,phase){
+      const awake=phase>1,b=bob*.6,swing=Math.round(Math.sin(t*1.6)*(awake?7:4));
+      c.save();c.translate(x,y);
+      // Chains and wide sleeves frame a bronze bell; the clapper marks its center.
+      for(const s of [-1,1]){
+        facet(c,[[s*17,-104+b],[s*38,-91+b],[s*59,-55+b],[s*48,-44+b],[s*28,-64+b],[s*16,-76+b]],'#24283a');
+        facet(c,[[s*23,-93+b],[s*34,-85+b],[s*50,-57+b],[s*45,-53+b],[s*29,-74+b]],'#655b69');
+        line(c,s*28,-93+b,s*48,-56+b,'#ae926b',3);
+        rect(c,s*49-4,-49+b,9,7,'#ceb68a');
+        for(let i=0;i<5;i++){
+          const xx=s*(53+i*.8),yy=-39+b+i*7;
+          rect(c,xx-3,yy,6,6,'#a28a65');rect(c,xx-1,yy+1,2,4,'#29313e');
+        }
+        diamond(c,s*57,-2+b,8,awake?'#b7ddd2':'#8eafad');
+      }
+      facet(c,[[-20,-99+b],[20,-99+b],[25,-73+b],[35,-48+b],[45,-30+b],[43,-19+b],[-43,-19+b],[-45,-30+b],[-35,-48+b],[-25,-73+b]],'#272b32');
+      facet(c,[[-15,-94+b],[15,-94+b],[19,-70+b],[30,-45+b],[38,-31+b],[-38,-31+b],[-30,-45+b],[-19,-70+b]],'#967747');
+      facet(c,[[-13,-91+b],[-4,-91+b],[-8,-66+b],[-19,-40+b],[-31,-34+b],[-26,-46+b],[-16,-70+b]],'#d2b37b');
+      facet(c,[[8,-92+b],[15,-94+b],[19,-70+b],[30,-45+b],[38,-31+b],[22,-33+b],[13,-60+b]],'#66513c');
+      rect(c,-21,-76+b,42,5,'#b89a64');rect(c,-29,-46+b,58,4,'#ba9e67');
+      facet(c,[[-43,-31+b],[43,-31+b],[45,-22+b],[32,-16+b],[-32,-16+b],[-45,-22+b]],'#b2925d');
+      facet(c,[[-34,-24+b],[34,-24+b],[26,-19+b],[-26,-19+b]],'#232a32');
+      line(c,0,-37+b,swing,-13+b,'#b5a17a',5);disk(c,swing,-9+b,8,'#4a514e');disk(c,swing-2,-11+b,5,'#d1c69d');
+      // A long hood conceals an empty face, with no shared dragon or mage silhouette.
+      facet(c,[[-27,-99+b],[-24,-125+b],[-9,-145+b],[9,-145+b],[24,-125+b],[27,-99+b],[12,-87+b],[-12,-87+b]],'#252936');
+      facet(c,[[-20,-104+b],[-17,-123+b],[-6,-138+b],[5,-138+b],[16,-122+b],[20,-105+b],[10,-95+b],[-11,-95+b]],'#6b6369');
+      facet(c,[[-12,-113+b],[0,-129+b],[12,-113+b],[10,-100+b],[-10,-100+b]],'#162831');
+      line(c,-16,-122+b,-22,-103+b,'#c1a67c',3);line(c,16,-122+b,22,-103+b,'#c1a67c',3);
+      rect(c,-8,-111+b,5,3,'#c9e2cc');rect(c,4,-111+b,5,3,'#c9e2cc');
+      diamond(c,0,-143+b,7,'#c4aa74');line(c,0,-153+b,0,-137+b,'#e4c78a',3);
+      const crack=awake?'#d8f2ce':'#394b45';
+      line(c,5,-87+b,-4,-68+b,crack,awake?4:2);line(c,-4,-68+b,8,-56+b,crack,awake?4:2);line(c,8,-56+b,-1,-33+b,crack,awake?4:2);
+      if(awake){
+        line(c,-4,-68+b,-17,-64+b,'#d8f2ce',3);line(c,8,-56+b,23,-50+b,'#d8f2ce',3);
+        for(const s of [-1,1]){facet(c,[[s*35,-64+b],[s*44,-69+b],[s*47,-57+b],[s*39,-51+b]],'#b89d6c');diamond(c,s*37,-76+b,4,'#e2e9bd');}
+        glow(c,0,-60+b,19,'#d8e9ba',.08);
+      }
+      c.restore();
+    }
+    cometQueenBoss(c,x,y,t,p,bob,phase){
+      const awake=phase>1,b=bob*.4,trail=Math.round(Math.sin(t*1.3)*3),extent=awake?8:0;
+      c.save();c.translate(x,y);
+      // Layered comet ribbons form a sweeping royal mantle, never bat wings.
+      for(const s of [-1,1]){
+        facet(c,[[s*14,-90+b],[s*40,-118+b],[s*(93+extent),-130+trail],[s*74,-104+b],[s*(99+extent),-80+trail],[s*63,-84+b],[s*82,-49+trail],[s*48,-66+b],[s*35,-33+b],[s*24,-65+b]],'#25324c');
+        facet(c,[[s*21,-87+b],[s*44,-110+b],[s*(84+extent),-121+trail],[s*62,-99+b],[s*85,-85+trail],[s*53,-88+b],[s*66,-61+trail],[s*41,-78+b],[s*31,-50+b]],'#8a8cb4');
+        facet(c,[[s*28,-91+b],[s*47,-107+b],[s*(75+extent),-116+trail],[s*52,-95+b],[s*71,-87+trail],[s*43,-91+b],[s*54,-72+trail]],'#e5becf');
+        line(c,s*28,-85+b,s*72,-112+trail,'#f1dec4',3);
+        diamond(c,s*74,-113+trail,5,'#e2f0d7');diamond(c,s*68,-83+trail,4,'#b5ece0');
+        if(awake){facet(c,[[s*33,-71+b],[s*58,-57],[s*86,-25+trail],[s*58,-40],[s*46,-32]],'#6a789f');line(c,s*46,-61,s*76,-33+trail,'#d4c8df',3);}
+      }
+      // A fitted bodice, long split gown and visible feet establish an adult figure.
+      rect(c,-12,-8,9,9,'#d9bd99');rect(c,5,-8,9,9,'#d9bd99');
+      facet(c,[[-17,-79+b],[17,-79+b],[13,-56+b],[22,-32],[34,-5],[17,0],[2,-10],[-15,0],[-34,-5],[-22,-32],[-13,-56+b]],'#25354f');
+      facet(c,[[-10,-75+b],[10,-75+b],[8,-55+b],[16,-31],[23,-7],[9,-11],[0,-21],[-9,-10],[-23,-7],[-15,-30],[-8,-55+b]],'#d9d6d0');
+      facet(c,[[3,-73+b],[10,-75+b],[8,-55+b],[16,-31],[23,-7],[9,-11],[0,-21]],'#a7adc5');
+      line(c,-15,-50+b,-26,-8,'#d3b781',3);line(c,15,-50+b,26,-8,'#d3b781',3);
+      rect(c,-13,-59+b,26,5,'#b39768');diamond(c,0,-58+b,7,'#94d6cc');diamond(c,0,-59+b,3,'#ecf5d5');
+      for(const s of [-1,1]){
+        facet(c,[[s*14,-79+b],[s*24,-75+b],[s*36,-54+b],[s*29,-48+b],[s*17,-64+b]],'#4f6185');
+        line(c,s*22,-71+b,s*30,-56+b,'#b3bfd2',4);rect(c,s*31-4,-55+b,8,8,'#e9c5b0');
+        diamond(c,s*38,-53+b,6,'#e4d1ac');
+      }
+      facet(c,[[-20,-99+b],[-15,-119+b],[0,-125+b],[17,-118+b],[22,-96+b],[17,-76+b],[10,-88+b],[-10,-88+b],[-19,-77+b]],'#dfd6df');
+      facet(c,[[8,-119+b],[17,-118+b],[22,-96+b],[17,-76+b],[10,-88+b],[13,-104+b]],'#9e9fb9');
+      rect(c,-10,-105+b,21,21,'#ecc9b4');facet(c,[[-10,-87+b],[11,-87+b],[5,-80+b],[-4,-80+b]],'#c59a95');
+      facet(c,[[-16,-106+b],[-8,-118+b],[7,-119+b],[17,-107+b],[4,-112+b],[-5,-102+b]],'#f0e3df');
+      rect(c,-8,-99+b,5,3,'#47577d');rect(c,4,-99+b,5,3,'#47577d');rect(c,-3,-90+b,6,2,'#ae787e');
+      // The orbit is a compact crown above the head, not a floor attack warning.
+      c.save();c.strokeStyle='#c8b08b';c.lineWidth=3;c.beginPath();c.ellipse(0,-132+b,awake?33:27,9,-.12,0,Math.PI*2);c.stroke();c.restore();
+      for(let i=0;i<5;i++){
+        const angle=t*.3+i*Math.PI*2/5,xx=Math.cos(angle)*(awake?33:27),yy=-132+b+Math.sin(angle)*9;
+        diamond(c,xx,yy,5,i%2?'#c7ebdf':'#e8c3dd');
+      }
+      facet(c,[[-13,-118+b],[-18,-131+b],[-5,-126+b],[0,-143+b],[7,-126+b],[18,-132+b],[13,-117+b]],'#b99c6c');
+      diamond(c,0,-132+b,8,'#d9ebe0');diamond(c,0,-134+b,4,'#fff0cf');
+      if(awake){diamond(c,0,-151+b,5,'#f1d0df');glow(c,0,-130+b,21,'#f4c5dc',.07);}
+      c.restore();
     }
     astralEnemy(c,x,y,t,p,tag){
       if(tag==='astrolabe'){

@@ -1,6 +1,6 @@
 /* Wordbound: original pixel arena art. World coordinates are 960 x 540.
  * Public API: new DungeonArenaRenderer(canvas), draw({run,paused,reducedMotion,aim}, ms), burst(kind).
- * DungeonRenderer, if present, supplies the original character sprite artwork. */
+ * DungeonCharacter supplies articulated actors; DungeonRenderer remains the fallback. */
 (() => {
   'use strict';
   const W=960,H=540,TAU=Math.PI*2;
@@ -33,6 +33,7 @@
       this.legacy=window.DungeonRenderer?.prototype||null;
       this.random=random(77483);this.clock=0;this.lastTime=null;this.particles=[];this.trail=[];this.shake=0;this.flash=0;this.flashKind='';this.lastScene=null;this.lastPlayer=null;this.lastRoom=null;
       this.visualRun=null;this.deathArena=null;this.seenDeaths=new Set();this.deathScenes=[];this.lastPhaseKey=null;
+      this.actorTracks=new Map();this.actorFrame=0;this.actorRun=null;this.actorSpace=null;this.actorScope='';this.actorContext=null;this.hurtCue=0;
     }
     resize(){this.ctx.imageSmoothingEnabled=false;}
     background(p,region){
@@ -156,6 +157,7 @@
 
     burst(kind='cast'){
       this.flashKind=String(kind);this.flash=1;
+      if(/hurt|damage/.test(kind))this.hurtCue++;
       const scene=this.lastScene,run=scene?.run,arena=EXPLORATION_STATES.has(run?.status)?run?.exploration:run?.arena,player=arena?.player;
       const target=arena?.enemies?.find(e=>String(e.id)===String(arena?.targetId)&&e.alive!==false&&e.hp>0);
       const friendly=/hurt|damage|heal|potion|shield|barrier|dash/.test(kind);
@@ -174,6 +176,7 @@
       this.captureDeaths(run);
       this.lastScene=scene;
       const roomKey=exploration?.key??arena?.room?.id??null;if(roomKey!==this.lastRoom){this.trail=[];this.particles=[];this.lastPlayer=null;this.lastRoom=roomKey;}
+      this.beginActors(run,exploration||arena,scene,dt);
       const c=this.ctx;c.save();c.setTransform(1,0,0,1,0,0);c.globalAlpha=1;c.clearRect(0,0,W,H);box(c,0,0,W,H,p.void);
       if(!still&&this.shake>0)c.translate(Math.round(Math.sin(t*73)*this.shake*3),Math.round(Math.cos(t*91)*this.shake*2));
       c.drawImage(this.backdrops[region],0,0);this.ambience(c,p,region,t,still);
@@ -181,10 +184,100 @@
       else if(arena)this.drawArena(c,arena,run,scene,p,region,t,dt,still);else this.lobby(c,p,region,t);
       this.drawDeaths(c,p,region,run,dt,paused,still);
       this.localEffects(c,p,dt,paused,still);
+      // Cosmetic tracking is confined to actors actually rendered in this map.
+      for(const [key,actor] of this.actorTracks)if(actor.frame!==this.actorFrame)this.actorTracks.delete(key);
       // A small foreground lip encloses the room without obscuring feet.
       c.globalAlpha=.28;box(c,24,502,912,9,p.void);c.globalAlpha=1;
       c.restore();
       if(!paused){this.shake=Math.max(0,this.shake-dt*2);this.flash=Math.max(0,this.flash-dt*2.5);}
+    }
+    beginActors(run,space,scene,dt){
+      const scope=space?(EXPLORATION_STATES.has(run?.status)?'explore:':'arena:')+String(space.key??space.room?.id??'room'):'lobby';
+      if(this.actorRun!==run||this.actorSpace!==space||this.actorScope!==scope){
+        this.actorTracks.clear();this.trail=[];this.lastPlayer=null;
+        this.actorRun=run;this.actorSpace=space;this.actorScope=scope;
+      }
+      this.actorFrame++;
+      this.actorContext={run,space,paused:!!scene.paused,reducedMotion:!!scene.reducedMotion,dt:scene.paused?0:dt,focus:!!scene.focus};
+    }
+    actorPose(key,actor,options={}){
+      const context=this.actorContext||{dt:0,paused:false,reducedMotion:false},x=val(actor.x),y=val(actor.y);
+      let state=this.actorTracks.get(key);
+      if(!state){
+        // Only renderer-owned values live here; save data and collision actors are never modified.
+        if(this.actorTracks.size>=40)this.actorTracks.delete(this.actorTracks.keys().next().value);
+        let fx=val(actor.facingX,1),fy=val(actor.facingY),length=Math.hypot(fx,fy);
+        if(length<.01){fx=1;fy=0;length=1;}
+        state={x,y,hp:val(options.hp,1),phase:0,speed:0,moving:0,facingX:fx/length,facingY:fy/length,
+          castAge:1,hurtAge:1,hurtValue:0,hurtCue:this.hurtCue,castIds:new Set(),look:null,pose:null,frame:-1};
+        this.actorTracks.set(key,state);
+      }
+      if(state.frame===this.actorFrame&&state.pose)return state.pose;
+      state.frame=this.actorFrame;
+      if(context.paused&&state.pose){state.x=x;state.y=y;return state.pose;}
+      const dt=context.dt,dx=x-state.x,dy=y-state.y,distance=Math.hypot(dx,dy);
+      const travel=dt>0&&distance<90?distance:0,actualSpeed=dt>0?Math.min(700,travel/dt):0;
+      state.x=x;state.y=y;
+      const ease=1-Math.exp(-dt*14);
+      state.speed+=(actualSpeed-state.speed)*ease;
+      state.moving+=(clamp(actualSpeed/155,0,1)-state.moving)*ease;
+      state.phase=(state.phase+travel/54*TAU)%TAU;
+      state.castAge=Math.min(1,state.castAge+dt);state.hurtAge=Math.min(1,state.hurtAge+dt);
+      let freshCast=null;
+      for(const effect of options.effects||[]){
+        if(val(effect.life,1)<=0)continue;
+        const id=effect.id??effect;
+        if(state.castIds.has(id))continue;
+        state.castIds.add(id);freshCast=effect;
+        if(state.castIds.size>32)state.castIds.delete(state.castIds.values().next().value);
+      }
+      if(freshCast){
+        state.castAge=0;
+        const targetX=Number(freshCast.targetX??freshCast.x2),targetY=Number(freshCast.targetY??freshCast.y2);
+        state.look=Number.isFinite(targetX)&&Number.isFinite(targetY)?{x:targetX,y:targetY}:null;
+      }
+      const hp=val(options.hp,state.hp),hurtValue=val(actor.hurt);
+      if(hp<state.hp||hurtValue>state.hurtValue+.01||(key==='player'&&state.hurtCue!==this.hurtCue))state.hurtAge=0;
+      state.hp=hp;state.hurtValue=hurtValue;state.hurtCue=this.hurtCue;
+      const dash=val(actor.dashTime)>0||val(actor.chargeTime)>0,casting=state.castAge<.52,hurting=state.hurtAge<.28;
+      let fx=state.facingX,fy=state.facingY;
+      const look=casting&&state.look?state.look:options.lookAt;
+      if(look&&(casting||travel<.1||options.chant)){fx=val(look.x)-x;fy=val(look.y)-y;}
+      else if(travel>.08){fx=dx;fy=dy;}
+      else if(Number.isFinite(actor.facingX)&&Number.isFinite(actor.facingY)){fx=actor.facingX;fy=actor.facingY;}
+      if(Math.hypot(fx,fy)>.01){
+        const from=Math.atan2(state.facingY,state.facingX),to=Math.atan2(fy,fx);
+        const difference=Math.atan2(Math.sin(to-from),Math.cos(to-from)),angle=from+difference*(1-Math.exp(-dt*20));
+        state.facingX=Math.cos(angle);state.facingY=Math.sin(angle);
+      }
+      const mode=options.fallen?'fallen':dash?'dash':hurting?'hurt':casting?'cast':options.chant?'chant':state.moving>.08?'walk':'idle';
+      const reduced=context.reducedMotion;
+      state.pose={time:reduced?0:this.clock,phase:reduced?0:state.phase,moving:reduced?0:state.moving,speed:reduced?0:state.speed,
+        facingX:state.facingX,facingY:state.facingY,mode,castProgress:casting?(reduced?.46:clamp(state.castAge/.52,0,1)):0,
+        hurtProgress:hurting?(reduced?.4:clamp(state.hurtAge/.28,0,1)):0,still:reduced};
+      return state.pose;
+    }
+    playerPose(actor,run){
+      const space=this.actorContext?.space,combat=run?.status==='combat';
+      return this.actorPose('player',actor,{hp:run?.player?.hp,fallen:run?.status==='lost',
+        chant:combat&&(this.actorContext?.focus||space?.focusActive),effects:combat?(space?.effects||[]).filter(e=>e.kind==='cast'):[]});
+    }
+    dashTrail(c,player,run,scene,p,t,dt){
+      const reduced=!!scene.reducedMotion,pose=this.playerPose(player,run);
+      if(!scene.paused){
+        if(player.dashTime>0&&!reduced){
+          if(!this.lastPlayer||Math.hypot(player.x-this.lastPlayer.x,player.y-this.lastPlayer.y)>3){
+            this.trail.push({x:player.x,y:player.y,life:.22,facingX:pose.facingX,facingY:pose.facingY,pose:{...pose}});
+            if(this.trail.length>12)this.trail.shift();
+          }
+          this.lastPlayer={x:player.x,y:player.y};
+        }else this.lastPlayer=null;
+      }
+      for(let i=this.trail.length-1;i>=0;i--){
+        const trail=this.trail[i];if(!scene.paused)trail.life-=dt;
+        if(trail.life<=0){this.trail.splice(i,1);continue;}
+        if(!reduced){c.save();c.globalAlpha=trail.life*.8;this.mage(c,trail,p,t,true,run,false,trail.pose);c.restore();}
+      }
     }
     ambience(c,p,region,t,still){
       [282,679].forEach((x,i)=>{
@@ -215,12 +308,7 @@
       // Hazards live below all actors, with separate warning and active states.
       (a.hazards||[]).forEach(h=>this.hazard(c,h,p,t,still));
       (a.effects||[]).filter(e=>/dash|spawn/.test(e.kind)).forEach(e=>this.effect(c,e,p,t,still));
-      if(player.dashTime>0&&!still){
-        if(!this.lastPlayer||Math.hypot(player.x-this.lastPlayer.x,player.y-this.lastPlayer.y)>3)this.trail.push({x:player.x,y:player.y,life:.22,facingX:player.facingX});
-        this.lastPlayer={x:player.x,y:player.y};
-      }else this.lastPlayer=null;
-      for(let i=this.trail.length-1;i>=0;i--){const trail=this.trail[i];if(!scene.paused)trail.life-=dt;if(trail.life<=0){this.trail.splice(i,1);continue;}if(!still){c.save();c.globalAlpha=trail.life*.8;this.mage(c,trail,p,t,true,run,false);c.restore();}}
-      if(this.trail.length>12)this.trail=this.trail.slice(-12);
+      this.dashTrail(c,player,run,scene,p,t,dt);
       const target=active.find(e=>String(e.id)===String(a.targetId));
       if(target)this.targetRing(c,target,p,t);
       const layers=obstacles.map(o=>({kind:'obstacle',object:o,y:val(o.y)+val(o.h,38)}));
@@ -253,12 +341,7 @@
         if(near){c.globalAlpha=.65;oval(c,x,y+3,val(o.r,24)+7,9,color);}
         c.restore();
       });
-      if(player.dashTime>0&&!still){
-        if(!this.lastPlayer||Math.hypot(player.x-this.lastPlayer.x,player.y-this.lastPlayer.y)>3)this.trail.push({x:player.x,y:player.y,life:.22,facingX:player.facingX});
-        this.lastPlayer={x:player.x,y:player.y};
-      }else this.lastPlayer=null;
-      for(let i=this.trail.length-1;i>=0;i--){const trail=this.trail[i];if(!scene.paused)trail.life-=dt;if(trail.life<=0){this.trail.splice(i,1);continue;}if(!still){c.save();c.globalAlpha=trail.life*.8;this.mage(c,trail,p,t,true,run,false);c.restore();}}
-      if(this.trail.length>12)this.trail=this.trail.slice(-12);
+      this.dashTrail(c,player,run,scene,p,t,dt);
       const layers=obstacles.map(o=>({kind:'obstacle',object:o,y:val(o.y)+val(o.h,38)}));
       (a.companions||[]).forEach(o=>layers.push({kind:'companion',object:o,y:val(o.y)}));
       objects.forEach(o=>layers.push({kind:'interactable',object:o,y:val(o.y)}));layers.push({kind:'player',object:player,y:val(player.y)});
@@ -353,7 +436,9 @@
       const x=val(actor.x),y=val(actor.y),color=actor.color||'#a9eadb',id=actor.npcId||actor.sprite||'lantern';
       c.save();c.globalAlpha*=.4;oval(c,x,y+2,17,5,p.void);c.restore();
       this.actorMarker(c,actor,'ally');
-      c.save();c.translate(Math.round(x),Math.round(y));c.scale(.52,.52);this.npc(c,id,p,t,still,false,1);c.restore();
+      const modern=id==='lumina'&&typeof window.DungeonCharacter?.draw==='function',space=this.actorContext?.space;
+      const pose=modern?this.actorPose('companion:'+String(actor.id||id),actor,{effects:(space?.effects||[]).filter(e=>e.kind==='companion-cast'&&e.npcId===id)}):null;
+      c.save();c.translate(Math.round(x),Math.round(y));if(!modern)c.scale(.52,.52);this.npc(c,id,p,t,still,false,1,pose);c.restore();
       const name=String(actor.name||({lantern:'路米',echo:'伊可',sentinel:'折鋒',lumina:'露米娜'}[id]||'同行者')).split('・').pop();
       c.save();c.font='bold 11px sans-serif';c.textAlign='center';c.fillStyle=color;c.fillText('◆ '+name,x,y+24);c.restore();
     }
@@ -372,7 +457,9 @@
         if(!still){for(let i=0;i<5;i++){const yy=y-12-(t*15+i*17)%Math.max(1,h-16);c.save();c.globalAlpha=.6;box(c,x-18+i*9,yy,2,3,color);c.restore();}}
       }else if(o.kind==='merchant'||o.kind==='npc'){
         const npcId=o.npcId||o.sprite||(o.kind==='merchant'?'merchant':'healer');
-        c.save();c.translate(x,y);c.scale(.88,.88);this.npc(c,npcId,p,t,still,false,1);c.restore();
+        const modern=npcId==='lumina'&&typeof window.DungeonCharacter?.draw==='function';
+        const pose=modern?this.actorPose('npc:'+String(o.id||npcId),o,{lookAt:near?this.actorContext?.space?.player:null}):null;
+        c.save();c.translate(x,y);if(!modern)c.scale(.88,.88);this.npc(c,npcId,p,t,still,false,1,pose);c.restore();
       }else if(o.kind==='camp'){
         const training=/train|power|strength|forge/.test(String(o.id)+' '+String(o.action)+' '+String(o.args));
         if(training){
@@ -404,10 +491,11 @@
       if(near){const top=clamp(y-(o.kind==='door'?124:o.kind==='exit'?108:98),64,H-78),text=open?'交談中':'E 互動';box(c,x-36,top-16,72,25,'#e6d2a5');box(c,x-34,top-14,68,21,'#29313c');c.fillStyle='#fff0c7';c.font='bold 13px sans-serif';c.fillText(text,x,top+1);}
       c.restore();
     }
-    npc(c,id,p,t,still,boss,phase){
-      const anger=boss?'#ffab9d':p.light,bob=still||boss?0:Math.sin(t*1.6)*1.5;
+    npc(c,id,p,t,still,boss,phase,pose=null){
+      const modern=id==='lumina'&&pose&&typeof window.DungeonCharacter?.draw==='function';
+      const anger=boss?'#ffab9d':p.light,bob=modern||still||boss?0:Math.sin(t*1.6)*1.5;
       c.save();c.translate(0,bob);
-      if(boss){aura(c,0,-35,58,anger,phase>1?.15:.07);for(let i=0;i<5;i++){const a=i*TAU/5+(still?0:t*.5);gem(c,Math.cos(a)*46,-38+Math.sin(a)*31,phase>1?6:4,anger);}}
+      if(boss){const cueTime=modern?pose.time:t,cueStill=modern?pose.still:still;aura(c,0,-35,58,anger,phase>1?.15:.07);for(let i=0;i<5;i++){const a=i*TAU/5+(cueStill?0:cueTime*.5);gem(c,Math.cos(a)*46,-38+Math.sin(a)*31,phase>1?6:4,anger);}}
       if(id==='merchant'){
         // Travelling merchant: pointed hood, asymmetric coin satchel and scales.
         box(c,-17,-14,11,15,'#473c46');box(c,7,-14,11,15,'#473c46');poly(c,[[-26,-9],[-22,-55],[0,-65],[23,-53],[27,-9]],'#8f685b');
@@ -447,7 +535,7 @@
         stroke(c,29,-7,29,-47,'#af92c7',4);gem(c,29,-58,18,'#d8bded');gem(c,29,-58,12,'#779bc1');stroke(c,24,-52,33,-64,'#e3e7ff',2);
         poly(c,[[-39,-46],[-25,-49],[-22,-28],[-36,-25]],'#d4caee');stroke(c,-35,-39,-28,-40,'#8373ad',2);stroke(c,-34,-33,-27,-34,'#8373ad',2);
       }else if(id==='lumina'){
-        this.lumina(c,t,still,boss);
+        if(modern)window.DungeonCharacter.draw(c,pose,'lumina');else this.lumina(c,t,still,boss);
       }else if(id==='sentinel'){
         // Folded paper armour, a square shield and gold seams give a crisp outline.
         poly(c,[[-24,-12],[-19,-48],[0,-57],[20,-47],[25,-12]],'#d5c99b');
@@ -463,7 +551,7 @@
         poly(c,[[-19,-36],[-30,-11],[-5,-17]],'#7ba3a9');poly(c,[[17,-37],[29,-13],[7,-19]],'#709ba6');stroke(c,32,1,32,-90,'#aca17d',4);box(c,27,-88,10,22,'#d8c69a');
         stroke(c,-24,-39,-35,-39,'#d1c59d',2);stroke(c,-35,-39,-35,-25,'#d1c59d',2);aura(c,-35,-17,19,'#a2e3e1',.11);box(c,-42,-27,14,18,'#687e91');box(c,-39,-24,8,12,'#c3f0dd');box(c,-44,-10,18,3,'#b5c3a5');
       }
-      this.npcMaterials(c,id,boss);
+      if(!modern)this.npcMaterials(c,id,boss);
       if(boss&&phase>1){box(c,-18,-87,36,3,'#f3b09c');gem(c,0,-98,8,'#ffd1b0');}
       c.restore();
     }
@@ -599,32 +687,40 @@
       }
       c.restore();
     }
-    mage(c,a,p,t,still,run,showMarker=true){
+    mage(c,a,p,t,still,run,showMarker=true,poseOverride=null){
       const x=val(a.x),y=val(a.y),dash=val(a.dashTime)>0,invuln=val(a.invulnerable)>0;
-      const face=val(a.facingX,1)<-.05?-1:1;
+      const modern=typeof window.DungeonCharacter?.draw==='function',pose=poseOverride||(showMarker?this.playerPose(a,run):null);
+      const face=val(pose?.facingX,val(a.facingX,1))<-.05?-1:1;
       c.save();c.globalAlpha*=.48;oval(c,x,y+2,dash?22:17,6,p.void);c.restore();
       c.save();c.globalAlpha*=.5;oval(c,x,y+1,10,3,'#081521');c.restore();
-      if(showMarker)this.actorMarker(c,a);
+      if(showMarker)this.actorMarker(c,pose?{...a,facingX:pose.facingX,facingY:pose.facingY}:a);
       if(dash)aura(c,x,y-11,22,'#bfeaff',.11);
-      c.save();if(invuln&&!still)c.globalAlpha*=.62+Math.sin(t*26)**2*.3;
-      c.translate(Math.round(x),Math.round(y));c.scale(face*.57,.57);
-      const casting=showMarker&&!dash&&run?.status==='combat'&&(run?.arena?.focusActive||(run?.arena?.effects||[]).some(e=>e.kind==='cast'&&val(e.life)>.12));
-      if(this.legacy?.hero)this.legacy.hero.call(this.legacy,c,-34,-98,t,run?.player,still||dash,{casting});
-      else this.fallbackMage(c,p);
+      c.save();if(invuln&&!(modern&&pose?pose.still:still))c.globalAlpha*=.62+Math.sin((modern&&pose?pose.time:t)*26)**2*.3;
+      c.translate(Math.round(x),Math.round(y));
+      if(modern&&pose)window.DungeonCharacter.draw(c,pose,'player');
+      else{
+        c.scale(face*.57,.57);
+        const casting=pose?pose.mode==='chant'||pose.mode==='cast':showMarker&&!dash&&run?.status==='combat'&&(run?.arena?.focusActive||(run?.arena?.effects||[]).some(e=>e.kind==='cast'&&val(e.life)>.12));
+        if(this.legacy?.hero)this.legacy.hero.call(this.legacy,c,-34,-98,t,run?.player,still||dash,{casting});
+        else this.fallbackMage(c,p);
+      }
       c.restore();
-      if(dash){stroke(c,x-face*25,y-17,x-face*43,y-17,'#bad6f9',2);stroke(c,x-face*23,y-9,x-face*34,y-9,'#97b4e5',2);}
+      if(dash&&!this.actorContext?.reducedMotion){stroke(c,x-face*25,y-17,x-face*43,y-17,'#bad6f9',2);stroke(c,x-face*23,y-9,x-face*34,y-9,'#97b4e5',2);}
     }
     fallbackMage(c,p){
       poly(c,[[-28,-12],[-17,-53],[15,-53],[27,-12]],'#685a91');box(c,-16,-58,30,17,'#ebbf9a');poly(c,[[-37,-58],[-11,-96],[22,-60],[38,-55]],'#a794cb');box(c,-36,-59,74,5,'#d7b9e5');box(c,-8,-51,4,4,'#393047');box(c,30,-64,4,57,'#c3a280');gem(c,32,-72,10,p.light);
     }
-    foe(c,e,p,t,still,region){
+    foe(c,e,p,t,still,region,poseOverride=null){
       const x=val(e.x),y=val(e.y),boss=e.kind==='boss'||e.boss;
       const type=e.npcId||e.sprite||e.enemyId||e.id||'slime',npcId=String(type).replace(/^npc-/,''),isNpc=NPC_IDS.has(npcId);
       const spawning=e.active===false,scale=isNpc?(boss?1.12:.88):(boss?.7:.66);
+      const modern=npcId==='lumina'&&typeof window.DungeonCharacter?.draw==='function',space=this.actorContext?.space;
+      const ownHazards=modern?(space?.hazards||[]).filter(h=>String(h.ownerId)===String(e.id)):[];
+      const pose=modern?(poseOverride||this.actorPose('enemy:'+String(e.id||npcId),e,{hp:e.hp,lookAt:space?.player,chant:ownHazards.some(h=>val(h.delay)>0),effects:ownHazards})):null;
       c.save();c.globalAlpha*=spawning?.25:.4;oval(c,x,y+2,boss?39:20,boss?10:6,p.void);c.restore();
       if(spawning){c.save();c.globalAlpha=.35;this.targetRing(c,e,p,t);c.restore();}
-      c.save();if(spawning)c.globalAlpha*=.45;c.translate(Math.round(x),Math.round(y));c.scale(scale,scale);
-      if(isNpc)this.npc(c,npcId,p,t,still,boss,val(e.phase,1));
+      c.save();if(spawning)c.globalAlpha*=.45;c.translate(Math.round(x),Math.round(y));if(!modern)c.scale(scale,scale);
+      if(isNpc)this.npc(c,npcId,p,t,still,boss,val(e.phase,1),pose);
       else if(this.legacy?.enemy)this.legacy.enemy.call(this.legacy,c,0,0,{id:type,kind:boss?'boss':e.kind,boss,phase:e.phase},t,p,still,[1,0,2,3][region]);
       else this.fallbackFoe(c,e,p,boss);
       c.restore();
@@ -703,12 +799,14 @@
         const actor=effect.actor?{...effect.actor}:null,boss=!!effect.boss||actor?.kind==='boss';
         if(actor?.kind==='player')this.seenDeaths.add('player-death');
         const life=clamp(val(effect.maxLife,effect.life||1),.35,2.4);
-        this.deathScenes.push({...effect,actor,boss,life,maxLife:life});
+        const pose=this.actorTracks.get(actor?.kind==='player'?'player':'enemy:'+String(actor?.id))?.pose;
+        this.deathScenes.push({...effect,actor,boss,life,maxLife:life,pose:pose?{...pose}:null});
         if(boss)this.shake=.75;
       }
       if(run.status==='lost'&&val(run.player?.hp,1)<=0&&!this.seenDeaths.has('player-death')){
         this.seenDeaths.add('player-death');const actor={...a.player,kind:'player'};
-        this.deathScenes.push({actor,x:actor.x,y:actor.y,r:38,color:'#b3c7ff',life:1.65,maxLife:1.65});
+        const pose=this.actorTracks.get('player')?.pose;
+        this.deathScenes.push({actor,x:actor.x,y:actor.y,r:38,color:'#b3c7ff',life:1.65,maxLife:1.65,pose:pose?{...pose}:null});
       }
       if(this.deathScenes.length>20)this.deathScenes=this.deathScenes.slice(-20);
     }
@@ -718,9 +816,12 @@
         c.save();
         if(e.actor&&alpha>.3){
           c.globalAlpha=alpha*.8;c.translate(x,y);
-          if(!still){c.scale(1+progress*.15,Math.max(.2,1-progress*.85));c.rotate((e.actor.kind==='player'?-1:1)*progress*.18);}
+          const modern=typeof window.DungeonCharacter?.draw==='function'&&(e.actor.kind==='player'||e.actor.npcId==='lumina'||e.actor.sprite==='lumina');
+          if(!still&&!modern){c.scale(1+progress*.15,Math.max(.2,1-progress*.85));c.rotate((e.actor.kind==='player'?-1:1)*progress*.18);}
           const actor={...e.actor,x:0,y:0,alive:true,active:true,hp:1,invulnerable:0,dashTime:0};
-          if(actor.kind==='player')this.mage(c,actor,p,0,true,run,false);else this.foe(c,actor,p,0,true,region);
+          const pose=modern?{time:0,phase:0,facingX:val(e.actor.facingX,1),facingY:val(e.actor.facingY),...e.pose,
+            mode:'fallen',moving:0,speed:0,castProgress:0,hurtProgress:this.actorContext?.reducedMotion?1:progress,still:!!this.actorContext?.reducedMotion}:null;
+          if(actor.kind==='player')this.mage(c,actor,p,0,true,run,false,pose);else this.foe(c,actor,p,0,true,region,pose);
         }
         c.restore();c.save();c.globalAlpha=alpha;
         const count=still?8:boss?24:14,r=val(e.r,boss?62:32),spread=still?.55:.28+progress*1.5;
@@ -738,7 +839,15 @@
       }
     }
     spellEffect(c,e,p,still){
-      const x=val(e.fromX,e.x),y=val(e.fromY,e.y)-20,xx=val(e.targetX,val(e.x2,x)),yy=val(e.targetY,val(e.y2,y+20))-20;
+      const sourceX=val(e.fromX,e.x),sourceY=val(e.fromY,e.y),xx=val(e.targetX,val(e.x2,sourceX)),yy=val(e.targetY,val(e.y2,sourceY))-20;
+      let x=sourceX,y=sourceY-20;
+      // Only offensive emitters move to the new staff tip; support centers and hit endpoints stay exact.
+      if(typeof window.DungeonCharacter?.draw==='function'&&!['heal','shield'].includes(e.spellType)&&
+        (e.kind==='cast'||e.kind==='companion-cast'&&e.npcId==='lumina')){
+        const companion=this.actorContext?.space?.companions?.find(actor=>actor.npcId==='lumina');
+        const key=e.kind==='cast'?'player':'companion:'+String(companion?.id||'lumina'),pose=this.actorTracks.get(key)?.pose;
+        const face=val(pose?.facingX,xx-sourceX)<-.05?-1:1;x+=face*35;y=sourceY-72;
+      }
       const alpha=clamp(val(e.life,1)/Math.max(.001,val(e.maxLife,1)),0,1),progress=still?.55:1-alpha,type=e.spellType||'attack',word=String(e.spellWord||'').toLowerCase(),echo=e.kind==='companion-cast';
       if(alpha<=0)return;
       // Shapes, not just colours, distinguish spells on a small mobile canvas.

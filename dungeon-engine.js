@@ -133,11 +133,58 @@
   ];
   var BOSS = {
     thorn: { id: 'thorn', name: '棘冠典獄長', description: '交替編織荊棘護盾與重擊；本命咒語可穿透部分護盾。', hp: 205 },
+    spore: { id: 'spore', name: '孢冠菌后', description: '孢雨記住你的位置，菌環接著封住落腳處。第二階段孢子增生，離開第一道預警後還要保留退路。', hp: 215, patterns: ['孢雨追跡', '菌環封場'] },
     witch: { id: 'witch', name: '鏡月女巫', description: '月蝕會吸取生命；用護盾擋住傷害，就能阻止她恢復。', hp: 280 },
+    prism: { id: 'prism', name: '千面鏡獸', description: '折射光線交織成囚籠，碎鏡隨後扇形散射。第二階段增加折射方向，趁光線預警找出缺口。', hp: 290, patterns: ['折射囚籠', '碎鏡扇陣'] },
     king: { id: 'king', name: '失名之王', description: '每三次行動蓄力末頁湮滅；把沙漏與護符留給重擊。', hp: 365 },
+    hollow: { id: 'hollow', name: '空鐘司祭', description: '三聲空鐘依序震開地面，默禱將空間切成斷層。第二階段鐘聲更密集，在震波間隙移動。', hp: 375, patterns: ['空鐘三響', '默禱斷層'] },
     astral: { id: 'astral', name: '忘誓星龍', description: '龍翼刻出星軌，接著落下延遲星雨；第二階段月環與交錯光線接連爆發。', hp: 440 },
+    cometqueen: { id: 'cometqueen', name: '彗尾女皇', description: '兩道彗尾交錯掠過，接著召來天穹墜星。第二階段星雨追蹤最後的落腳處，持續換位迎接終幕。', hp: 450, patterns: ['彗尾雙襲', '天穹墜星'] },
     constellation: { id: 'constellation', name: '失約星影', description: '它複寫你停留的位置，再以雙星連線封住歸途；移動後別急著折返。', hp: 320 }
   };
+  var BOSS_POOLS = [
+    ['thorn', 'spore'], ['witch', 'prism'], ['king', 'hollow'], ['astral', 'cometqueen']
+  ];
+  var ROOM_POOLS = [
+    ['pillars', 'lanes', 'waves', 'bridges', 'spring', 'bloom'],
+    ['pillars', 'lanes', 'bridges', 'mirrors', 'eclipse', 'starlanes'],
+    ['lanes', 'embers', 'waves', 'tempest', 'meteor', 'eclipse'],
+    ['starlanes', 'bloom', 'comet', 'meteor', 'mirrors', 'tempest']
+  ];
+  var OMENS = {
+    none: { id: 'none', name: '平穩星象', description: '這一層沒有額外星象效果。', color: '#a9c9c2' },
+    haste: { id: 'haste', name: '疾風星象', description: '敵人移動速度增加 15%；獲勝額外獲得 8 金幣。', color: '#a6dcf5', speed: 1.15, gold: 8 },
+    ward: { id: 'ward', name: '守望星象', description: '進入普通或精英戰鬥時，額外獲得 12 點護盾。', color: '#a9e9cc', shield: 12 },
+    fortune: { id: 'fortune', name: '豐饒星象', description: '敵人生命增加 12%；獲勝額外獲得 12 金幣。', color: '#f4d18c', health: 1.12, gold: 12 }
+  };
+  function getBossId(s, region) {
+    var index = Number.isInteger(region) ? Math.max(0, Math.min(REGIONS.length - 1, region)) : Math.max(0, Math.min(REGIONS.length - 1, s && s.region || 0));
+    var chosen = s && s.randomWorldVersion === 1 && Array.isArray(s.bossRoster) ? s.bossRoster[index] : null;
+    return BOSS_POOLS[index].indexOf(chosen) >= 0 ? chosen : REGIONS[index].boss;
+  }
+  function getFloorPlan(s) {
+    if (!s || s.randomWorldVersion !== 1 || !Array.isArray(s.floorPlan) || !Number.isInteger(s.encounter)) return null;
+    return s.floorPlan[s.encounter] || null;
+  }
+  function createWorldPlan(s) {
+    // Separate streams keep geography and guardians independent of spells,
+    // loot, route choices and each other. Only new expeditions call this.
+    var geography = { rng: hash(String(s.seed) + ':geography:v1') };
+    var guardians = { rng: hash(String(s.seed) + ':guardians:v1') };
+    s.randomWorldVersion = 1;
+    s.bossRoster = BOSS_POOLS.map(function (pool) { return pick(guardians, pool); });
+    s.floorPlan = [];
+    var previousRoom = null;
+    for (var node = 0; node < getCampaignLength(s); node++) {
+      var region = Math.floor(node / getNodesPerRegion(s));
+      var rooms = ROOM_POOLS[region].filter(function (id) { return id !== previousRoom; });
+      var roomId = pick(geography, rooms);
+      s.floorPlan.push({ roomId: roomId, layout: Math.floor(random(geography) * 3),
+        formation: pick(geography, ['balanced', 'pack', 'crossfire', 'rush']),
+        omen: pick(geography, ['none', 'none', 'haste', 'ward', 'fortune']) });
+      previousRoom = roomId;
+    }
+  }
 
   function copy(value) { return Object.assign({}, value); }
   function hash(value) {
@@ -263,6 +310,7 @@
         enemiesDefeated: 0, bossesDefeated: 0, npcBossesDefeated: 0, goldEarned: 0, itemsUsed: 0, fastCasts: 0, elapsed: 0 }
     };
     var seen = Object.create(null);
+    createWorldPlan(s);
     s.wordPool = (root.ENROOT_CARDS || []).filter(function (c) {
       if (!c || !/^[a-z]{3,8}$/i.test(c.word) || seen[c.word.toLowerCase()] || c.word.toLowerCase() === cleanCard.word) return false;
       seen[c.word.toLowerCase()] = true; return true;
@@ -278,7 +326,7 @@
     s.region = Math.min(getRegionCount(s) - 1, Math.floor(s.encounter / nodes)); s.regionName = REGIONS[s.region].name;
     s.routes = [];
     if (localNode === nodes - 1) {
-      var boss = BOSS[REGIONS[s.region].boss];
+      var boss = BOSS[getBossId(s, s.region)];
       s.routes = [{ id: 'boss', type: 'boss', name: boss.name, icon: '♜', description: boss.description, danger: '區域首領' }];
       return;
     }
@@ -317,6 +365,13 @@
         description = npc.challengeDescription; damage += 2;
         if (e.npcId === 'smith' && turn % 2 === 0) { kind = 'guard'; shield = e.phase === 2 ? 20 : 12; }
         if (e.npcId === 'ferryman' && turn % 2 === 1) kind = 'drain';
+      } else if (e.id === 'spore' || e.id === 'prism' || e.id === 'hollow' || e.id === 'cometqueen') {
+        name = BOSS[e.id].patterns[turn % 2];
+        description = e.description; duration = e.phase === 2 ? 8.5 : 10.5;
+        if (e.id === 'spore' && turn % 2 === 1) { kind = 'guard'; shield = e.phase === 2 ? 18 : 12; }
+        if (e.id === 'prism' && turn % 2 === 0) { kind = 'guard'; shield = e.phase === 2 ? 24 : 16; }
+        if (e.id === 'hollow' && turn % 2 === 0) { damage += 3; duration += 0.5; }
+        if (e.id === 'cometqueen' && turn % 2 === 1) { damage += 4; duration += 1; }
       } else if (e.id === 'thorn') {
         if (turn % 3 === 0) { name = '荊棘結界'; kind = 'guard'; shield = e.phase === 2 ? 22 : 16; damage = 5; description = '獲得荊棘護盾並造成小量傷害；本命咒語能穿透一半護盾。'; }
         else { name = '棘冠重擊'; description = '荊棘即將落下，及時施放護盾或擊敗它。'; }
@@ -345,10 +400,13 @@
     e.intent = { name: name, kind: kind, damage: damage, shield: shield, duration: duration, remaining: duration, description: description };
   }
   function startCombat(s, kind) {
-    var boss = kind === 'boss', template = boss ? BOSS[REGIONS[s.region].boss] : pick(s, ENEMIES[s.region]);
+    var boss = kind === 'boss', template = boss ? BOSS[getBossId(s, s.region)] : pick(s, ENEMIES[s.region]);
+    var plan = !boss && !(s.bondQuest && s.bondQuest.active) ? getFloorPlan(s) : null;
+    var omen = plan && Object.prototype.hasOwnProperty.call(OMENS, plan.omen) ? plan.omen : 'none';
     var hp = boss ? template.hp : 78 + s.region * 42 + (kind === 'elite' ? 48 : 0) + Math.floor(random(s) * 13);
-    s.status = 'combat'; s.player.combo = 0; s.player.shield = startingShield(s);
-    s.enemy = Object.assign({}, template, { kind: kind, hp: hp, maxHp: hp, shield: 0, phase: 1, turn: 0 });
+    if (omen === 'fortune') hp = Math.round(hp * OMENS.fortune.health);
+    s.status = 'combat'; s.player.combo = 0; s.player.shield = startingShield(s) + (omen === 'ward' ? OMENS.ward.shield : 0);
+    s.enemy = Object.assign({}, template, { kind: kind, hp: hp, maxHp: hp, shield: 0, phase: 1, turn: 0, omen: omen });
     s.spell.elapsed = 0; makeIntent(s);
     event(s, 'encounter', template.name + ' 出現了！' + (boss ? template.description : '輸入畫面中的英文並按 Enter 施法。'));
   }
@@ -406,7 +464,8 @@
     s.stats.enemiesDefeated += 1;
     if (e.kind === 'boss' && !e.isNpcBoss && !e.isStoryBoss) s.stats.bossesDefeated += 1;
     if (e.isNpcBoss) s.stats.npcBossesDefeated = (s.stats.npcBossesDefeated || 0) + 1;
-    var amount = coins(s, e.kind === 'boss' ? 55 + s.region * 15 : e.kind === 'elite' ? 42 + s.region * 9 : 22 + s.region * 7);
+    var omenGold = (e.kind === 'battle' || e.kind === 'elite') && !e.isStoryBoss && !(s.bondQuest && s.bondQuest.active) && Object.prototype.hasOwnProperty.call(OMENS, e.omen) ? OMENS[e.omen].gold || 0 : 0;
+    var amount = coins(s, (e.kind === 'boss' ? 55 + s.region * 15 : e.kind === 'elite' ? 42 + s.region * 9 : 22 + s.region * 7) + omenGold);
     s.player.shield = 0; s.player.combo = 0;
     var drop = null;
     if (e.kind === 'boss' || random(s) < 0.42) { drop = pick(s, Object.keys(ITEMS)); addItem(s, drop); }
@@ -424,7 +483,7 @@
       if (s.relationship.scenes.indexOf('lumina-promise') < 0) s.relationship.scenes.push('lumina-promise');
       addRelic(s, 'starpromise'); message += ' 星圖重新完整，獲得專屬遺物「雙星之約」。';
     }
-    if (s.encounter === getCampaignLength(s) - 1 && e.id === REGIONS[getRegionCount(s) - 1].boss && !e.isNpcBoss && !e.isStoryBoss) {
+    if (s.encounter === getCampaignLength(s) - 1 && e.id === getBossId(s, getRegionCount(s) - 1) && !e.isNpcBoss && !e.isStoryBoss) {
       s.status = 'won'; s.completedNodes = getCampaignLength(s);
       event(s, 'won', '最後的封印化作晨光。你為世界找回了名字！' + message, { gold: amount, drop: drop, gift: gift });
     } else {
@@ -730,5 +789,6 @@
     getNpc: getNpc, helpNpc: helpNpc, challengeNpc: challengeNpc, leaveNpc: leaveNpc,
     giveGift: giveGift, talkNpc: talkNpc, beginBondQuest: beginBondQuest, confessBond: confessBond,
     getNodesPerRegion: getNodesPerRegion, getRegionCount: getRegionCount, getCampaignLength: getCampaignLength,
+    getBossId: getBossId, getFloorPlan: getFloorPlan, BOSSES: BOSS, BOSS_POOLS: BOSS_POOLS, OMENS: OMENS,
     ITEMS: ITEMS, RELICS: RELICS, REGIONS: REGIONS, NPCS: NPCS };
 });

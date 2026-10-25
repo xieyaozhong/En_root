@@ -184,6 +184,7 @@ async function harness(active = null, options = {}) {
   };
   const combat = async (practice = true) => {
     await click(practice ? 'practiceRun' : 'startRun');
+    run.floorPlan[run.encounter]={roomId:'spring',layout:0,formation:'balanced',omen:'none'};
     const choice = run.exploration.objects.find(o => o.args[0] === 'battle');
     assert.ok(choice, 'battle door exists');
     run.exploration.player.x=choice.x;run.exploration.player.y=choice.y+50;
@@ -658,8 +659,11 @@ async function harness(active = null, options = {}) {
   const walking=await harness();await walking.click('practiceRun');walking.tick(.1);
   assert.equal(walking.$('interactButton').disabled,true,'remote route selection is unavailable');
   await walking.key('KeyE');assert.equal(walking.run.status,'route');
+  const walkDoor=walking.run.exploration.objects.find(object=>object.args[0]==='battle');
+  walking.run.exploration.player.x=walkDoor.x;walking.run.exploration.player.y=walkDoor.y+200;
+  const walkStartY=walking.run.exploration.player.y;
   await walking.key('KeyW');for(let i=0;i<11;i++)walking.tick(.1);await walking.key('KeyW','keyup');
-  assert.ok(walking.run.exploration.player.y<260,'exploration uses the real movement loop');
+  assert.ok(walking.run.exploration.player.y<walkStartY-170,'exploration uses the real movement loop');
   assert.equal(walking.$('interactButton').disabled,false,'walking into range enables interaction');
   const walkY=walking.run.exploration.player.y;await walking.dispatch('window','blur');walking.tick(.1);
   assert.equal(walking.run.exploration.player.y,walkY,'exploration pauses on blur');
@@ -672,10 +676,15 @@ async function harness(active = null, options = {}) {
     Engine.chooseRoute(next,next.routes[0].id);
     return {run:next,receipt:{id:'npc-entry',word:'robot'},finished:false};
   }
+  function approachObject(ui,id){
+    const area=Explore.ensure(ui.run),target=id?area.objects.find(object=>object.id===id):area.objects.find(object=>object.kind==='npc'||object.kind==='merchant');
+    assert.ok(target,'interaction fixture resolves its generated object');
+    area.player.x=target.x;area.player.y=target.y+35;ui.tick(.1);
+  }
   const starSave=encounter('lumina');starSave.run.relationship=Story.createProfile({affection:44,gifts:{star:2}});
   const star=await harness(starSave,{width:390});await star.click('continueRun');star.tick(.1);
   assert.equal(star.$('actionPanel').querySelector('[data-action="giveGift"]'),null,'gift controls require a physical conversation');
-  star.run.exploration.player.x=440;star.run.exploration.player.y=270;star.tick(.1);await star.key('KeyE');
+  approachObject(star);await star.key('KeyE');
   assert.equal(star.audioScene.npcId,'lumina','conversation selects Lumina music');
   assert.ok(star.$('actionPanel').querySelector('.bond-portrait'),'adult mage portrait accompanies dialogue');
   assert.equal(star.$('actionPanel').querySelector('[data-action="beginBondQuest"]').disabled,true,'quest is visibly gated by trust');
@@ -694,7 +703,7 @@ async function harness(active = null, options = {}) {
   assert.equal(questResume.run.bondQuest.step,0);assert.equal(questResume.run.arena.room.id,'starlanes');
   const romanceSave=encounter('lumina');romanceSave.run.relationship=Story.createProfile({affection:80,questCleared:true,scenes:['lumina-promise']});
   const romance=await harness(romanceSave,{width:390});await romance.click('continueRun');
-  romance.run.exploration.player.x=440;romance.run.exploration.player.y=270;romance.tick(.1);await romance.key('KeyE');
+  approachObject(romance);await romance.key('KeyE');
   assert.equal(romance.run.relationship.dating,false,'affection never starts romance automatically');
   assert.equal(romance.$('actionPanel').querySelector('[data-action="confessBond"]').disabled,false);
   await romance.$('actionPanel').querySelector('[data-action="confessBond"]').onclick();
@@ -708,7 +717,7 @@ async function harness(active = null, options = {}) {
   await romance.click('storyReturn');
   const merchant=await harness(encounter('merchant'));await merchant.click('continueRun');merchant.tick(.1);
   assert.equal(merchant.$('npcChallengeForm'),null,'merchant controls stay hidden until approaching');
-  const mp=merchant.run.exploration.player;mp.x=440;mp.y=270;merchant.tick(.1);
+  approachObject(merchant);const mp=merchant.run.exploration.player;
   await merchant.key('KeyE');assert.ok(merchant.$('npcChallengeForm'),'merchant conversation opens nearby');
   merchant.run.player.hp=1;merchant.tick(.1);
   const merchantPotions=merchant.run.inventory.find(item=>item.id==='potion');
@@ -735,23 +744,23 @@ async function harness(active = null, options = {}) {
   merchant.tick(.1);assert.equal(merchant.calls.sounds.filter(s=>s==='bossPhase').length,1,'phase cue fires once');
 
   const helper=await harness(encounter('healer'));await helper.click('continueRun');helper.tick(.1);
-  helper.run.player.hp=30;helper.run.exploration.player.x=440;helper.run.exploration.player.y=270;helper.tick(.1);
+  helper.run.player.hp=30;approachObject(helper);
   await helper.key('KeyE');await helper.$('actionPanel').querySelector('[data-action="helpNpc"]').onclick();
   assert.ok(helper.run.player.hp>30);assert.equal(helper.run.npc.helped,true);assert.equal(helper.$('npcChallengeForm'),null);
   await helper.key('Escape');assert.equal(helper.run.exploration.dialogId,null);assert.equal(helper.$('pauseOverlay').hidden,true);
-  helper.run.exploration.player.x=795;helper.run.exploration.player.y=400;helper.tick(.1);await helper.key('KeyE');
+  approachObject(helper,'exit');await helper.key('KeyE');
   assert.equal(helper.run.status,'route');assert.equal(helper.run.encounter,1,'walking to NPC exit advances exactly one node');
 
   for(const npcId of ['lantern','echo','sentinel']){
     const ally=await harness(encounter(npcId));await ally.click('continueRun');
-    ally.run.exploration.player.x=440;ally.run.exploration.player.y=270;ally.tick(.1);await ally.key('KeyE');
+    approachObject(ally);await ally.key('KeyE');
     assert.equal(ally.$('actionPanel').querySelector('[data-action="helpNpc"]').textContent,'邀請同行');
     await ally.$('actionPanel').querySelector('[data-action="helpNpc"]').onclick();
     assert.equal(ally.run.companions[0].id,npcId);
     assert.equal(ally.$('partyStrip').hidden,false);assert.ok(ally.$('partyStrip').textContent.includes(Engine.NPCS[npcId].name.split('・').pop()));
     assert.equal(ally.$('npcChallengeForm'),null,'recruiting commits to a peaceful encounter');
     await ally.key('Escape');
-    ally.run.exploration.player.x=795;ally.run.exploration.player.y=400;ally.tick(.1);await ally.key('KeyE');
+    approachObject(ally,'exit');await ally.key('KeyE');
     const snapshot=JSON.parse(JSON.stringify({run:ally.run,receipt:{id:'ally-entry',word:'robot'}}));
     const restored=await harness(snapshot);await restored.click('continueRun');
     assert.equal(restored.calls.consumes,0);assert.equal(restored.run.companions[0].id,npcId);
@@ -770,6 +779,7 @@ async function harness(active = null, options = {}) {
   await resumed.key('KeyD'); resumed.tick(.1); resumed.tick(.1);
   assert.ok(resumed.run.arena.player.x > before,'resumed save accepts movement');
   const legacy=JSON.parse(JSON.stringify(saved));delete legacy.run.nodesPerRegion;delete legacy.run.regionCount;delete legacy.run.companions;
+  delete legacy.run.randomWorldVersion;delete legacy.run.bossRoster;delete legacy.run.floorPlan;
   const legacyUI=await harness(legacy);await legacyUI.click('continueRun');
   assert.equal(legacyUI.$('floorLabel').textContent,'01 / 12','untagged saves keep original campaign length');
   assert.equal(legacyUI.$('partyStrip').hidden,true);

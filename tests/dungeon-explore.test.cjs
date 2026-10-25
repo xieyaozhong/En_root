@@ -13,7 +13,7 @@ function approach(state, id) {
   const area = Explore.ensure(state), target = area.objects.find(o => o.id === id);
   assert.ok(target, `Missing object ${id}`);
   area.player.x = target.x;
-  area.player.y = target.y + 55;
+  area.player.y = target.y + 35;
   return target;
 }
 function openPerson(state) {
@@ -87,7 +87,8 @@ assert.ok(Math.abs(tiltedPlayer.x - 480 + 76) < 1e-8, 'dash during partial tilt 
 assert.equal(tiltedPlayer.dashX, -1);
 
 // Old saves are upgraded lazily; normal JSON round trips retain location and RNG.
-const old = run(), restored = JSON.parse(JSON.stringify(old));
+const old = run();delete old.randomWorldVersion;delete old.bossRoster;delete old.floorPlan;
+const restored = JSON.parse(JSON.stringify(old));
 assert.deepEqual(Explore.ensure(old), Explore.ensure(restored));
 Explore.update(restored, .1, { x: -1, y: -1 });
 const persisted = JSON.parse(JSON.stringify(restored));
@@ -166,6 +167,7 @@ assert.equal(shop.encounter, 1);
 
 // Merchant migration and NPC help/challenges share the same proximity enforcement.
 const oldShop = room('shop');
+delete oldShop.randomWorldVersion;delete oldShop.bossRoster;delete oldShop.floorPlan;
 delete oldShop.npc;
 assert.equal(Explore.ensure(oldShop).objects.find(o => o.kind === 'merchant').npcId, 'merchant');
 const healer = room('npc', 'healer');

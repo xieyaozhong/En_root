@@ -21,6 +21,27 @@
     if (length === 1) return [480];
     return Array.from({ length: length }, function (_, i) { return 200 + i * 560 / (length - 1); });
   }
+  function scatterObjects(run, objects) {
+    if(run.randomWorldVersion!==1)return objects;
+    var text=String(run.seed)+':'+run.encounter+':'+run.status,h=2166136261;
+    for(var i=0;i<text.length;i++)h=Math.imul(h^text.charCodeAt(i),16777619);
+    var layout=(h>>>0)%3,shift=((h>>>8)%3-1)*32;
+    return objects.map(function(target,index){
+      var o=Object.assign({},target);
+      if(run.status==='route' || run.status==='reward'){
+        var positions=slots(objects.length),slot=objects.length?(index+layout)%objects.length:0;
+        o.x=positions[slot]+shift;o.y+=(slot%2?1:-1)*(layout*20);
+      }else if(run.status==='camp'){
+        o.x=layout===1?WIDTH-target.x:target.x+shift;
+        o.y+=(index%2?1:-1)*layout*24;
+      }else if(o.kind==='npc' || o.kind==='merchant'){
+        o.x+=shift*2;o.y+=layout*15;
+      }else if(o.kind==='exit'){
+        o.x=layout===1?165:795;o.y-=layout*20;
+      }
+      return o;
+    });
+  }
   function getNpc(run) { return typeof Engine.getNpc === 'function' ? Engine.getNpc(run) : null; }
   function buildObjects(run, npc, exploration) {
     if (run.status === 'route') {
@@ -120,7 +141,7 @@
     exploration.dashes = Math.max(0, finite(exploration.dashes, 0));
     if (!Array.isArray(exploration.obstacles)) exploration.obstacles = [];
     // Build actions from current engine state instead of trusting serialized UI data.
-    exploration.objects = buildObjects(run, npc, exploration);
+    exploration.objects = scatterObjects(run,buildObjects(run, npc, exploration));
     syncCompanions(run, exploration);
     if (!exploration.objects.some(function (target) { return target.id === exploration.dialogId && (target.kind === 'merchant' || target.kind === 'npc'); })) exploration.dialogId = null;
     nearObject(exploration);
