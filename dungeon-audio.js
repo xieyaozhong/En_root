@@ -161,6 +161,26 @@
       name: '碎誓守衛的最後進軍', tonic: 35, tempo: 114, scale: [0, 2, 3, 5, 7, 8, 10], wave: 'square', cutoff: 1800,
       harmony: [0, 0, 3, -2, 4, 3, -2, 0], kick: [0, 4, 8, 12], snare: [2, 6, 10, 14], pulse: [0, 4, 0, 7],
       motifs: [[7, null, 7, 4, 5, 7, null, 11], [8, 5, 3, null, 5, 8, 7, 5], [11, null, 10, 8, 7, 10, 8, null], [7, 5, 4, 2, 4, 7, 0, null]]
+    },
+    spore: {
+      name: '孢冠菌后・繁生的低語', tonic: 40, tempo: 110, scale: [0, 2, 3, 5, 7, 9, 10], wave: 'triangle', cutoff: 2500,
+      harmony: [0, 1, 3, 1, -2, 5, 3, 0], kick: [0, 3, 6, 8, 11, 14], snare: [6, 14], pulse: [0, 2, 5, 1],
+      motifs: [[2, 5, null, 2, 6, null, 5, 3], [4, 7, 6, null, 3, 6, null, 2], [5, 8, null, 10, 8, 6, 3, 5], [6, 3, 1, null, 2, 5, 1, 0]]
+    },
+    prism: {
+      name: '千面鏡獸・碎光迴旋', tonic: 47, tempo: 138, scale: [0, 1, 4, 6, 7, 9, 11], wave: 'sine', cutoff: 4800,
+      harmony: [0, 4, 2, -1, 5, 1, 4, -2], kick: [0, 5, 7, 10, 13], snare: [3, 11, 15], pulse: [6, 1, 7, 3],
+      motifs: [[12, 3, 10, 5, null, 13, 6, 11], [4, 11, 2, 9, 5, null, 12, 7], [14, 5, 12, null, 8, 15, 4, 10], [6, 13, 3, 8, 1, 7, null, 0]]
+    },
+    hollow: {
+      name: '空鐘司祭・第十三聲晚禱', tonic: 31, tempo: 94, scale: [0, 1, 3, 5, 6, 8, 10], wave: 'sine', cutoff: 1800,
+      harmony: [0, -1, -3, 1, 0, -2, 4, -1], kick: [0, 10], snare: [7, 15], pulse: [0, 1, 4, 1],
+      motifs: [[14, null, 6, null, null, 1, 4, null], [11, null, null, 3, 5, null, 1, null], [13, null, 8, null, 4, null, 6, 1], [10, null, 5, null, 1, null, 0, null]]
+    },
+    cometqueen: {
+      name: '彗尾女皇・燃盡的星冕', tonic: 44, tempo: 128, scale: [0, 2, 4, 6, 7, 8, 11], wave: 'sawtooth', cutoff: 3400,
+      harmony: [0, 2, 5, 3, 1, 6, 4, 0], kick: [0, 2, 6, 8, 12, 14], snare: [4, 10, 12], pulse: [0, 5, 2, 6],
+      motifs: [[2, 6, 9, 13, 12, null, 10, 7], [3, 5, 8, 12, null, 14, 11, 8], [6, 10, 13, 16, 13, 11, null, 9], [12, 10, 7, 5, 8, 6, 2, 0]]
     }
   };
   const REGION_BOSSES = ['thorn', 'witch', 'king', 'astral'];

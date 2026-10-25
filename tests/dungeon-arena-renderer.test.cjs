@@ -25,7 +25,7 @@ for (const name of ['fillRect','clearRect','beginPath','closePath','moveTo','lin
 function canvas() { const context = new Context(); return {width:0,height:0,style:{},getContext:() => context}; }
 const window = {}, document = {createElement: name => {assert.equal(name,'canvas'); return canvas();}};
 const sandbox = {window,document};
-for(const file of ['dungeon-renderer.js','dungeon-arena-renderer.js']) vm.runInNewContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),sandbox);
+for(const file of ['dungeon-renderer.js','dungeon-character.js','dungeon-arena-renderer.js']) vm.runInNewContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),sandbox);
 const surface = canvas(), renderer = new window.DungeonArenaRenderer(surface), ctx = surface.getContext();
 assert.equal(surface.width,960); assert.equal(surface.height,540);
 renderer.draw({run:null},0); assert.equal(ctx.depth,0);
@@ -42,12 +42,12 @@ assert.ok(ctx.calls.some(call => call.name==='arc' && call.args[0]===480 && call
 assert.ok(ctx.calls.some(call => call.name==='fillText' && call.args[0]==='回復靈泉'),'healing pool is labelled');
 assert.equal(ctx.depth,0);
 
-const spriteIds=['slime','eye','mushroom','bat','raven','ghost','knight','spider','skeleton','thorn','witch','king','stardust','starling','astrolabe','astral','constellation'];
+const spriteIds=['slime','eye','mushroom','bat','raven','ghost','knight','spider','skeleton','thorn','witch','king','stardust','starling','astrolabe','astral','constellation','spore','prism','hollow','cometqueen'];
 let frames=0;
 for(let region=0;region<4;region++) {
   for(const sprite of spriteIds) {
     const run=sample(31); run.region=region;
-    const boss=['thorn','witch','king','astral','constellation'].includes(sprite);
+    const boss=['thorn','witch','king','astral','constellation','spore','prism','hollow','cometqueen'].includes(sprite);
     run.arena.enemies[0].sprite=sprite;run.arena.enemies[0].kind=boss?'boss':'chaser';run.arena.enemies[0].phase=2;
     run.arena.player.dashTime=.1;run.arena.player.invulnerable=.2;
     run.arena.hazards=[
@@ -189,8 +189,8 @@ for(const id of ['bat','raven','ghost']){
   assert.equal(geometry(ctx.calls),first,'reduced motion freezes '+id+' wings and body geometry');
 }
 assert.equal(beastGeometry.size,3,'bat membranes, raven feathers and ghost shroud have distinct silhouettes');
-for(const id of ['slime','eye','bat','raven','ghost','knight','thorn','witch','king','stardust','starling','astrolabe','astral','constellation']){
-  const boss=['thorn','witch','king','astral','constellation'].includes(id);ctx.globalAlpha=.24;ctx.calls=[];
+for(const id of ['slime','eye','bat','raven','ghost','knight','thorn','witch','king','stardust','starling','astrolabe','astral','constellation','spore','prism','hollow','cometqueen']){
+  const boss=['thorn','witch','king','astral','constellation','spore','prism','hollow','cometqueen'].includes(id);ctx.globalAlpha=.24;ctx.calls=[];
   renderer.legacy.enemy.call(renderer.legacy,ctx,0,0,{id,boss},0,palette,true,0);
   assert.ok(ctx.calls.every(call=>call.alpha<=.24),'spawn/death opacity survives all '+id+' material and glow details');
   assert.equal(ctx.globalAlpha,.24,'sprite restores its caller opacity');assert.equal(ctx.depth,0);

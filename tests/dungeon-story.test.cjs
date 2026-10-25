@@ -35,6 +35,7 @@ assert.ok(Object.values(S.SCENES).every(scene => scene.id && scene.title && type
 
 for (const nodes of [4, 6]) {
   const legacy = fresh(); delete legacy.regionCount; legacy.nodesPerRegion = nodes;
+  delete legacy.randomWorldVersion;delete legacy.bossRoster;delete legacy.floorPlan;
   assert.match(S.storyFor(legacy).text, /三個名字/);
   legacy.status = 'won'; assert.match(S.storyFor(legacy).text, /三道/);
   assert.ok(!S.storyFor(legacy).text.includes('四道'));

@@ -23,6 +23,19 @@
     { id: 'comet', type: 'comet', name: '彗光渡橋', description: '細線預告彗星航道，稍後真正的星核會從兩側掠過。避開飛行中的星核，善用它們之間的空隙。', mutator: '雙向彗星穿越' }
   ];
   var ACTOR_NAMES = { chaser: '逐光獵影', ranged: '符箭侍從', charger: '重甲破陣者' };
+  var FORMATIONS = {
+    balanced: { name: '混合守軍', description: '追擊者、射手與衝撞者共同守衛房間', roles: ['chaser', 'ranged', 'charger'], spots: [[640, 280], [760, 135], [760, 435], [520, 110], [540, 450]] },
+    pack: { name: '追獵群集', description: '多名追擊者結群逼近，從側面拉開距離', roles: ['chaser', 'chaser', 'chaser', 'ranged', 'charger'], spots: [[565, 245], [650, 180], [680, 350], [755, 255], [550, 415]] },
+    crossfire: { name: '交叉射陣', description: '射手分散在上下兩翼，留意交叉飛彈', roles: ['ranged', 'ranged', 'chaser', 'ranged', 'ranged'], spots: [[610, 135], [780, 280], [610, 435], [485, 115], [850, 425]] },
+    rush: { name: '破陣突襲', description: '衝撞者與追擊者交替進攻，預留橫向閃避空間', roles: ['charger', 'chaser', 'charger', 'chaser', 'charger'], spots: [[565, 195], [720, 360], [600, 430], [800, 150], [470, 280]] }
+  };
+  var LAYOUTS = ['西側入口', '倒置側翼', '東側入口'];
+  var OMEN_DETAILS = {
+    none: '',
+    haste: '疾風異象：敵人移動速度增加 15%，飛彈速度不變。',
+    ward: '符甲異象：敵群額外獲得 12 點護盾。',
+    fortune: '豐饒異象：敵群生命增加 12%，勝利可獲得額外金幣。'
+  };
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function has(run, id) { return (run.relics || []).some(function (r) { return r.id === id; }); }
   function hash(value) { var h = 2166136261, str = String(value); for (var i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619); return h >>> 0; }
@@ -55,6 +68,39 @@
     }
     body.x = 150; body.y = 275;
   }
+  function layoutPoint(x, y, layout) {
+    return { x: layout === 2 ? WIDTH - x : x, y: layout === 1 ? 560 - y : y };
+  }
+  function arrangeRoom(a, layout) {
+    var start = layoutPoint(a.player.x, a.player.y, layout);
+    a.player.x = start.x; a.player.y = start.y;
+    a.player.facingX = a.player.dashX = layout === 2 ? -1 : 1;
+    a.obstacles.forEach(function (box, index) {
+      if (layout === 1) { box.y = 560 - box.y - box.h; box.x += index % 2 ? 55 : -40; }
+      else if (layout === 2) { box.x = WIDTH - box.x - box.w; box.y += index % 2 ? 24 : -24; }
+      box.x = clamp(box.x, 275, 840 - box.w);
+      box.y = clamp(box.y, 100, 460 - box.h);
+    });
+    a.hazards.forEach(function (h) {
+      var position = layoutPoint(h.x, h.y, layout); h.x = position.x; h.y = position.y;
+    });
+    if (a.room.spring) Object.assign(a.room.spring, layoutPoint(a.room.spring.x, a.room.spring.y, layout));
+    (a.room.blossoms || []).forEach(function (flower) { Object.assign(flower, layoutPoint(flower.x, flower.y, layout)); });
+  }
+  function placeFormationActor(a, body, preferredX, preferredY) {
+    function clear(x, y) {
+      return validPosition(a, body, x, y) && Math.hypot(x - a.player.x, y - a.player.y) >= 180 &&
+        a.enemies.every(function (other) { return Math.hypot(x - other.x, y - other.y) >= body.r + other.r + 18; });
+    }
+    if (clear(preferredX, preferredY)) { body.x = preferredX; body.y = preferredY; return; }
+    var best = null, score = Infinity;
+    for (var y = 95; y <= 465; y += 25) for (var x = 80; x <= 880; x += 25) {
+      var distance = Math.hypot(x - preferredX, y - preferredY);
+      if (distance < score && clear(x, y)) { best = { x: x, y: y }; score = distance; }
+    }
+    if (best) { body.x = best.x; body.y = best.y; }
+    else place(a, body, preferredX, preferredY);
+  }
   function hazard(a, spec) {
     var h = Object.assign({ id: 'hazard-' + a.nextId++, kind: 'circle', x: 0, y: 0, r: 50, delay: 0.9, life: 0.28,
       damage: 9, color: '#ff746f', source: 'enemy', hit: false, dodgeCounted: false, drain: false }, spec);
@@ -83,6 +129,22 @@
     if (run.currentRoute && run.currentRoute.storyRoom) room = Object.assign({}, ROOMS.find(function (r) { return r.id === run.currentRoute.storyRoom; }) || room);
     if (boss) room = { id: 'boss-' + run.enemy.id, type: 'boss', name: run.enemy.name + '・封印殿',
       description: run.enemy.description, mutator: '雙階段首領戰' };
+    var route = run.currentRoute || {}, plan = null, formation = FORMATIONS.balanced;
+    if (run.randomWorldVersion === 1 && !boss && !route.storyRoom && !(run.bondQuest && run.bondQuest.active) &&
+        (route.type === 'battle' || route.type === 'elite') && typeof Engine.getFloorPlan === 'function') plan = Engine.getFloorPlan(run);
+    if (plan) {
+      room = Object.assign({}, ROOMS.find(function (r) { return r.id === plan.roomId; }) || room);
+      room.layout = plan.layout === 1 || plan.layout === 2 ? plan.layout : 0;
+      room.formation = FORMATIONS[plan.formation] ? plan.formation : 'balanced';
+      room.omen = Object.prototype.hasOwnProperty.call(OMEN_DETAILS, plan.omen) ? plan.omen : 'none';
+      formation = FORMATIONS[room.formation];
+      room.mutator += '・' + formation.name + '・' + LAYOUTS[room.layout];
+      room.description += ' ' + formation.description + '。' + LAYOUTS[room.layout] + '，敵人配置與掩體隨入口變化。';
+      if (OMEN_DETAILS[room.omen]) {
+        room.mutator += '・' + OMEN_DETAILS[room.omen].split('：')[0];
+        room.description += ' ' + OMEN_DETAILS[room.omen];
+      }
+    }
     var a = run.arena = {
       version: 1, key: key, width: WIDTH, height: HEIGHT, bounds: { left: 40, top: 58, right: 920, bottom: 500 },
       player: { x: 200, y: 280, r: 12, facingX: 1, facingY: 0, dashTime: 0, dashCooldown: 0, invulnerable: 0,
@@ -91,7 +153,8 @@
       casts: 0, dodges: 0, dashes: 0, hitsTaken: 0, nextId: 1, roomClock: 2.5, roomPulse: 0, springClock: 0,
       slowTime: 0, focusActive: false, targetId: null, castRange: RANGE, wavesReleased: 1,
       dashHeld: false, previousPhase: run.enemy.phase, lastPattern: null, patternCount: 0,
-      introRemaining: boss ? 1.2 : 0, companions: [], echoQueue: []
+      introRemaining: boss ? 1.2 : 0, companions: [], echoQueue: [], bossShots: [], sporeTrail: [],
+      sporeTrailClock: 0, enemyMoveScale: plan && room.omen === 'haste' ? 1.15 : 1
     };
     if (room.id === 'pillars') a.obstacles = [rect('p1', 330, 130, 62, 66), rect('p2', 590, 130, 62, 66), rect('p3', 330, 355, 62, 66), rect('p4', 590, 355, 62, 66)];
     if (room.id === 'bridges') a.obstacles = [rect('wall1', 300, 170, 355, 40, 'wall'), rect('wall2', 300, 355, 355, 40, 'wall')];
@@ -104,20 +167,23 @@
     if (room.id === 'spring') a.room.spring = { x: 480, y: 280, r: 48, heal: 3 };
     if (room.id === 'bloom') a.room.blossoms = [{ x: 260, y: 170, r: 28, ready: false }, { x: 700, y: 170, r: 28, ready: false }, { x: 480, y: 405, r: 28, ready: false }];
     if (room.id === 'comet') a.room.comets = [];
+    if (plan) arrangeRoom(a, room.layout);
     var count = boss ? 1 : room.id === 'waves' ? 5 : run.enemy.kind === 'elite' ? 5 : 3 + run.region % 2;
     var original = run.enemy.maxHp, remaining = run.enemy.hp, maxUsed = 0, hpUsed = 0;
-    var spots = [[640, 280], [760, 135], [760, 435], [520, 110], [540, 450]];
+    var spots = formation.spots;
     for (var i = 0; i < count; i++) {
       var maxHp = i === count - 1 ? original - maxUsed : Math.floor(original / count); maxUsed += maxHp;
       var hp = i === count - 1 ? remaining - hpUsed : Math.floor(remaining / count); hpUsed += hp;
-      var kind = boss ? 'boss' : ['chaser', 'ranged', 'charger'][i % 3];
+      var kind = boss ? 'boss' : formation.roles[i % formation.roles.length];
       var spawnAt = room.id === 'waves' ? i < 2 ? 0 : i < 4 ? 4.5 : 9 : 0;
       var enemy = { id: boss ? run.enemy.id : run.enemy.id + '-' + i, kind: kind, npcId: run.enemy.npcId || null,
         sprite: boss ? run.enemy.sprite || run.enemy.id : run.region === 3 || run.bondQuest && run.bondQuest.active ? ['stardust', 'starling', 'astrolabe'][i % 3] : kind === 'ranged' ? 'eye' : kind === 'charger' ? 'knight' : run.enemy.id,
         name: boss ? run.enemy.name : ACTOR_NAMES[kind], x: 0, y: 0, r: boss ? 30 : kind === 'charger' ? 20 : 16,
         hp: hp, maxHp: maxHp, alive: hp > 0, active: spawnAt === 0, spawnAt: spawnAt, phase: run.enemy.phase,
         cooldown: 1.8 + i * 0.3, telegraph: 0, chargeX: 0, chargeY: 0, chargeTime: 0, volley: null, hurt: 0 };
-      place(a, enemy, spots[i][0], spots[i][1]); a.enemies.push(enemy);
+      var spawn = plan ? layoutPoint(spots[i][0], spots[i][1], room.layout) : { x: spots[i][0], y: spots[i][1] };
+      if (plan) placeFormationActor(a, enemy, spawn.x, spawn.y); else place(a, enemy, spawn.x, spawn.y);
+      a.enemies.push(enemy);
     }
     if (!run.difficulty) run.difficulty = 'standard';
     syncCompanions(run, a);
@@ -348,12 +414,121 @@
       }
     }
   }
+  function queueBossShot(a, boss, x, y, angle, delay, damage, speed, color, radius, shape) {
+    if (!Array.isArray(a.bossShots)) a.bossShots = [];
+    var dx = Math.cos(angle), dy = Math.sin(angle), distance = 1200;
+    if (dx > 0.0001) distance = Math.min(distance, (905 - x) / dx);
+    else if (dx < -0.0001) distance = Math.min(distance, (55 - x) / dx);
+    if (dy > 0.0001) distance = Math.min(distance, (490 - y) / dy);
+    else if (dy < -0.0001) distance = Math.min(distance, (70 - y) / dy);
+    hazard(a, { kind: 'line', source: 'boss', ownerId: boss.id, x: x, y: y,
+      x2: x + dx * Math.max(0, distance), y2: y + dy * Math.max(0, distance), width: radius * 2,
+      delay: delay, life: 0.08, damage: 0, cosmetic: true, color: color });
+    a.bossShots.push({ ownerId: boss.id, x: x, y: y, angle: angle, delay: delay,
+      damage: damage, speed: speed, color: color, r: radius, shape: shape || 'orb' });
+  }
+  function advanceBossShots(run, a, dt) {
+    if (run.enemy.id === 'spore') {
+      if (!Array.isArray(a.sporeTrail)) a.sporeTrail = [];
+      a.sporeTrailClock = (a.sporeTrailClock || 0) - dt;
+      if (a.sporeTrailClock <= 0) {
+        a.sporeTrailClock += 0.6;
+        a.sporeTrail.push({ x: a.player.x, y: a.player.y });
+        if (a.sporeTrail.length > 7) a.sporeTrail.shift();
+      }
+    }
+    if (!Array.isArray(a.bossShots)) return;
+    a.bossShots.forEach(function (shot) {
+      shot.delay -= dt;
+      if (shot.delay > 0 || shot.fired) return;
+      shot.fired = true;
+      if (!a.enemies.some(function (e) { return e.id === shot.ownerId && e.alive; })) return;
+      projectile(run, a, shot.ownerId, shot.x, shot.y, shot.angle, shot.speed, shot.damage,
+        { r: shot.r, color: shot.color, shape: shot.shape, source: 'boss', life: 5 });
+    });
+    a.bossShots = a.bossShots.filter(function (shot) { return !shot.fired; });
+  }
+  function alternateBossPattern(run, a, boss, intent, turn, phase) {
+    var damage = intent.damage, stronger = phase === 2, p = a.player;
+    function mark(spec) {
+      return hazard(a, Object.assign({ source: 'boss', ownerId: boss.id, damage: damage,
+        delay: 1.2, life: 0.45, color: '#c6b4f0' }, spec));
+    }
+    if (run.enemy.id === 'spore') {
+      a.lastPattern = turn % 2 === 0 ? '孢夢追憶' : '菌冠輪生';
+      if (turn % 2 === 0) {
+        var remembered = (a.sporeTrail || []).slice(-(stronger ? 5 : 3));
+        if (!remembered.length) remembered = [{ x: p.x, y: p.y }];
+        remembered.forEach(function (position, index) {
+          mark({ x: clamp(position.x, 85, 875), y: clamp(position.y, 95, 465), r: stronger ? 54 : 44,
+            delay: 1.15 + index * 0.4, life: stronger ? 0.7 : 0.45, color: '#d7ba8f' });
+        });
+      } else {
+        (stronger ? [85, 155, 225, 295] : [85, 170, 255]).forEach(function (radius, index) {
+          mark({ kind: 'ring', x: boss.x, y: boss.y, r: radius, innerR: radius - 24,
+            delay: 1.2 + index * 0.5, life: 0.4, color: '#d1cf95' });
+        });
+      }
+    } else if (run.enemy.id === 'prism') {
+      a.lastPattern = turn % 2 === 0 ? '千面棋盤' : '折星扇舞';
+      if (turn % 2 === 0) {
+        var vertical = Math.floor(turn / 2) % 2 === 0;
+        var lines = vertical ? (stronger ? [130, 270, 410, 550, 690, 830] : [170, 370, 570, 770]) :
+          (stronger ? [110, 220, 330, 440] : [145, 280, 415]);
+        lines.forEach(function (value, index) {
+          mark({ kind: 'line', x: vertical ? value : 55, y: vertical ? 70 : value,
+            x2: vertical ? value : 905, y2: vertical ? 490 : value, width: stronger ? 36 : 28,
+            delay: 1.25 + index * 0.16, life: 0.5, color: '#a3ddf6' });
+        });
+      } else {
+        var aim = Math.atan2(p.y - boss.y, p.x - boss.x), fan = stronger ? 5 : 3;
+        for (var ray = -fan; ray <= fan; ray++) {
+          queueBossShot(a, boss, boss.x, boss.y, aim + ray * 0.23, 1.3, damage,
+            stronger ? 180 : 155, '#bdccff', 7, 'shard');
+        }
+      }
+    } else if (run.enemy.id === 'hollow') {
+      a.lastPattern = turn % 2 === 0 ? '空鐘三鳴' : '靜默斷層';
+      if (turn % 2 === 0) {
+        [110, 210, 310].forEach(function (radius, index) {
+          mark({ kind: 'ring', x: 480, y: 280, r: radius, innerR: radius - (stronger ? 38 : 26),
+            delay: 1.2 + index * (stronger ? 0.48 : 0.65), life: stronger ? 0.55 : 0.4, color: '#c1b5ed' });
+        });
+      } else {
+        var safeCenter = [135, 280, 420][Math.floor(turn / 2) % 3], halfGap = stronger ? 55 : 65;
+        var topEnd = safeCenter - halfGap, bottomStart = safeCenter + halfGap;
+        if (topEnd > 65) mark({ kind: 'rect', x: 50, y: 65, w: 860, h: topEnd - 65,
+          delay: 2.1, life: stronger ? 0.9 : 0.7, color: '#b3a5d8' });
+        if (bottomStart < 495) mark({ kind: 'rect', x: 50, y: bottomStart, w: 860, h: 495 - bottomStart,
+          delay: 2.1, life: stronger ? 0.9 : 0.7, color: '#b3a5d8' });
+      }
+    } else if (run.enemy.id === 'cometqueen') {
+      a.lastPattern = turn % 2 === 0 ? '雙尾巡天' : '彗雨織徑';
+      if (turn % 2 === 0) {
+        var pairs = stronger ? 4 : 3;
+        for (var pair = 0; pair < pairs; pair++) {
+          var y = 110 + pair * (stronger ? 100 : 130), slope = pair % 2 ? -0.15 : 0.15;
+          var delay = 1.3 + pair * (stronger ? 0.2 : 0.28);
+          queueBossShot(a, boss, 65, y, slope, delay, damage, stronger ? 260 : 220, '#ffd4ab', stronger ? 12 : 10, 'star');
+          queueBossShot(a, boss, 895, 560 - y, Math.PI + slope, delay + 0.16, damage, stronger ? 260 : 220, '#c6dcff', stronger ? 12 : 10, 'star');
+        }
+      } else {
+        var lanes = stronger ? [100, 245, 390, 535, 680, 825] : [110, 290, 470, 650, 830];
+        lanes.forEach(function (x, index) {
+          mark({ kind: 'rect', x: x - (stronger ? 33 : 24), y: 65, w: stronger ? 66 : 48, h: 430,
+            delay: 1.2 + index * (stronger ? 0.24 : 0.38), life: stronger ? 0.7 : 0.45, color: '#f0b9bc' });
+        });
+      }
+    }
+  }
   function bossPattern(run, a, intent) {
     var boss = living(a)[0]; if (!boss) return;
     var phase = run.enemy.phase, turn = run.enemy.turn - 1, p = a.player, damage = intent.damage;
     a.patternCount += 1;
     if (run.enemy.isNpcBoss && Engine.NPCS[run.enemy.npcId]) {
       npcPattern(run, a, boss, intent, turn, phase);
+    } else if (['spore', 'prism', 'hollow', 'cometqueen'].indexOf(run.enemy.id) >= 0) {
+      alternateBossPattern(run, a, boss, intent, turn, phase);
     } else if (run.enemy.id === 'constellation') {
       a.lastPattern = turn % 2 === 0 ? '未寄出的回聲' : '雙星斷章';
       if (turn % 2 === 0) {
@@ -665,7 +840,7 @@
     var motionScale = a.slowTime > 0 ? 0.65 : 1;
     if (run.enemy.phase !== a.previousPhase) {
       a.previousPhase = run.enemy.phase;
-      a.projectiles = []; a.hazards = a.hazards.filter(function (h) { return h.source === 'trap'; });
+      a.projectiles = []; a.bossShots = []; a.hazards = a.hazards.filter(function (h) { return h.source === 'trap'; });
       effect(a, 'phase', a.enemies[0].x, a.enemies[0].y, { name: run.enemy.name + ' · 第二階段', text: '第二階段 · 封印崩解', r: 120, life: 1.3, color: '#ffd3a0' });
       if (run.enemy.kind === 'boss') {
         var phaseBoss = a.enemies[0];
@@ -679,7 +854,8 @@
     advanceCompanions(run, a, worldDt);
     if (run.status !== 'combat') { updateTarget(a); return a; }
     advanceRoom(run, a, worldDt);
-    a.enemies.forEach(function (e) { if (run.status === 'combat') enemyAI(run, a, e, worldDt, motionScale); });
+    advanceBossShots(run, a, worldDt);
+    a.enemies.forEach(function (e) { if (run.status === 'combat') enemyAI(run, a, e, worldDt, motionScale * (a.enemyMoveScale || 1)); });
     run.enemy.intent.remaining = Math.max(0, run.enemy.intent.remaining - worldDt);
     if (run.enemy.intent.remaining <= 0) intentPattern(run, a);
     updateHazards(run, a, worldDt, motionScale);
@@ -732,7 +908,8 @@
   }
   function getSummary(run) {
     var a = run && run.arena;
-    return a ? { room: a.room.name, mutator: a.room.mutator, enemiesAlive: living(a).length, activeEnemies: targets(a).length,
+    return a ? { room: a.room.name, mutator: a.room.mutator, layout: a.room.layout, formation: a.room.formation, omen: a.room.omen,
+      enemiesAlive: living(a).length, activeEnemies: targets(a).length,
       wavesReleased: a.wavesReleased, casts: a.casts, dodges: a.dodges, dashes: a.dashes, hitsTaken: a.hitsTaken,
       focusEnergy: Math.round(a.player.focusEnergy), focusActive: a.focusActive, dashReady: a.player.dashCooldown <= 0,
       time: a.realTime, pattern: a.lastPattern } : null;

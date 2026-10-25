@@ -154,7 +154,7 @@ function harness(options = {}) {
   });
 
   await test('every boss and special NPC selects a distinct original score and completes its loop', async () => {
-    const h = harness(), ids = ['thorn', 'witch', 'king', 'merchant', 'healer', 'smith', 'cartographer', 'ferryman', 'lantern', 'echo', 'sentinel', 'astral', 'lumina', 'constellation'];
+    const h = harness(), ids = ['thorn', 'witch', 'king', 'merchant', 'healer', 'smith', 'cartographer', 'ferryman', 'lantern', 'echo', 'sentinel', 'astral', 'lumina', 'constellation', 'spore', 'prism', 'hollow', 'cometqueen'];
     const catalog = h.window.DungeonAudio.BOSS_THEMES;
     assert.equal(catalog.length, ids.length);
     assert.equal(new Set(catalog.map(track => track.name)).size, ids.length);

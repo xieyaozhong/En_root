@@ -43,6 +43,17 @@
     if (run.bondQuest && run.bondQuest.active) { var step = Math.max(0, Math.min(2, run.bondQuest.step || 0)); return Object.assign({ id: 'bond-' + step, chapter: '露米娜的支線 · ' + (step + 1) + '/3' }, QUEST[step]); }
     var region = Math.max(0, Math.min(3, run.region || 0));
     var chapter = Object.assign({ id: 'chapter-' + region, chapter: '失名紀事 · ' + (region + 1) }, CHAPTERS[region]);
+    if(run.randomWorldVersion===1 && Array.isArray(run.bossRoster)){
+      var alternate={
+        spore:'這次，古樹深處盛開了巨大的菌冠。孢冠菌后把遺忘的名字播成孢子，讓森林永遠停在同一場夢裡。穿過孢雨，替春天找到醒來的路。',
+        prism:'森林的名字已被找回。碎月書庫裡，千面鏡獸收集了每個人不敢面對的倒影。鏡片之間留下了一道縫；你要從那裡，把真正的月光帶回來。',
+        hollow:'月光重新落在書頁上，王座卻傳來沒有聲音的鐘響。空鐘司祭將失去的記憶封進巨鐘，等著一個願意聆聽的人。看清鐘波的間隙，讓那些名字再次被聽見。',
+        cometqueen:'王座之後仍有一座花庭。彗尾女皇拖著破碎星帶巡行，將來不及說出的約定變成流星。避開交錯的彗尾，替最後一顆願望找到落腳之處。'
+      };
+      if(alternate[run.bossRoster[region]])chapter.text=alternate[run.bossRoster[region]];
+      else if(region===1)chapter.text=chapter.text.replace('棘冠散去','森林的封印散去');
+      else if(region===0)chapter.text+=' 這次的棘冠典獄長，正從古樹深處甦醒。';
+    }
     if (legacy && region === 0) chapter.text = chapter.text.replace('四個名字', '三個名字');
     return chapter;
   }

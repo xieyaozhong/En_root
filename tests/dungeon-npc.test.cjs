@@ -7,6 +7,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 function encounter(id, seed = 41, node = 0) {
   const run = Engine.createRun({ word: 'magic', zh: '魔法', rarity: 'N' }, true, seed);
   run.nodesPerRegion = 4;
+  delete run.regionCount;delete run.randomWorldVersion;delete run.bossRoster;delete run.floorPlan;
   run.encounter = node; run.region = Math.min(2, Math.floor(node / 4));
   run.routes = [{ id: 'visitor', type: id === 'merchant' ? 'shop' : 'npc', npcId: id, name: Engine.NPCS[id].name }];
   assert.equal(Engine.chooseRoute(run, 'visitor').ok, true);
@@ -26,6 +27,7 @@ function pattern(run) {
 }
 function ordinary() {
   const run = Engine.createRun({ word: 'magic' }, true, 19);
+  run.floorPlan[0].omen='none';
   Engine.chooseRoute(run, 'battle');
   run.enemy.hp = run.enemy.maxHp = 10000;
   run.spell = { word: 'spark', name: '星火術', type: 'attack', power: 17, elapsed: 0 };

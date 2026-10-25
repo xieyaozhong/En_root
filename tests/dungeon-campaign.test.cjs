@@ -6,7 +6,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 for (const length of [12, 18, 24]) {
   const legacy = length === 12;
   const run = E.createRun({word:'rune'}, false, 100);
-  if (length < 24) delete run.regionCount;
+  if (length < 24) { delete run.regionCount;delete run.randomWorldVersion;delete run.bossRoster;delete run.floorPlan; }
   if (legacy) { delete run.nodesPerRegion; delete run.companions; }
   const gates = [], visitors = new Set();
   while (run.status !== 'won') {
@@ -15,6 +15,9 @@ for (const length of [12, 18, 24]) {
     assert.equal(run.region, Math.floor(run.encounter / E.getNodesPerRegion(run)));
     if (local === E.getNodesPerRegion(run) - 1) {
       assert.deepEqual(run.routes.map(r => r.type), ['boss']); gates.push(run.encounter + 1);
+      assert.equal(run.routes[0].name,E.BOSSES[E.getBossId(run,run.region)].name);
+      if(length===24)assert.equal(E.getBossId(run,run.region),run.bossRoster[run.region]);
+      else assert.equal(E.getBossId(run,run.region),E.REGIONS[run.region].boss);
     } else {
       assert.ok(run.routes.some(r => r.type === 'battle'));
       if (local === E.getNodesPerRegion(run) - 2) assert.ok(run.routes.some(r => r.type === 'camp'));
@@ -24,9 +27,11 @@ for (const length of [12, 18, 24]) {
         visitors.add(visit.npcId);
       }
     }
-    E.chooseRoute(run, run.routes[0].id); E.damageEnemy(run, 100000, 1);
+    E.chooseRoute(run, run.routes[0].id);
+    if(run.enemy.kind==='boss')assert.equal(run.enemy.id,E.getBossId(run,run.region));
+    E.damageEnemy(run, 100000, 1);
     if (run.status === 'reward') E.chooseReward(run, run.rewards[0].id);
-    assert.ok(run.encounter < length, 'campaign stops at its final king');
+    assert.ok(run.encounter < length, 'campaign stops at its selected final guardian');
   }
   assert.deepEqual(gates, legacy ? [4, 8, 12] : length === 18 ? [6, 12, 18] : [6, 12, 18, 24]);
   assert.equal(run.completedNodes, length); assert.equal(run.stats.bossesDefeated, length === 24 ? 4 : 3);
@@ -54,7 +59,7 @@ for (let node = 3; node < 5; node++) {
 }
 console.log('PASS recruitment, one-time choice, save roundtrip and party persistence');
 
-function combat() { const r=E.createRun(null,true,8); E.chooseRoute(r,'battle'); r.enemy.hp=r.enemy.maxHp=10000; return r; }
+function combat() { const r=E.createRun(null,true,8); r.floorPlan[0].omen='none';E.chooseRoute(r,'battle'); r.enemy.hp=r.enemy.maxHp=10000; return r; }
 const light=combat(); light.status='route'; light.routes=[{id:'battle',type:'battle',name:'fight'}];
 light.relics=[clone(E.RELICS.shell),clone(E.RELICS.lanternwake)];E.chooseRoute(light,'battle');
 assert.equal(light.player.shield,30);
