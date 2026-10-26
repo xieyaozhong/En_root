@@ -299,7 +299,8 @@
       const aliases = { attack: 'cast', damage: 'hit', shield: 'heal', signature: 'cast',
         boss_intro: 'bossIntro', boss_phase: 'bossPhase', boss_death: 'bossDeath', player_death: 'playerDeath' };
       kind = aliases[kind] || kind;
-      if (!['cast', 'dash', 'hit', 'heal', 'win', 'loot', 'error', 'bossIntro', 'bossPhase', 'bossDeath', 'playerDeath', 'echo'].includes(kind)) return false;
+      if (!['cast', 'dash', 'hit', 'heal', 'win', 'loot', 'error', 'bossIntro', 'bossPhase', 'bossDeath', 'playerDeath', 'echo',
+        'windup', 'swing', 'recover', 'perfect-dodge', 'ritual-start', 'ritual-step', 'ritual-break', 'ritual-fail'].includes(kind)) return false;
       const now = this._context.currentTime + 0.008;
       const dramatic = ['win', 'bossIntro', 'bossPhase', 'bossDeath', 'playerDeath'].includes(kind);
       if (this._lastSfx[kind] !== undefined && now - this._lastSfx[kind] < (dramatic ? 0.8 : 0.07)) return false;
@@ -333,6 +334,31 @@
         this._tone(root - 12, now, 0.8, { channel: 'sfx', wave: 'sawtooth', gain: 0.055, cutoff: 850, slide: root - 36 });
         (fallen ? [12, 7, 3, 0, -1] : [19, 15, 12, 7, 0]).forEach((note, i) => this._tone(root + note, now + i * 0.11, 0.45, {
           channel: 'sfx', wave: fallen ? 'triangle' : 'sine', gain: 0.05, pan: i % 2 ? 0.15 : -0.15 }));
+      } else if (kind === 'windup') {
+        // One rising metal cue marks commitment; it does not repeat every frame.
+        this._tone(root - 7, now, 0.28, { channel: 'sfx', wave: 'triangle', gain: 0.045, slide: root + 1, cutoff: 1900 });
+        this._noise(now, 0.18, 0.025, 2500, 'sfx', 'bandpass');
+      } else if (kind === 'swing') {
+        this._noise(now, 0.20, 0.075, 2300, 'sfx', 'bandpass');
+        this._tone(root + 7, now, 0.15, { channel: 'sfx', wave: 'sawtooth', gain: 0.035, slide: root - 17, cutoff: 1500 });
+      } else if (kind === 'recover' || kind === 'perfect-dodge') {
+        const precise = kind === 'perfect-dodge';
+        (precise ? [7, 19, 24] : [7, 12]).forEach((note, i) => this._tone(root + note, now + i * 0.055, 0.22, {
+          channel: 'sfx', wave: 'sine', gain: precise ? 0.06 : 0.027, cutoff: 3400 }));
+      } else if (kind === 'ritual-start') {
+        [0, 1, 7].forEach((note, i) => this._tone(root - 12 + note, now + i * 0.10, 0.7, {
+          channel: 'sfx', wave: 'triangle', gain: 0.045, attack: 0.04, cutoff: 1800 }));
+        this._tone(root + 12, now + 0.25, 0.48, { channel: 'sfx', wave: 'sine', gain: 0.035, slide: root + 13 });
+      } else if (kind === 'ritual-step') {
+        [12, 19].forEach((note, i) => this._tone(root + note, now + i * 0.07, 0.25, {
+          channel: 'sfx', wave: 'sine', gain: 0.06, cutoff: 3600 }));
+      } else if (kind === 'ritual-break') {
+        this._noise(now, 0.32, 0.055, 3800, 'sfx', 'highpass');
+        [7, 12, 19, 24].forEach((note, i) => this._tone(root + note, now + i * 0.065, 0.38, {
+          channel: 'sfx', wave: 'triangle', gain: 0.055, cutoff: 3200 }));
+      } else if (kind === 'ritual-fail') {
+        this._noise(now, 0.5, 0.08, 1100, 'sfx', 'lowpass');
+        this._tone(root - 12, now, 0.55, { channel: 'sfx', wave: 'sawtooth', gain: 0.055, slide: root - 31, cutoff: 950 });
       } else if (kind === 'echo') {
         [0, 0.1, 0.2].forEach((delay, i) => this._tone(root + 12 + i * 7, now + delay, 0.25, {
           channel: 'sfx', wave: 'sine', gain: 0.065 / (i + 1), pan: i % 2 ? 0.3 : -0.3, slide: root + 19 + i * 7 }));

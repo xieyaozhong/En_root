@@ -1,6 +1,7 @@
 /* Wordbound: original pixel arena art. World coordinates are 960 x 540.
  * Public API: new DungeonArenaRenderer(canvas), draw({run,paused,reducedMotion,aim}, ms), burst(kind).
- * DungeonCharacter supplies articulated actors; DungeonRenderer remains the fallback. */
+ * DungeonCharacter and DungeonEnemyCharacter supply articulated actors;
+ * DungeonRenderer remains the fallback for unknown appearances. */
 (() => {
   'use strict';
   const W=960,H=540,TAU=Math.PI*2;
@@ -242,7 +243,9 @@
       const dash=val(actor.dashTime)>0||val(actor.chargeTime)>0,casting=state.castAge<.52,hurting=state.hurtAge<.28;
       let fx=state.facingX,fy=state.facingY;
       const look=casting&&state.look?state.look:options.lookAt;
-      if(look&&(casting||travel<.1||options.chant)){fx=val(look.x)-x;fy=val(look.y)-y;}
+      const action=options.action||actor.action;
+      if(action&&Number.isFinite(action.angle)){fx=Math.cos(action.angle);fy=Math.sin(action.angle);}
+      else if(look&&(casting||travel<.1||options.chant)){fx=val(look.x)-x;fy=val(look.y)-y;}
       else if(travel>.08){fx=dx;fy=dy;}
       else if(Number.isFinite(actor.facingX)&&Number.isFinite(actor.facingY)){fx=actor.facingX;fy=actor.facingY;}
       if(Math.hypot(fx,fy)>.01){
@@ -250,11 +253,25 @@
         const difference=Math.atan2(Math.sin(to-from),Math.cos(to-from)),angle=from+difference*(1-Math.exp(-dt*20));
         state.facingX=Math.cos(angle);state.facingY=Math.sin(angle);
       }
-      const mode=options.fallen?'fallen':dash?'dash':hurting?'hurt':casting?'cast':options.chant?'chant':state.moving>.08?'walk':'idle';
+      let mode=options.fallen?'fallen':dash?'dash':hurting?'hurt':casting?'cast':options.chant?'chant':state.moving>.08?'walk':'idle';
       const reduced=context.reducedMotion;
+      const authoritative=action&&['windup','active','recovery','stagger'].includes(action.stage)?{
+        kind:action.kind,stage:action.stage,progress:clamp(val(action.progress,val(action.elapsed)/Math.max(.001,val(action.duration,1))),0,1),
+        angle:action.angle,combo:action.combo,ritual:!!action.ritual,name:action.name}:null;
+      if(authoritative&&!options.fallen)mode=authoritative.stage==='stagger'?'hurt':'cast';
       state.pose={time:reduced?0:this.clock,phase:reduced?0:state.phase,moving:reduced?0:state.moving,speed:reduced?0:state.speed,
         facingX:state.facingX,facingY:state.facingY,mode,castProgress:casting?(reduced?.46:clamp(state.castAge/.52,0,1)):0,
-        hurtProgress:hurting?(reduced?.4:clamp(state.hurtAge/.28,0,1)):0,still:reduced};
+        hurtProgress:hurting?(reduced?.4:clamp(state.hurtAge/.28,0,1)):0,still:reduced,action:authoritative};
+      if(authoritative){
+        // Lumina uses the player's existing rig; its charge/release/recovery
+        // progress is driven by the same authoritative stages as every enemy.
+        const q=reduced?.5:authoritative.progress;
+        if(authoritative.stage==='windup')state.pose.castProgress=.12*(1-q);
+        else if(authoritative.stage==='active')state.pose.castProgress=.2+q*.42;
+        else if(authoritative.stage==='recovery')state.pose.castProgress=.62+q*.38;
+        else state.pose.hurtProgress=q;
+        if(reduced)state.pose.action={...authoritative,progress:.5};
+      }
       return state.pose;
     }
     playerPose(actor,run){
@@ -324,7 +341,7 @@
       });
       (a.projectiles||[]).forEach(b=>this.projectile(c,b,p,t,still));
       (a.effects||[]).filter(e=>!/dash|spawn|death/.test(e.kind)).forEach(e=>this.effect(c,e,p,t,still));
-      active.forEach(e=>this.healthBar(c,e,p));
+      active.forEach(e=>{this.healthBar(c,e,p);this.combatIntent(c,e,a,p,still);});
       if(val(run?.player?.hp,1)>0)this.playerStatus(c,player,run,p,t,still);
       const aim=scene.aim;
       if(aim&&Number.isFinite(aim.x)&&Number.isFinite(aim.y)&&aim.x>24&&aim.x<936&&aim.y>55&&aim.y<504){
@@ -436,7 +453,7 @@
       const x=val(actor.x),y=val(actor.y),color=actor.color||'#a9eadb',id=actor.npcId||actor.sprite||'lantern';
       c.save();c.globalAlpha*=.4;oval(c,x,y+2,17,5,p.void);c.restore();
       this.actorMarker(c,actor,'ally');
-      const modern=id==='lumina'&&typeof window.DungeonCharacter?.draw==='function',space=this.actorContext?.space;
+      const modern=id==='lumina'?typeof window.DungeonCharacter?.draw==='function':!!window.DungeonEnemyCharacter?.supports(id),space=this.actorContext?.space;
       const pose=modern?this.actorPose('companion:'+String(actor.id||id),actor,{effects:(space?.effects||[]).filter(e=>e.kind==='companion-cast'&&e.npcId===id)}):null;
       c.save();c.translate(Math.round(x),Math.round(y));if(!modern)c.scale(.52,.52);this.npc(c,id,p,t,still,false,1,pose);c.restore();
       const name=String(actor.name||({lantern:'路米',echo:'伊可',sentinel:'折鋒',lumina:'露米娜'}[id]||'同行者')).split('・').pop();
@@ -457,7 +474,7 @@
         if(!still){for(let i=0;i<5;i++){const yy=y-12-(t*15+i*17)%Math.max(1,h-16);c.save();c.globalAlpha=.6;box(c,x-18+i*9,yy,2,3,color);c.restore();}}
       }else if(o.kind==='merchant'||o.kind==='npc'){
         const npcId=o.npcId||o.sprite||(o.kind==='merchant'?'merchant':'healer');
-        const modern=npcId==='lumina'&&typeof window.DungeonCharacter?.draw==='function';
+        const modern=npcId==='lumina'?typeof window.DungeonCharacter?.draw==='function':!!window.DungeonEnemyCharacter?.supports(npcId);
         const pose=modern?this.actorPose('npc:'+String(o.id||npcId),o,{lookAt:near?this.actorContext?.space?.player:null}):null;
         c.save();c.translate(x,y);if(!modern)c.scale(.88,.88);this.npc(c,npcId,p,t,still,false,1,pose);c.restore();
       }else if(o.kind==='camp'){
@@ -492,6 +509,10 @@
       c.restore();
     }
     npc(c,id,p,t,still,boss,phase,pose=null){
+      if(id!=='lumina'&&pose&&window.DungeonEnemyCharacter?.supports(id)){
+        window.DungeonEnemyCharacter.draw(c,pose,{npcId:id,kind:boss?'boss':'npc',boss,phase});
+        return;
+      }
       const modern=id==='lumina'&&pose&&typeof window.DungeonCharacter?.draw==='function';
       const anger=boss?'#ffab9d':p.light,bob=modern||still||boss?0:Math.sin(t*1.6)*1.5;
       c.save();c.translate(0,bob);
@@ -714,18 +735,18 @@
       const x=val(e.x),y=val(e.y),boss=e.kind==='boss'||e.boss;
       const type=e.npcId||e.sprite||e.enemyId||e.id||'slime',npcId=String(type).replace(/^npc-/,''),isNpc=NPC_IDS.has(npcId);
       const spawning=e.active===false,scale=isNpc?(boss?1.12:.88):(boss?.7:.66);
-      const modern=npcId==='lumina'&&typeof window.DungeonCharacter?.draw==='function',space=this.actorContext?.space;
-      const ownHazards=modern?(space?.hazards||[]).filter(h=>String(h.ownerId)===String(e.id)):[];
-      const pose=modern?(poseOverride||this.actorPose('enemy:'+String(e.id||npcId),e,{hp:e.hp,lookAt:space?.player,chant:ownHazards.some(h=>val(h.delay)>0),effects:ownHazards})):null;
+      const articulated=!!window.DungeonEnemyCharacter?.supports(npcId),modern=articulated||npcId==='lumina'&&typeof window.DungeonCharacter?.draw==='function',space=this.actorContext?.space;
+      const pose=modern?(poseOverride||this.actorPose('enemy:'+String(e.id||npcId),e,{hp:e.hp,lookAt:space?.player,action:e.action})):null;
       c.save();c.globalAlpha*=spawning?.25:.4;oval(c,x,y+2,boss?39:20,boss?10:6,p.void);c.restore();
       if(spawning){c.save();c.globalAlpha=.35;this.targetRing(c,e,p,t);c.restore();}
       c.save();if(spawning)c.globalAlpha*=.45;c.translate(Math.round(x),Math.round(y));if(!modern)c.scale(scale,scale);
-      if(isNpc)this.npc(c,npcId,p,t,still,boss,val(e.phase,1),pose);
+      if(articulated)window.DungeonEnemyCharacter.draw(c,pose,{...e,sprite:npcId,boss});
+      else if(isNpc)this.npc(c,npcId,p,t,still,boss,val(e.phase,1),pose);
       else if(this.legacy?.enemy)this.legacy.enemy.call(this.legacy,c,0,0,{id:type,kind:boss?'boss':e.kind,boss,phase:e.phase},t,p,still,[1,0,2,3][region]);
       else this.fallbackFoe(c,e,p,boss);
       c.restore();
       if(val(e.chargeTime)>0){c.save();c.globalAlpha=.7;stroke(c,x-val(e.chargeX)*20,y-val(e.chargeY)*20,x-val(e.chargeX)*37,y-val(e.chargeY)*37,p.hot,3);c.restore();}
-      if(e.phase>1&&boss){c.save();c.globalAlpha=.45;gem(c,x,y-(boss?114:54),6,p.hot);c.restore();}
+      if(e.phase>1&&boss){c.save();c.globalAlpha=.45;gem(c,x,y-133,6,p.hot);c.restore();}
     }
     fallbackFoe(c,e,p,boss){
       const r=boss?42:24;pixelDisk(c,0,-r,r,'#453b58');pixelDisk(c,0,-r-4,r*.8,p.glow);box(c,-r*.45,-r-8,7,7,'#272139');box(c,r*.2,-r-8,7,7,'#272139');if(boss){gem(c,-24,-r*2,13,p.accent);gem(c,24,-r*2,13,p.accent);}
@@ -735,12 +756,33 @@
       c.save();c.strokeStyle='#f7d59a';c.lineWidth=2;c.globalAlpha=.78;
       for(let i=0;i<4;i++){const a=i*TAU/4+.2;c.beginPath();c.ellipse(x,y+2,r,r*.65,0,a,a+.63);c.stroke();}
       // Small downward chevron marks the currently selected spell target.
-      const top=y-(boss?116:61);poly(c,[[x-4,top-4],[x+4,top-4],[x,top]],'#f7d59a');c.restore();
+      const top=y-(boss?143:78);poly(c,[[x-4,top-4],[x+4,top-4],[x,top]],'#f7d59a');c.restore();
     }
     healthBar(c,e,p){
       if(e.active===false)return;
-      const boss=e.kind==='boss'||e.boss,width=boss?67:34,x=val(e.x)-width/2,y=val(e.y)-(boss?108:55),ratio=clamp(val(e.hp)/Math.max(1,val(e.maxHp,1)),0,1);
+      const boss=e.kind==='boss'||e.boss,width=boss?67:34,x=val(e.x)-width/2,y=val(e.y)-(boss?135:70),ratio=clamp(val(e.hp)/Math.max(1,val(e.maxHp,1)),0,1);
       box(c,x-2,y-2,width+4,8,'#0f1725');box(c,x,y,width,4,'#493341');box(c,x,y,Math.max(0,width*ratio),4,boss?'#eeaa92':'#b992ad');box(c,x,y,Math.max(0,width*ratio),1,boss?'#ffdebb':'#e4bdd1');
+    }
+    combatIntent(c,e,a,p,still){
+      const action=e.action,boss=e.kind==='boss'||e.boss;
+      if(!action&&!val(e.counterWindow))return;
+      const x=val(e.x),y=val(e.y),counter=val(e.counterWindow)>0,ritual=a.ritual&&a.ritual.status==='charging'&&String(a.ritual.bossId)===String(e.id);
+      const color=counter?'#a5f4d3':ritual?'#f5bdff':action?.stage==='windup'?'#ffce96':action?.stage==='active'?'#ffa79b':'#c8b6dc';
+      if(boss){
+        const label=counter?'破綻・反擊':ritual?'禁咒詠唱':action?.stage==='windup'?'蓄勢':action?.stage==='active'?'出招':action?.stage==='stagger'?'失衡':'收招';
+        c.save();c.textAlign='center';c.font='bold 11px sans-serif';c.fillStyle='#152033';c.fillRect(x-34,y+17,68,17);c.fillStyle=color;c.fillText(label,x,y+29);c.restore();
+      }
+      if(counter){c.save();c.globalAlpha=.85;c.strokeStyle=color;c.lineWidth=2;for(let i=0;i<4;i++){const angle=i*TAU/4+.3;c.beginPath();c.ellipse(x,y+2,val(e.r,24)+11,14,0,angle,angle+.65);c.stroke();}c.restore();}
+      if(action?.stage==='windup'){
+        const progress=clamp(val(action.progress,val(action.elapsed)/Math.max(.001,val(action.duration,1))),0,1),width=boss?56:26;
+        box(c,x-width/2,y+(boss?36:9),width,2,'#32283c');box(c,x-width/2,y+(boss?36:9),Math.max(1,width*progress),2,color);
+      }
+      if(ritual){
+        c.save();c.strokeStyle=color;c.lineWidth=2;c.globalAlpha=.65;
+        const phase=still?0:this.clock*.6;
+        for(let i=0;i<3;i++){const angle=i*TAU/3+phase,rx=x+Math.cos(angle)*49,ry=y-70+Math.sin(angle)*27;gem(c,rx,ry,7,i<val(a.ritual.index)?'#a5f4d3':color);}
+        c.beginPath();c.ellipse(x,y-70,49,27,0,0,TAU);c.stroke();c.restore();
+      }
     }
     playerStatus(c,a,run,p,t,still){
       const x=val(a.x),y=val(a.y),shield=val(run?.player?.shield),hp=val(run?.player?.hp,100),max=val(run?.player?.maxHp,100);
@@ -762,6 +804,11 @@
         else if(kind==='line'){
           const x2=val(h.x2,x+90),y2=val(h.y2,y),width=val(h.width,18),a=Math.atan2(y2-y,x2-x)+Math.PI/2,ox=Math.cos(a)*width/2,oy=Math.sin(a)*width/2;
           c.moveTo(x+ox,y+oy);c.lineTo(x2+ox,y2+oy);c.lineTo(x2-ox,y2-oy);c.lineTo(x-ox,y-oy);c.closePath();
+        }else if(kind==='arc'){
+          const a=val(h.angle),spread=val(h.spread,Math.PI/2),start=a-spread/2,end=a+spread/2;
+          c.moveTo(x+Math.cos(start)*inner,y+Math.sin(start)*inner);c.lineTo(x+Math.cos(start)*r,y+Math.sin(start)*r);
+          c.arc(x,y,r,start,end);c.lineTo(x+Math.cos(end)*inner,y+Math.sin(end)*inner);
+          if(inner>0)c.arc(x,y,inner,end,start,true);else c.lineTo(x,y);c.closePath();
         }else if(kind==='cone'){
           const a=val(h.angle),spread=val(h.spread,Math.PI/3);c.moveTo(x,y);c.arc(x,y,r,a-spread/2,a+spread/2);c.closePath();
         }else{c.arc(x,y,r,0,TAU);if(kind==='ring'&&inner>0){c.moveTo(x+inner,y);c.arc(x,y,inner,0,TAU,true);}}
@@ -816,11 +863,12 @@
         c.save();
         if(e.actor&&alpha>.3){
           c.globalAlpha=alpha*.8;c.translate(x,y);
-          const modern=typeof window.DungeonCharacter?.draw==='function'&&(e.actor.kind==='player'||e.actor.npcId==='lumina'||e.actor.sprite==='lumina');
+          const appearance=e.actor.npcId||e.actor.sprite||e.actor.id;
+          const modern=!!window.DungeonEnemyCharacter?.supports(appearance)||typeof window.DungeonCharacter?.draw==='function'&&(e.actor.kind==='player'||e.actor.npcId==='lumina'||e.actor.sprite==='lumina');
           if(!still&&!modern){c.scale(1+progress*.15,Math.max(.2,1-progress*.85));c.rotate((e.actor.kind==='player'?-1:1)*progress*.18);}
           const actor={...e.actor,x:0,y:0,alive:true,active:true,hp:1,invulnerable:0,dashTime:0};
           const pose=modern?{time:0,phase:0,facingX:val(e.actor.facingX,1),facingY:val(e.actor.facingY),...e.pose,
-            mode:'fallen',moving:0,speed:0,castProgress:0,hurtProgress:this.actorContext?.reducedMotion?1:progress,still:!!this.actorContext?.reducedMotion}:null;
+            mode:'fallen',moving:0,speed:0,action:null,castProgress:0,hurtProgress:this.actorContext?.reducedMotion?1:progress,still:!!this.actorContext?.reducedMotion}:null;
           if(actor.kind==='player')this.mage(c,actor,p,0,true,run,false,pose);else this.foe(c,actor,p,0,true,region,pose);
         }
         c.restore();c.save();c.globalAlpha=alpha;

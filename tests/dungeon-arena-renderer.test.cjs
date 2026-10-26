@@ -25,7 +25,7 @@ for (const name of ['fillRect','clearRect','beginPath','closePath','moveTo','lin
 function canvas() { const context = new Context(); return {width:0,height:0,style:{},getContext:() => context}; }
 const window = {}, document = {createElement: name => {assert.equal(name,'canvas'); return canvas();}};
 const sandbox = {window,document};
-for(const file of ['dungeon-renderer.js','dungeon-character.js','dungeon-arena-renderer.js']) vm.runInNewContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),sandbox);
+for(const file of ['dungeon-renderer.js','dungeon-character.js','dungeon-enemy-character.js','dungeon-arena-renderer.js']) vm.runInNewContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),sandbox);
 const surface = canvas(), renderer = new window.DungeonArenaRenderer(surface), ctx = surface.getContext();
 assert.equal(surface.width,960); assert.equal(surface.height,540);
 renderer.draw({run:null},0); assert.equal(ctx.depth,0);

@@ -39,6 +39,7 @@
   const itemIcons = {potion:'potion',bomb:'bomb',hourglass:'hourglass',barrier:'shield',focus:'ink'};
   const npcIcons = {merchant:'shop',healer:'heal',smith:'attack',cartographer:'route',ferryman:'camp',lantern:'companion',echo:'spell',sentinel:'shield',lumina:'signature'};
   function spellIcon(spell) {
+    if(spell.type==='interrupt')return 'shield';
     if(['heal','shield','signature'].includes(spell.type))return spell.type;
     const word=String(spell.word || '').toLowerCase();
     return /^(fire|spark|flame|blaze)$/.test(word)?'fire':/^(frost|ice|freeze|snow)$/.test(word)?'ice':
@@ -65,6 +66,7 @@
   const heldKeys = new Set(), keyTimes = new Map(), tapPulses = new Map();
   let joystick=null, previousTyped='', qtePulseUntil=0, castFeedbackUntil=0;
   let partySignature='', presentationRun=null, presentedCombat='', presentedPhase=0, presentedStatus='', lastEchoEffect='';
+  let chantTargetKey='', chantTargetRun=null, duelTrackKey='', cueArena=null, cueId='';
   const directionKeys = {KeyW:'up',ArrowUp:'up',KeyS:'down',ArrowDown:'down',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
   const difficultyNames = {story:'故事',standard:'標準',veteran:'試煉'};
   const explorationStatuses = ['route','shop','npc','camp','reward'];
@@ -90,6 +92,14 @@
     if(!run)return;
     const key=run.arena?.key || `${run.encounter}:${run.enemy?.id}`,isBoss=run.enemy?.kind==='boss';
     if(run.status==='combat'){
+      const cue=run.arena?.cue;
+      if(cueArena!==run.arena){cueArena=run.arena;cueId='';}
+      if(cue && cueId!==cue.id){
+        cueId=cue.id;tone(cue.kind);
+        if(cue.kind==='ritual-start')notify('首領正在編織強咒！按詠唱，連續完成三組封咒。');
+        if(cue.kind==='ritual-fail'){notify('封咒逾時，強咒爆發！',true);$('castFeedback').textContent='封咒失敗 · 強咒爆發';castFeedbackUntil=performance.now()+1100;}
+        if(cue.kind==='perfect-dodge'){$('castFeedback').textContent='✦ 精準閃避 · 抓住反擊時機';castFeedbackUntil=performance.now()+900;}
+      }
       if(presentedCombat!==key){presentedCombat=key;presentedPhase=run.enemy.phase || 1;if(isBoss)tone('bossIntro');syncAudio();}
       else if(presentedPhase!==run.enemy.phase){presentedPhase=run.enemy.phase;if(isBoss)tone('bossPhase');syncAudio();}
       const echo=(run.arena?.effects || []).filter(f=>f.kind==='companion-cast' && (f.npcId==='echo' || f.role==='mimic')).at(-1);
@@ -118,13 +128,78 @@
     const keyX=Number(directions.has('right'))-Number(directions.has('left')),keyY=Number(directions.has('down'))-Number(directions.has('up'));
     return {x:keyX || keyY?keyX:stick.x,y:keyX || keyY?keyY:stick.y,dash:dashQueued,focus:chanting};
   }
+  function activeInterrupt() {
+    return run?.status==='combat'?Arena.getInterrupt?.(run) || null:null;
+  }
+  function chantTarget() {
+    if(run?.status!=='combat')return null;
+    const ritual=activeInterrupt();
+    if(ritual)return {key:'ritual:'+ritual.id+':'+ritual.index,word:ritual.groups[ritual.index],type:'interrupt',zh:'封咒 '+(ritual.index+1)+' / 3',description:'連續完成三組，打斷強咒並取得反擊時機',ritual};
+    return {...run.spell,key:'spell:'+run.spell.word+':'+(run.stats?.casts || 0)};
+  }
+  function syncChantTarget() {
+    const target=chantTarget(),key=target?.key || '';
+    if(chantTargetRun!==run || chantTargetKey!==key){
+      chantTargetRun=run;chantTargetKey=key;previousTyped='';touchSpell=null;touchLettersKey='';touchButtonsKey='';touchMissUntil=0;
+      const input=$('spellInput');
+      if(input){input.value='';input.removeAttribute('aria-invalid');input.setAttribute('aria-label',target?.ritual?'輸入第 '+(target.ritual.index+1)+' 組封咒':'輸入咒語');}
+      const row=$('actionPanel').querySelector('.spell-row');
+      if(row && target){row.dataset.element=spellIcon(target);row.querySelector('.spell-emblem').innerHTML=icon(spellIcon(target));row.querySelector('.spell-meaning').textContent=target.zh || '';row.querySelector('.spell-type').textContent=target.ritual?'三重封咒':spellTypes[target.type] || '魔法咒語';}
+      $('actionPanel').classList.toggle('is-interrupting',!!target?.ritual);
+      $('touchControls').classList.toggle('is-interrupting',!!target?.ritual);
+    }
+    return target;
+  }
+  function ensureDuelHUD() {
+    if(!$('bossRhythm')){
+      const rhythm=document.createElement('div');rhythm.id='bossRhythm';rhythm.className='boss-rhythm';rhythm.hidden=true;
+      rhythm.innerHTML='<span id="bossActionName"></span><b id="bossActionTime"></b><i id="bossActionProgress"></i>';$('bossBanner').append(rhythm);
+      bindTouchPress($('bossBanner'),()=>{if(activeInterrupt() && !paused)setChant(true);});
+      $('bossBanner').onkeydown=event=>{if(activeInterrupt() && !paused && ['Enter',' '].includes(event.key)){event.preventDefault();event.stopPropagation();setChant(true);}};
+    }
+    if(!$('touchRitualTrack')){
+      const track=document.createElement('div');track.id='touchRitualTrack';track.className='ritual-track';track.hidden=true;
+      $('touchSpellPreview').before(track);
+    }
+  }
+  function renderDuelHUD() {
+    ensureDuelHUD();
+    const ritual=activeInterrupt(),active=run?.status==='combat' && !paused && !$('infoDialog').open;
+    const action=run?.enemy?.action,counter=run?.enemy?.counterWindow || 0;
+    $('bossBanner').classList.toggle('ritual-ready',active && !!ritual);
+    $('bossBanner').tabIndex=active && ritual?0:-1;
+    if(active && ritual){$('bossBanner').setAttribute('role','button');$('bossBanner').setAttribute('aria-label','首領強咒蓄力，按下開始第 '+(ritual.index+1)+' 組封咒');}
+    else {$('bossBanner').removeAttribute('role');$('bossBanner').removeAttribute('aria-label');}
+    const rhythm=$('bossRhythm');rhythm.hidden=!active || run.enemy.kind!=='boss' || (!action && !ritual);
+    if(!rhythm.hidden){
+      const stage=ritual?'ritual':counter>0?'counter':action.stage;
+      const labels={windup:'蓄勢 · 看清出手',active:action?.combo?'連段 · 保留閃避':'出手 · 閃避',recovery:'收招 · 趁隙施法',stagger:'失衡 · 立即反擊',counter:'反擊窗口',ritual:'強咒蓄力 · 點此封咒'};
+      rhythm.dataset.stage=stage;
+      textIfChanged('bossActionName',labels[stage] || action?.name || '觀察首領動作');
+      textIfChanged('bossActionTime',ritual?ritual.remaining.toFixed(1)+' 秒':counter>0?counter.toFixed(1)+' 秒':action?.name || '');
+      $('bossActionProgress').style.width=(ritual?Math.max(0,ritual.remaining/ritual.duration):1-Math.min(1,action?.progress || 0))*100+'%';
+    }
+    const trackKey=ritual?ritual.id+':'+ritual.index:'';
+    if(trackKey!==duelTrackKey || (ritual && !$('ritualTrack')?.childElementCount)){
+      duelTrackKey=trackKey;
+      const markup=ritual?'<span class="ritual-label">三重封咒</span><div class="ritual-steps">'+ritual.groups.map((word,index)=>`<span class="ritual-step ${index<ritual.index?'done':index===ritual.index?'current':''}"><small>${index<ritual.index?'✓':index+1}</small><b>${esc(word)}</b></span>`).join('')+'</div><b class="ritual-countdown"></b>':'';
+      for(const id of ['ritualTrack','touchRitualTrack'])if($(id))$(id).innerHTML=markup;
+    }
+    for(const id of ['ritualTrack','touchRitualTrack']){
+      const track=$(id);if(!track)continue;track.hidden=!active || !ritual;
+      track.classList.toggle('urgent',!!ritual && ritual.remaining<4);
+      const time=track.querySelector('.ritual-countdown');if(time && ritual)time.textContent=ritual.remaining.toFixed(1)+'s';
+    }
+    if(ritual){iconLabel('chantButton',chanting?'dash':'shield',chanting?'Esc · 返回走位':'Enter · 封咒 '+(ritual.index+1)+'/3');}
+    else iconLabel('chantButton',chanting?'dash':'spell',chanting?'Esc · 返回走位':'Enter · 詠唱');
+  }
   function setChant(value) {
     if(!run || run.status!=='combat' || paused || persistenceBroken)value=false;
     chanting=!!value;
     if(touchLayout && !paused && !persistenceBroken && run?.status==='combat'){heldKeys.clear();keyTimes.clear();tapPulses.clear();dashQueued=false;}
     else clearMovement();
     const input=$('spellInput');
-    if(input){input.readOnly=touchLayout || !chanting;input.placeholder=chanting?'輸入英文，Enter 施法…':'按 Enter 開始詠唱…';if(chanting && !touchLayout && document.activeElement!==input)input.focus({preventScroll:true});if((!chanting || touchLayout) && document.activeElement===input)input.blur();}
+    if(input){input.readOnly=touchLayout || !chanting;input.placeholder=chanting?(activeInterrupt()?'連續輸入三組封咒，完成自動確認…':'輸入英文，Enter 施法…'):'按 Enter 開始詠唱…';if(chanting && !touchLayout && document.activeElement!==input)input.focus({preventScroll:true});if((!chanting || touchLayout) && document.activeElement===input)input.blur();}
     $('actionPanel').classList.toggle('is-chanting',chanting);
     iconLabel('chantButton',chanting?'dash':'spell',chanting?'Esc · 返回走位':'Enter · 詠唱');
     previousTyped=input?.value || '';paintLetters();
@@ -136,7 +211,7 @@
     button.onclick=event=>{if(event.detail===0)action();};
   }
   function paintTouchSpell() {
-    const combat=run?.status==='combat',spell=run?.spell;
+    const combat=run?.status==='combat',spell=syncChantTarget();
     $('touchSpellPreview').hidden=!combat;$('touchRuneKeys').hidden=!combat;$('touchCast').hidden=!combat;
     $('touchInteract').hidden=combat || !navigable();
     if(!combat){
@@ -146,13 +221,13 @@
       textIfChanged('touchChantHint',preview?preview.short:target?target.name+' · 點互動':'靠近角色或傳送門，再按互動');return;
     }
     const input=$('spellInput'),typed=input?.value || '',state=Chant.analyze(spell.word,typed);
-    if(touchSpell!==spell){
-      touchSpell=spell;touchMissUntil=0;touchLettersKey='';touchButtonsKey='';
+    if(touchSpell!==spell.key){
+      touchSpell=spell.key;touchMissUntil=0;touchLettersKey='';touchButtonsKey='';
       $('touchSpellIcon').innerHTML=icon(spellIcon(spell));
       $('touchSpellPreview').dataset.element=spellIcon(spell);
       $('touchRuneKeys').innerHTML=Chant.touchKeys(spell.word).map(key=>`<button type="button" class="rune-key" data-rune="${esc(key)}" aria-label="符文 ${esc(key)}">${esc(key.replace(/ /g,'␣'))}</button>`).join('');
       $('touchRuneKeys').querySelectorAll('button').forEach(button=>{bindTouchPress(button,()=>tapRune(button.dataset.rune,spell));});
-      textIfChanged('touchSpellMeaning',(spellTypes[spell.type] || '魔法')+' · '+(spell.zh || ''));
+      textIfChanged('touchSpellMeaning',spell.ritual?'封咒 '+(spell.ritual.index+1)+' / 3 · 完成自動接續':(spellTypes[spell.type] || '魔法')+' · '+(spell.zh || ''));
     }
     const next=Chant.touchSequence(spell.word).find((_,i,sequence)=>sequence.slice(0,i).join('').length===typed.length);
     const lettersKey=JSON.stringify([spell.word,typed]),buttonsKey=JSON.stringify([typed,chanting,paused]);
@@ -170,18 +245,18 @@
         button.setAttribute('aria-label','符文 '+button.dataset.rune+(isNext?' · 下一組':''));
       });
     }
-    iconLabel('touchCast',chanting && !state.complete?'dash':'spell',state.complete?'施放已備咒語':chanting?'返回走位':'詠唱');
+    iconLabel('touchCast',chanting && !state.complete?'dash':spell.ritual?'shield':'spell',state.complete?(spell.ritual?'封咒確認':'施放已備咒語'):chanting?'返回走位':spell.ritual?'封咒 '+(spell.ritual.index+1)+'/3':'詠唱');
     $('touchCast').disabled=paused;
     if(performance.now()>=touchMissUntil){
       $('touchRuneKeys').classList.remove('rune-miss');
-      textIfChanged('touchChantHint',state.complete?'咒語已備妥，靠近敵人後點施放':chanting?(run.arena?.player.focusEnergy<=0?'專注耗盡！點「'+(next || '')+'」或衝刺':'點亮起的「'+(next || '')+'」 · '+state.matched+'/'+state.letters.length+' 字母'):'點詠唱 → '+Chant.touchSequence(spell.word).length+' 組符文，自動施放');
+      textIfChanged('touchChantHint',spell.ritual?(chanting?'點「'+(next || '')+'」 · 第 '+(spell.ritual.index+1)+' / 3 組':'點封咒 → 連續完成三組，阻止重創'):state.complete?'咒語已備妥，靠近敵人後點施放':chanting?(run.arena?.player.focusEnergy<=0?'專注耗盡！點「'+(next || '')+'」或衝刺':'點亮起的「'+(next || '')+'」 · '+state.matched+'/'+state.letters.length+' 字母'):'點詠唱 → '+Chant.touchSequence(spell.word).length+' 組符文，自動施放');
     }
     $('touchRuneKeys').dataset.progress=String(state.matched);
   }
   function tapRune(key, spell) {
-    if(!touchLayout || !chanting || paused || busy || persistenceBroken || run?.status!=='combat' || run.spell!==spell)return;
+    if(!touchLayout || !chanting || paused || busy || persistenceBroken || run?.status!=='combat' || chantTarget()?.key!==spell.key)return;
     const input=$('spellInput'),candidate=input.value+key;
-    if(!Chant.analyze(spell.word,candidate).wrong){input.value=candidate;touchMissUntil=0;paintLetters(true);if(Chant.analyze(spell.word,candidate).complete)cast();}
+    if(!Chant.analyze(spell.word,candidate).wrong){input.value=candidate;touchMissUntil=0;paintLetters(true);if(!spell.ritual && Chant.analyze(spell.word,candidate).complete)cast();}
     else {touchMissUntil=performance.now()+650;$('touchRuneKeys').classList.add('rune-miss');$('touchChantHint').textContent='順序差一點，點亮起的符文即可';tone('error');}
   }
   function requestDash() {
@@ -219,7 +294,7 @@
     document.body.classList.toggle('exploring',explorationStatuses.includes(run?.status));
     $('castFeedback').hidden=!combat || paused || performance.now()>=castFeedbackUntil;
     $('focusFlag').hidden=true;$('focusAbility').hidden=!combat;$('chantButton').hidden=!combat;$('interactButton').hidden=!active || combat;
-    paintTouchSpell();updateQuickPotion();
+    paintTouchSpell();updateQuickPotion();renderDuelHUD();
     if(!active || !world())return;
     const arena=world(),player=arena.player;
     if(combat){
@@ -244,10 +319,10 @@
     $('focusFlag').textContent=arena.focusActive?'詠唱中 · 時間放慢':'專注耗盡 · 返回走位可恢復';
     $('focusFlag').classList.toggle('exhausted',!arena.focusActive);
     if(combat && chanting){
-      const energy=player.focusEnergy || 0;
-      $('qteTime').textContent=energy>0?'慢時 '+(energy/12).toFixed(1)+' 秒':'專注耗盡 · 敵人恢復速度';
+      const energy=player.focusEnergy || 0,ritual=activeInterrupt();
+      $('qteTime').textContent=ritual?'封咒 '+(ritual.index+1)+'/3 · '+ritual.remaining.toFixed(1)+' 秒':energy>0?'慢時 '+(energy/12).toFixed(1)+' 秒':'專注耗盡 · 敵人恢復速度';
       if($('inlineQteTime'))$('inlineQteTime').textContent=$('qteTime').textContent;
-      $('qteTimeBar').style.width=energy+'%';$('chantQte').classList.toggle('exhausted',energy<=0);
+      $('qteTimeBar').style.width=(ritual?Math.max(0,ritual.remaining/ritual.duration)*100:energy)+'%';$('chantQte').classList.toggle('exhausted',ritual?ritual.remaining<4:energy<=0);
       if(performance.now()>=qtePulseUntil)$('chantQte').classList.remove('qte-hit','qte-miss');
     }
     $('arena').dataset.playerX=player.x.toFixed(1);$('arena').dataset.playerY=player.y.toFixed(1);
@@ -278,7 +353,7 @@
   function panel(title, content, extra='') { return `<section class="side-panel ${extra}"><div class="panel-title"><h2>${icon(title==='冒險行囊'?'bag':'spell')}${title}</h2></div>${content}</section>`; }
   function catalogValues(value) { return Array.isArray(value) ? value : Object.values(value || {}); }
   function bondProfile() { return Story.createProfile(run?.relationship || saved?.relationship); }
-  function portrait() { return '<img class="bond-portrait" src="assets/dungeon/lumina-portrait.svg?v=20261025-actors1" alt="星露法師露米娜，24 歲的星象研究員" width="160" height="180">'; }
+  function portrait() { return '<img class="bond-portrait" src="assets/dungeon/lumina-portrait.svg?v=20261026-duels1" alt="星露法師露米娜，24 歲的星象研究員" width="160" height="180">'; }
   function bondMeter(profile) {
     const bond=Story.getBond(profile);
     return `<div class="bond-status"><b>${esc(bond.name)}</b><span>好感 ${profile.affection} / 100</span></div><div class="bond-meter" role="progressbar" aria-label="露米娜好感度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${profile.affection}"><i style="width:${profile.affection}%"></i></div><p class="bond-next">${esc(bond.next)}</p>`;
@@ -460,8 +535,9 @@
     area.classList.remove('conversation-panel');
     area.classList.toggle('combat-panel',run.status==='combat');area.classList.toggle('is-chanting',chanting && run.status==='combat');
     if (run.status === 'combat') {
-      const spell = run.spell, enemy = run.enemy;
+      const spell = syncChantTarget(), enemy = run.enemy;
       area.innerHTML = `<div class="enemy-intent"><span id="enemyIntent"></span><b id="intentTime"></b></div><div class="meter enemy-meter"><i id="intentBar"></i></div><div class="spell-row" data-element="${spellIcon(spell)}"><span class="spell-emblem">${icon(spellIcon(spell))}</span><div class="spell-copy"><div class="spell-word" id="spellWord">${esc(spell.word)}</div><div class="spell-meaning">${esc(spell.zh || '')}</div></div><div class="spell-type">${esc(spellTypes[spell.type]||'魔法咒語')}<br><small>${esc(spell.description||'')}</small></div></div><div id="inlineQte" class="inline-qte" hidden><div class="qte-top"><b>✦ 咒語連鎖</b><span id="inlineQteTime"></span></div><div class="qte-letters" id="inlineQteLetters" aria-hidden="true"></div><p id="inlineQteHint" role="status" aria-live="polite"></p></div><form class="spell-form" id="spellForm" autocomplete="off"><input id="spellInput" name="spell" aria-label="輸入咒語" placeholder="按 Enter 開始詠唱…" ${chanting?'':'readonly'} autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" enterkeyhint="send" maxlength="80"><button class="primary" type="submit">施法 ↵</button></form>`;
+      const ritualTrack=document.createElement('div');ritualTrack.id='ritualTrack';ritualTrack.className='ritual-track';ritualTrack.hidden=true;area.prepend(ritualTrack);
       $('spellForm').onsubmit = event => {event.preventDefault();cast();};
       $('spellInput').oninput = event=>{if(!event.isComposing)paintLetters(true);};
       $('spellInput').oncompositionend=()=>paintLetters(true);
@@ -482,14 +558,14 @@
   }
   function paintLetters(fromInput=false) {
     if (run?.status!=='combat' || !$('spellInput')) return;
-    const typed=$('spellInput').value,state=Chant.feedback(previousTyped,typed,run.spell.word);
+    const target=syncChantTarget(),typed=$('spellInput').value,state=Chant.feedback(previousTyped,typed,target.word);
     const display=char=>char===' '?'␣':char;
     $('spellWord').innerHTML=state.letters.map(letter=>`<span class="${letter.state==='correct'?'matched':letter.state==='wrong'?'wrong':''}">${esc(letter.char)}</span>`).join('');
     const keys=state.letters.map(letter=>`<span class="qte-letter ${letter.state}">${esc(display(letter.char))}</span>`).join('')+(state.extra?`<span class="qte-letter wrong">+${[...state.extra].length}</span>`:'');
     $('qteLetters').innerHTML=keys;if($('inlineQteLetters'))$('inlineQteLetters').innerHTML=keys;
     $('qteNext').textContent=state.complete?'↵':display(state.next || '⌫');
     $('qteProgress').style.width=(state.progress*100)+'%';$('qteProgressText').textContent=state.matched+' / '+state.letters.length;
-    $('qteHint').textContent=state.complete?'咒語完成！按 Enter 或「施法」':state.extra?'刪除多出的字母，再施法':state.wrong?'第 '+(state.index+1)+' 個字母應為 '+display(state.next)+'，請刪除修正':state.kind==='corrected'?'已修正 · 繼續輸入':state.matched?'命中！繼續輸入下一鍵':'依序輸入亮起的字母';
+    $('qteHint').textContent=state.complete?(target.ritual?'封咒完成 · 自動接續下一組':'咒語完成！按 Enter 或「施法」'):state.extra?'刪除多出的字母，再施法':state.wrong?'第 '+(state.index+1)+' 個字母應為 '+display(state.next)+'，請刪除修正':state.kind==='corrected'?'已修正 · 繼續輸入':state.matched?'命中！繼續輸入下一鍵':target.ritual?'第 '+(target.ritual.index+1)+' / 3 組 · 依序輸入，完成自動確認':'依序輸入亮起的字母';
     if($('inlineQteHint'))$('inlineQteHint').textContent=$('qteHint').textContent;
     if($('inlineQte')){$('inlineQte').classList.toggle('qte-invalid',state.wrong);$('inlineQte').classList.toggle('qte-ready',state.complete);}
     $('chantQte').classList.toggle('qte-ready',state.complete);$('chantQte').classList.toggle('qte-invalid',state.wrong);
@@ -502,16 +578,31 @@
     }
     previousTyped=typed;
     paintTouchSpell();
+    if(fromInput && chanting && target.ritual && state.complete)cast();
   }
   function cast() {
     if(!run || run.status!=='combat' || paused || busy || persistenceBroken)return;
-    const input=$('spellInput'), text=input.value;
+    const target=syncChantTarget(),input=$('spellInput'), text=input.value;
     if(!text.trim()){setChant(true);return;}
     paintLetters();
+    if(target.ritual){
+      const result=Arena.submitInterrupt(run,text);
+      if(result.ok){
+        if(result.completed){
+          notify(result.message || '三重封咒成功！首領失衡，立即反擊。');
+          $('castFeedback').textContent='✦ 三重封咒成功 · 反擊！';castFeedbackUntil=performance.now()+1100;
+          setChant(false);renderer.burst('shield');actionSignature='';render();$('arena').focus({preventScroll:true});
+        }else{
+          notify('第 '+result.index+' 組封咒完成，繼續下一組！');
+          syncChantTarget();paintLetters();renderDuelHUD();updateArenaHUD();
+        }
+      }else{notify(result.message || '封咒字母還差一點，修正後繼續。',true);tone('error');input.setAttribute('aria-invalid','true');}
+      persist();return;
+    }
     const type=run.spell.type, result=Arena.cast(run,text);
     notify(result.message || (result.ok?'咒語施放成功。':'拼寫還差一點，請修正後再試。'),!result.ok);
     if(result.ok){
-      $('castFeedback').textContent=result.fast?'✦ 迅捷施法！':'✦ 施法成功！';castFeedbackUntil=performance.now()+850;
+      $('castFeedback').textContent=result.counter?(result.perfect?'✦ 精準反擊 ×2！':'✦ 收勢反擊 ×1.55！'):result.guarded?'首領護勢中 · 等待反擊空檔':result.fast?'✦ 迅捷施法！':'✦ 施法成功！';castFeedbackUntil=performance.now()+850;
       setChant(false);renderer.burst(type);tone(type);actionSignature='';render();$('arena').focus({preventScroll:true});
     }
     else {tone('error');$('spellInput')?.setAttribute('aria-invalid','true'); if(run.status!=='combat'){setChant(false);render();}else if(result.message?.includes('射程') || result.message?.includes('下一波')){setChant(false);$('arena').focus({preventScroll:true});}else renderVitals();}
@@ -520,9 +611,10 @@
   function liveCombat() {
     if(run.status!=='combat' || !$('enemyIntent'))return;
     const enemy=run.enemy,intent=enemy.intent;
-    $('enemyIntent').textContent=`${enemy.name} · ${intent.name} · 留意地面預警`;
-    $('intentTime').textContent=Math.max(0,intent.remaining).toFixed(1)+' 秒';
-    $('intentBar').style.width=Math.max(0,Math.min(100,intent.remaining/intent.duration*100))+'%';
+    const ritual=activeInterrupt(),action=enemy.action;
+    $('enemyIntent').textContent=ritual?`${enemy.name} · ${ritual.name} · 三組封咒阻止重創`:action?`${enemy.name} · ${action.name} · ${action.stage==='windup'?'蓄勢，留意出手時機':action.stage==='active'?'攻擊中，準備閃避':(enemy.counterWindow || 0)>0?'破綻出現，立即反擊':'觀察下一招'}`:`${enemy.name} · ${intent.name} · 留意地面預警`;
+    $('intentTime').textContent=Math.max(0,ritual?.remaining ?? (action? action.duration-action.elapsed:intent.remaining)).toFixed(1)+' 秒';
+    $('intentBar').style.width=Math.max(0,Math.min(100,ritual?ritual.remaining/ritual.duration*100:action?(1-action.progress)*100:intent.remaining/intent.duration*100))+'%';
     $('bossBanner').hidden=enemy.kind!=='boss';
     $('bossName').textContent=enemy.name;$('bossPhase').textContent=enemy.phase===2?'Ⅱ · 狂怒覺醒':'Ⅰ · 封印守衛';
     $('bossHealth').textContent=`${Math.ceil(enemy.hp)} / ${enemy.maxHp}${enemy.shield?' · 護盾 '+enemy.shield:''}`;
@@ -601,7 +693,7 @@
   }
   function help() {
     if(run){paused=true;syncPause();}
-    openDialog('<h2>移動、閃避、詠唱</h2><ol><li><b>WASD／方向鍵移動：</b>繞過石柱、與近戰敵人保持距離。手機拖曳左側搖桿，360 度移動；輕推慢走、推遠加速，放開即停止。</li><li><b>Space 衝刺：</b>沿移動方向快速位移，短暫免疫碰撞傷害，冷卻 1.4 秒；不能穿越牆壁。</li><li><b>Enter 詠唱：</b>時間放慢，依序輸入戰場提示的字母：下一鍵會亮起，打對變綠、打錯標紅；完成後再按 Enter 施法。施法後自動返回走位，也可按 Esc 取消詠唱。</li><li><b>手機符文施法：</b>點「詠唱」，依亮起的順序點 2～4 組符文，完成自動施放；不會開啟系統鍵盤。拖動搖桿或按衝刺立即返回走位，已輸入字母保留。射程外會保留完整咒語，靠近後點「施放已備咒語」。</li><li><b>專注會耗盡：</b>詠唱時消耗專注，離開詠唱即可恢復。專注歸零後敵人恢復正常速度。</li><li><b>看清預警：</b>紅色地面標記會在短暫延遲後造成傷害。用走位離開，或衝刺穿過彈幕。</li><li><b>靠近再施法：</b>咒語自動鎖定射程內最近的敵人；每五次成功施法輪到卡片奧義。</li></ol><h3>走近互動與旅途 NPC</h3><p>探索時用 WASD 或方向鍵走近傳送門、祭壇、營火或 NPC，按 E／Enter 互動；手機點「互動」。商店也要先走近商人才能購物。交談時按 Esc 返回場景，走到出口繼續。</p><p>旅途中可能遇見療癒師、鍛造師、製圖師、擺渡人，以及三位可招募的旅伴：燈旅精靈提供護盾、回聲學徒延遲模仿成功咒語、紙甲衛士主動迎擊。同行夥伴會跟隨走位，隨進度保存，只存在於本趟遠征。交談後可接受一次幫助，或輸入畫面指定文字發起雙階段 Boss 挑戰。商人同樣可被挑戰；擊敗必得專屬遺物。接受幫助後，本次相遇不能再挑戰。</p><h3>房間與遺物</h3><p>新遠征穿過四個區域、24 個節點，每區第六節點為首領。舊存檔保留原有 12／18 節點進度。新遠征每區從兩位首領中隨機選出一位；一般戰鬥隨機搭配房間、配置與敵群編隊。疾風讓敵人更快但增加金幣，護佑給予開場護盾，豐饒讓敵人更耐打也帶來更多金幣。地形、首領與相逢位置會保存在本次旅圖，讀檔不會重抽。走近戰鬥入口可看本層情報，全螢幕時也可在手札查看。戰利品三選一，移速、連鎖、衝刺與緩速遺物可以搭配。</p><h3>手機橫向全螢幕</h3><p>開始冒險後，點戰場右上角的展開圖示，再橫放手機。戰場在左側，搖桿、符文與衝刺在右側；上方保留手札、配樂與離開。支援的瀏覽器會進入原生全螢幕並嘗試鎖定橫向，其他瀏覽器使用滿版配置。按「離開」恢復一般版面，進度不受影響。</p><h3>配樂、暫停與接續</h3><p>點「配樂」開啟原創音樂。八位可能遇見的主線 Boss 與九位 NPC 首領各有獨立主題曲，第二階段切換狂怒變奏。登場、攻擊與死亡都有對應特效；系統「減少動畫」設定會抑制震動。按 Esc 暫停；切換分頁也會自動暫停。正式冒險會保存位置與進度，重新整理可接續。</p><h3>星露法師與羈絆</h3><p>24 歲的露米娜正在尋回失落星圖。戰鬥與寶箱可能獲得禮物，走近她交談、贈禮，每次相逢最多送三件。好感 45 解鎖三幕星約冒險；完成後、好感 75，可主動告白。正式遠征的禮物、好感與回憶會跨局保存，練習模式僅體驗，離開後不累計。星露手札可回看已解鎖的故事。</p><h3>卡片與難度</h3><p>正式入場消耗 1 張收藏卡；練習免費。故事難度降低空間傷害，試煉提高傷害與彈速。失敗不退卡；道具、金幣與遺物只屬於本次冒險。</p>');
+    openDialog('<h2>移動、閃避、詠唱</h2><ol><li><b>WASD／方向鍵移動：</b>繞過石柱、與近戰敵人保持距離。手機拖曳左側搖桿，360 度移動；輕推慢走、推遠加速，放開即停止。</li><li><b>Space 衝刺：</b>沿移動方向快速位移，短暫免疫碰撞傷害，冷卻 1.4 秒；不能穿越牆壁。</li><li><b>Enter 詠唱：</b>時間放慢，依序輸入戰場提示的字母：下一鍵會亮起，打對變綠、打錯標紅；完成後再按 Enter 施法。施法後自動返回走位，也可按 Esc 取消詠唱。</li><li><b>手機符文施法：</b>點「詠唱」，依亮起的順序點 2～4 組符文，完成自動施放；不會開啟系統鍵盤。拖動搖桿或按衝刺立即返回走位，已輸入字母保留。射程外會保留完整咒語，靠近後點「施放已備咒語」。</li><li><b>專注會耗盡：</b>詠唱時消耗專注，離開詠唱即可恢復。專注歸零後敵人恢復正常速度。</li><li><b>看清預警：</b>紅色地面標記會在短暫延遲後造成傷害。用走位離開，或衝刺穿過彈幕。</li><li><b>三重封咒：</b>首領蓄力強咒時，點首領提示或按詠唱，連續輸入三組短咒。每組輸入正確便自動確認並接續；手機沿用符文鍵。完成三組會打斷強咒並讓首領失衡，逾時將承受重創。封咒倒數不受詠唱慢時影響；暫停仍會停止倒數。</li><li><b>近戰首領：</b>觀察蓄勢、出手、連段與收招。不要一見抬手就連續衝刺，抓準攻擊命中的時機閃避；首領收招或失衡時再施法反擊。詠唱無法把近戰首領完全拖慢，貪攻容易吃下連段。</li><li><b>靠近再施法：</b>咒語自動鎖定射程內最近的敵人；每五次成功施法輪到卡片奧義。</li></ol><h3>走近互動與旅途 NPC</h3><p>探索時用 WASD 或方向鍵走近傳送門、祭壇、營火或 NPC，按 E／Enter 互動；手機點「互動」。商店也要先走近商人才能購物。交談時按 Esc 返回場景，走到出口繼續。</p><p>旅途中可能遇見療癒師、鍛造師、製圖師、擺渡人，以及三位可招募的旅伴：燈旅精靈提供護盾、回聲學徒延遲模仿成功咒語、紙甲衛士主動迎擊。同行夥伴會跟隨走位，隨進度保存，只存在於本趟遠征。交談後可接受一次幫助，或輸入畫面指定文字發起雙階段 Boss 挑戰。商人同樣可被挑戰；擊敗必得專屬遺物。接受幫助後，本次相遇不能再挑戰。</p><h3>房間與遺物</h3><p>新遠征穿過四個區域、24 個節點，每區第六節點為首領。舊存檔保留原有 12／18 節點進度。新遠征每區從兩位首領中隨機選出一位；一般戰鬥隨機搭配房間、配置與敵群編隊。疾風讓敵人更快但增加金幣，護佑給予開場護盾，豐饒讓敵人更耐打也帶來更多金幣。地形、首領與相逢位置會保存在本次旅圖，讀檔不會重抽。走近戰鬥入口可看本層情報，全螢幕時也可在手札查看。戰利品三選一，移速、連鎖、衝刺與緩速遺物可以搭配。</p><h3>手機橫向全螢幕</h3><p>開始冒險後，點戰場右上角的展開圖示，再橫放手機。戰場在左側，搖桿、符文與衝刺在右側；上方保留手札、配樂與離開。支援的瀏覽器會進入原生全螢幕並嘗試鎖定橫向，其他瀏覽器使用滿版配置。按「離開」恢復一般版面，進度不受影響。</p><h3>配樂、暫停與接續</h3><p>點「配樂」開啟原創音樂。八位可能遇見的主線 Boss 與九位 NPC 首領各有獨立主題曲，第二階段切換狂怒變奏。登場、攻擊與死亡都有對應特效；系統「減少動畫」設定會抑制震動。按 Esc 暫停；切換分頁也會自動暫停。正式冒險會保存位置與進度，重新整理可接續。</p><h3>星露法師與羈絆</h3><p>24 歲的露米娜正在尋回失落星圖。戰鬥與寶箱可能獲得禮物，走近她交談、贈禮，每次相逢最多送三件。好感 45 解鎖三幕星約冒險；完成後、好感 75，可主動告白。正式遠征的禮物、好感與回憶會跨局保存，練習模式僅體驗，離開後不累計。星露手札可回看已解鎖的故事。</p><h3>卡片與難度</h3><p>正式入場消耗 1 張收藏卡；練習免費。故事難度降低空間傷害，試煉提高傷害與彈速。失敗不退卡；道具、金幣與遺物只屬於本次冒險。</p>');
   }
   function codex() {
     if(run){paused=true;syncPause();}
@@ -609,7 +701,7 @@
     const bossGuide=regions.map((region,i)=>`<h3>${esc(region.name)} · 每次遇見一位</h3><div class="codex-grid">${(Engine.BOSS_POOLS?.[i] || [region.boss]).map(id=>Engine.BOSSES?.[id]).filter(Boolean).map(boss=>`<div class="codex-item"><b>${esc(boss.name)}</b><p>${esc(boss.description)}</p></div>`).join('')}</div>`).join('');
     const omenGuide='<h3>本層星象</h3><div class="codex-grid">'+Object.values(Engine.OMENS || {}).map(omen=>`<div class="codex-item"><b>${esc(omen.name)}</b><p>${esc(omen.description)}</p></div>`).join('')+'</div>';
     const roomGuide='<h3>'+Arena.ROOMS.length+' 種戰鬥房間</h3><div class="room-codex">'+Arena.ROOMS.map(room=>`<div class="codex-item"><b>${esc(room.name)}</b><p>${esc(room.description)}</p></div>`).join('')+'</div>';
-    openDialog(`<h2>地牢見聞錄</h2><p>新遠征為每區選出一位封印守護者；每位都有獨立招式、第二階段與配樂。已開始的舊遠征沿用原本的首領。</p>${bossGuide}${omenGuide}${roomGuide}<h3>旅途中的九位角色</h3><div class="codex-grid">${catalogValues(Engine.NPCS).map(npc=>`<div class="codex-item"><b>${esc(npc.name)} · ${esc(npc.title)}</b><p>${esc(npc.helpDescription)}</p><p>挑戰文字：${esc(npc.challengeWord)}<br>特殊戰利品：${esc(npc.lootName)}</p></div>`).join('')}</div><h3>旅途中的遺物</h3><div class="codex-grid">${relics.map(item=>`<div class="codex-item"><b>${esc(item.name)}</b><p>${esc(item.description)}</p></div>`).join('')}</div><h3>消耗道具</h3><div class="codex-grid">${items.map(item=>`<div class="codex-item"><b>${esc(item.name)}</b><p>${esc(item.description)}</p></div>`).join('')}</div>`);
+    openDialog(`<h2>地牢見聞錄</h2><p>新遠征為每區選出一位封印守護者；每位都有獨立招式、第二階段與配樂。已開始的舊遠征沿用原本的首領。</p><h3>讀招、閃避與破咒</h3><p>首領血條下方標示蓄勢、出手、收招與反擊窗口。近戰首領會使用有節奏的連段，等招式真正落下再衝刺，在收招空檔施法。強咒蓄力會改為三重封咒：依序完成畫面的三組短咒可讓首領失衡，倒數結束前未完成則會受到重創。三組封咒共用倒數，不會消耗原本排定的咒語。</p>${bossGuide}${omenGuide}${roomGuide}<h3>旅途中的九位角色</h3><div class="codex-grid">${catalogValues(Engine.NPCS).map(npc=>`<div class="codex-item"><b>${esc(npc.name)} · ${esc(npc.title)}</b><p>${esc(npc.helpDescription)}</p><p>挑戰文字：${esc(npc.challengeWord)}<br>特殊戰利品：${esc(npc.lootName)}</p></div>`).join('')}</div><h3>旅途中的遺物</h3><div class="codex-grid">${relics.map(item=>`<div class="codex-item"><b>${esc(item.name)}</b><p>${esc(item.description)}</p></div>`).join('')}</div><h3>消耗道具</h3><div class="codex-grid">${items.map(item=>`<div class="codex-item"><b>${esc(item.name)}</b><p>${esc(item.description)}</p></div>`).join('')}</div>`);
   }
   $('pauseButton').onclick=togglePause;$('resumeButton').onclick=togglePause;$('helpButton').onclick=help;$('codexButton').onclick=codex;
   $('closeDialog').onclick=()=>$('infoDialog').close();
@@ -621,7 +713,7 @@
   $('chantButton').onclick=()=>{setChant(!chanting);if(!chanting)$('arena').focus({preventScroll:true});};
   $('interactButton').onclick=interact;
   bindTouchPress($('touchInteract'),interact);
-  bindTouchPress($('touchCast'),()=>{if(!touchLayout)return;if(run?.status==='combat' && Chant.analyze(run.spell.word,$('spellInput')?.value).complete)cast();else setChant(!chanting);});
+  bindTouchPress($('touchCast'),()=>{if(!touchLayout)return;const target=syncChantTarget();if(target && Chant.analyze(target.word,$('spellInput')?.value).complete)cast();else setChant(!chanting);});
   bindTouchPress($('touchDash'),requestDash);
   bindTouchPress($('quickPotion'),quickHeal);
   function refreshTouchLayout() {
@@ -729,6 +821,7 @@
     if(navigable() && !paused && !persistenceBroken){
       const before=run.status,hp=run.player.hp,dashBefore=world()?.player?.dashCooldown || 0;
       if(run.status==='combat')Arena.update(run,delta,movementInput());else Explore.update(run,delta,movementInput());
+      const previousTarget=chantTargetKey;syncChantTarget();if(previousTarget!==chantTargetKey)paintLetters();
       dashQueued=false;saveClock+=delta;
       if(run.player.hp<hp){renderer.burst('damage');tone('hit');}
       if(dashBefore<=0 && world()?.player?.dashCooldown>0){renderer.burst('dash');tone('dash');}
