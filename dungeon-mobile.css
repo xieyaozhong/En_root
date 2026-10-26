@@ -1,0 +1,281 @@
+/* Thumb controls float over the complete world; the canvas keeps its aspect ratio. */
+.expand-label{display:none}
+.joystick-base{display:none}
+.touch-layout #expandButton{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:auto;min-width:116px;min-height:44px;padding:6px 9px;font-size:.66rem;color:#e8d9b5;border-color:#ad997560;background:#364441}
+.touch-layout #expandButton .expand-label{display:inline;font-family:inherit;white-space:nowrap}
+.touch-layout #expandButton .dungeon-icon{width:17px;height:17px;flex:none}
+.touch-layout .move-joystick{background:none;border-color:transparent;box-shadow:none}
+.touch-layout .joystick-base{display:block;position:absolute;left:50%;top:50%;width:92%;height:92%;border:1px solid #a8cbb78c;border-radius:50%;background:radial-gradient(circle,#42675866 0 26%,#1c322e99 27% 57%,#101e1966 58%);box-shadow:inset 0 0 15px #060c0b66;transform:translate(calc(-50% + var(--stick-base-x,0px)),calc(-50% + var(--stick-base-y,0px)));pointer-events:none}
+.touch-layout .joystick-cross{inset:auto;left:50%;top:50%;width:62%;height:62%;transform:translate(calc(-50% + var(--stick-base-x,0px)),calc(-50% + var(--stick-base-y,0px)))}
+.touch-layout .joystick-thumb{transform:translate(calc(-50% + var(--stick-base-x,0px) + var(--stick-x,0px)),calc(-50% + var(--stick-base-y,0px) + var(--stick-y,0px)))}
+.touch-potion{display:flex;align-items:center;justify-content:center;gap:5px;color:#ceebcd;background:#294638;border-color:#86aa8a}
+.touch-potion .dungeon-icon{width:19px;height:19px}
+.touch-potion b{font-size:.62rem;font-variant-numeric:tabular-nums}
+.touch-potion.needed:not(:disabled){border-color:#ebc48f;color:#ffe5b9;background:#594536}
+#gameSurface.is-immersive #immersiveTools,#gameSurface.is-immersive:not(.immersive-terminal)>#immersiveTools{grid-template-columns:repeat(4,minmax(44px,1fr))}
+.touch-layout #gameSurface.is-immersive #immersivePause{color:#d6e6ed;border-color:#a5bdc16b}
+.touch-layout #gameSurface.is-immersive dialog{max-height:calc(100dvh - max(24px,env(safe-area-inset-top)) - max(24px,env(safe-area-inset-bottom)));overflow-y:auto;overscroll-behavior:contain}
+.touch-layout #gameSurface.is-immersive dialog button{min-width:44px;min-height:44px}
+.touch-layout #gameSurface.is-immersive input{font-size:16px}
+.touch-layout .move-joystick,.touch-layout .touch-action-buttons>button,.touch-layout .rune-key{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none}
+
+@media(orientation:landscape){
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal){
+    --hud-left:max(14px,env(safe-area-inset-left));
+    --hud-right:max(14px,env(safe-area-inset-right));
+    --hud-top:max(10px,env(safe-area-inset-top));
+    --thumb-bottom:max(14px,env(safe-area-inset-bottom));
+    display:block;position:fixed;inset:0;width:100%;height:100vh;height:100dvh;
+    padding:0;gap:0;overflow:hidden;background:radial-gradient(ellipse at 50% 50%,#263e48,#0b1822 76%);
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal):before{display:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.stage-frame{
+    position:absolute;inset:0;display:block;width:100%;height:100%;max-width:none;min-height:0;
+    margin:0;border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .arena{
+    position:absolute;inset:0;width:100%;height:100%;min-height:0;max-height:none;
+    aspect-ratio:auto;overflow:hidden;background:transparent;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .arena canvas{width:100%;height:100%;max-height:none;object-fit:contain;touch-action:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .arena-vignette{box-shadow:inset 0 30px 50px #06121e45,inset 0 -30px 45px #06121e33}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .stage-top{
+    position:absolute;z-index:4;top:calc(var(--hud-top) + 52px);left:var(--hud-left);right:auto;
+    display:flex;justify-content:flex-start;align-items:center;gap:7px;height:auto;min-height:0;
+    max-width:235px;padding:0;background:none;border:0;pointer-events:none;text-shadow:0 1px 4px #000;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .stage-top:after{display:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .stage-top h2{font-size:.62rem;line-height:1.5;letter-spacing:.03em;color:#c2d2d7}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .stage-top .chapter,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .stage-controls button{display:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .stage-controls{gap:0}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .floor-label{font-size:.57rem;padding:0;color:#bdc6cb;border:0;background:none}
+
+  /* Life is always in the same corner, with no footer stealing world space. */
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .vitals{
+    position:absolute;z-index:4;top:var(--hud-top);left:var(--hud-left);width:clamp(156px,23vw,230px);
+    height:46px;min-height:46px;padding:5px 8px;display:grid;grid-template-columns:repeat(3,1fr);gap:2px 9px;
+    border:1px solid #a9c2b734;border-radius:8px;background:linear-gradient(110deg,#0b1d25e6,#142a32b3);
+    box-shadow:0 3px 12px #0002;pointer-events:none;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .vital-block{grid-column:1/-1;min-width:0;width:100%}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .vital-label{font-size:.55rem;margin:0 0 3px;gap:5px;line-height:1}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .vital-label b{font-size:.6rem;font-variant-numeric:tabular-nums}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .vital-label span{color:#d6e7d5}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .health{height:5px;border-radius:3px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .health i{background:linear-gradient(90deg,#70be9f,#c3e5b2)}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .mini-stat{display:flex;align-items:center;gap:4px;min-width:0;line-height:1.1}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .mini-stat small{display:flex;gap:2px;margin:0;font-size:.47rem}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .mini-stat b{font-size:.58rem}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .vitals .dungeon-icon{width:9px;height:9px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #quickPotion{display:none}
+
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>#immersiveTools{
+    position:absolute;z-index:60;top:var(--hud-top);right:var(--hud-right);left:auto;
+    display:flex;justify-content:flex-end;gap:4px;width:auto;height:44px;min-height:44px;
+    max-width:none;margin:0;padding:0;background:none;box-shadow:none;pointer-events:none;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #immersiveTools>button{
+    display:flex;flex-direction:column;gap:1px;min-width:44px;width:44px;height:44px;min-height:44px;padding:4px 2px;
+    border:1px solid #a7b8c63b;border-radius:10px;background:#112432b8;box-shadow:0 2px 8px #0002;
+    color:#cedcdd;font-size:.48rem;line-height:1.25;pointer-events:auto;touch-action:manipulation;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #immersiveTools>button .dungeon-icon{width:17px;height:17px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #immersiveExit{background:#2e2b34cc;border-color:#bea58b66;color:#e8cbb0}
+
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .boss-banner{
+    top:var(--hud-top);left:50%;right:auto;transform:translateX(-50%);width:clamp(210px,35vw,420px);
+    padding:5px 9px 4px;border-color:#c78e7c8c;border-radius:4px 4px 9px 9px;
+    background:linear-gradient(90deg,#251827c7,#322035e8,#251827c7);box-shadow:0 3px 16px #0003;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .boss-heading strong{font-size:.68rem;letter-spacing:.045em}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .boss-heading span{font-size:.51rem}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .boss-meter{height:5px;margin-top:4px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .boss-banner>small{display:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .boss-rhythm{font-size:.55rem;min-height:19px;padding-top:3px;margin-top:3px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .arena-hud{top:calc(var(--hud-top) + 71px);left:var(--hud-left);right:auto;display:flex;flex-direction:column;align-items:flex-start;gap:3px;max-width:210px;font-size:.53rem}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .arena-hud span{padding:3px 6px;border:0;background:#10253099;border-radius:4px;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .arena-caption{bottom:10px;left:190px;right:270px;font-size:.6rem;line-height:1.4}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .cast-feedback{top:calc(var(--hud-top) + 72px);max-width:40%;padding:5px 9px;font-size:.65rem;white-space:normal}
+
+  /* The transparent surface never steals a second pointer from a thumb. */
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.touch-controls:not([hidden]){
+    position:absolute;inset:0;z-index:10;display:block!important;width:100%;height:100%;max-width:none;
+    min-width:0;min-height:0;margin:0;padding:0;background:none;border:0;border-radius:0;pointer-events:none;overflow:visible;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .joystick-wrap{
+    position:absolute;left:var(--hud-left);bottom:var(--thumb-bottom);width:164px;height:164px;min-width:0;display:block;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .move-joystick{
+    --stick-base-x:0px;--stick-base-y:0px;
+    position:relative;width:164px;height:164px;min-width:164px;min-height:164px;border:0;border-radius:32px;
+    background:none;box-shadow:none;pointer-events:auto;touch-action:none;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .joystick-base{
+    display:block;position:absolute;left:50%;top:50%;width:112px;height:112px;border:1px solid #bedbd274;border-radius:50%;
+    background:radial-gradient(circle,#82baa01a 0 30%,#183a3e6b 31% 64%,#92c3be18 65% 67%,#16363b55 68%);
+    box-shadow:inset 0 0 18px #061c2680,0 2px 18px #0002;pointer-events:none;
+    transform:translate(calc(-50% + var(--stick-base-x)),calc(-50% + var(--stick-base-y)));
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .joystick-cross{width:62px;height:62px;left:50%;top:50%;opacity:.6;transform:translate(calc(-50% + var(--stick-base-x)),calc(-50% + var(--stick-base-y)))}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .joystick-thumb{
+    width:48px;height:48px;border:1px solid #d2ede3c2;box-shadow:0 3px 10px #0005,inset 0 1px #e0fff344;
+    background:radial-gradient(circle at 35% 25%,#b6dbcfb3,#507e7aa6 65%,#264b54cf);
+    transform:translate(calc(-50% + var(--stick-base-x) + var(--stick-x)),calc(-50% + var(--stick-base-y) + var(--stick-y)));
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .joystick-wrap>span{display:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-actions{
+    position:absolute;right:var(--hud-right);bottom:var(--thumb-bottom);display:block;
+    width:238px;height:272px;min-width:0;min-height:0;pointer-events:none;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-action-buttons{position:absolute;right:0;bottom:0;display:block;width:238px;height:146px;pointer-events:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-action-buttons>button{
+    --action-accent:#b8cae5;position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    width:62px;height:62px;min-width:44px;min-height:44px;padding:7px;border-radius:50%;gap:2px;
+    border:1px solid #bed3e28c;background:radial-gradient(circle at 40% 20%,#426273dc,#152d42eb 76%);
+    color:#e9f1ec;font-size:.65rem;line-height:1.2;white-space:normal;box-shadow:0 3px 12px #03101d6b,inset 0 0 0 4px #b9d8e112;
+    pointer-events:auto;touch-action:none;isolation:isolate;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-action-buttons>button .dungeon-icon{width:22px;height:22px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-action-buttons>button:active{transform:scale(.94);filter:brightness(1.2)}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-action-buttons>button:disabled{opacity:.4;filter:saturate(.4)}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchCast{
+    --action-accent:#d6bcfb;right:5px;bottom:1px;width:86px;height:86px;padding:12px 9px;
+    color:#f6eafa;font-size:.69rem;border-color:#d9c19c;background:radial-gradient(circle at 35% 22%,#716286ee,#3b3f66ee 62%,#283c51ee);
+    box-shadow:0 4px 18px #09111c80,inset 0 0 0 5px #ead8ab16,0 0 0 3px #d8bf8118;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchCast .dungeon-icon{width:30px;height:30px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchCast[data-state=chanting]{border-color:#ead49b;box-shadow:0 0 20px #d4b5f52b,inset 0 0 0 5px #ead8ab1a}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchCast[data-state=ready]{--action-accent:#ddf4b8;border-color:#dbefba;background:radial-gradient(circle at 35% 22%,#6d8c67,#324e5be8 75%)}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchDash{--action-accent:#a6ddd3;right:109px;bottom:3px;width:66px;height:66px;background:radial-gradient(circle at 35% 20%,#4b7e7be6,#193b4ee6 76%)}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchDash[data-ready=false]{color:#acbfca;background:#1e3443de;border-color:#a2b4bf65}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchPotion{right:19px;bottom:103px;width:54px;height:54px;color:#d5edc4;background:radial-gradient(circle at 35% 20%,#507a57de,#233f3de8 76%);border-color:#b6ce9d8a;font-size:.54rem;padding:6px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchPotion .dungeon-icon{width:19px;height:19px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchPotionCount{position:absolute;right:-4px;bottom:-1px;min-width:22px;padding:2px 4px;border:1px solid #b4cfa37d;border-radius:8px;background:#132d2b;font-size:.54rem}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchPotion.needed:not(:disabled){background:radial-gradient(circle at 35% 20%,#956c47,#4e3e31);border-color:#e5c492}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchInteract{right:108px;bottom:88px;width:64px;height:64px;background:radial-gradient(circle at 35% 20%,#7d7952e6,#424938e6 76%);border-color:#d1c598aa;color:#f4e7c6}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchDash:before,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchCast:before{
+    content:'';position:absolute;inset:-3px;border-radius:50%;pointer-events:none;opacity:.88;
+    background:conic-gradient(var(--action-accent) calc(var(--cooldown-progress,1)*1turn),#b3c7d11a 0);
+    -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px));
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchCast:before{background:conic-gradient(var(--action-accent) calc(var(--cast-progress,0)*1turn),#d6bcfb1a 0)}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview{
+    position:absolute;right:0;bottom:177px;display:flex;align-items:center;flex-direction:row;gap:6px;width:226px;min-height:30px;margin:0;padding:4px 7px;
+    border:1px solid #a9bec433;border-radius:7px;background:linear-gradient(90deg,#172637cc,#1726378c);pointer-events:none;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview .spell-emblem{width:24px;height:24px;border-radius:5px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview .spell-emblem .dungeon-icon{width:16px;height:16px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview b{font-size:.77rem;line-height:1.2;letter-spacing:.02em}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview small{font-size:.52rem;line-height:1.2;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-rune-keys{
+    position:absolute;right:0;bottom:121px;display:none;grid-template-columns:repeat(4,minmax(44px,1fr));grid-auto-rows:48px;
+    gap:5px;width:226px;min-height:48px;max-height:101px;padding:0;border:0;background:none;pointer-events:none;
+  }
+  .touch-layout.chanting-mode #gameSurface.is-immersive:not(.immersive-terminal) .touch-rune-keys,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchControls.is-interrupting .touch-rune-keys{display:grid}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .rune-key{
+    min-width:44px;min-height:48px;height:48px;padding:4px 2px;font-size:.85rem;line-height:1.1;border-radius:13px;
+    border:1px solid #b1a2c58c;border-bottom-width:3px;background:#2d3048e8;box-shadow:0 3px 9px #09142255;pointer-events:auto;touch-action:none;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .rune-key.next{color:#fff3ce;border-color:#e6cb8b;background:#66553def;box-shadow:0 0 14px #e3c37c2a,inset 0 0 10px #efdba212}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .rune-key.entered{background:#294f47e6;border-color:#9bc5ad;color:#d2f6d3}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-chant-hint{
+    position:absolute;right:0;bottom:91px;display:none;width:226px;min-height:22px;max-height:25px;margin:0;padding:2px 5px;
+    overflow:hidden;font-size:.54rem;line-height:1.35;text-align:center;text-shadow:0 1px 4px #000;color:#c9dddb;pointer-events:none;
+  }
+  .touch-layout.chanting-mode #gameSurface.is-immersive:not(.immersive-terminal) .touch-chant-hint{display:block}
+  .touch-layout.exploring #gameSurface.is-immersive:not(.immersive-terminal) .touch-chant-hint{display:block;bottom:174px;max-height:38px;text-align:left;background:#15293899;border-radius:6px;padding:5px 7px}
+  .touch-layout.chanting-mode #gameSurface.is-immersive:not(.immersive-terminal) #touchPotion,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchControls.is-interrupting #touchPotion{right:184px;bottom:1px;width:48px;height:48px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchRitualTrack{
+    position:absolute;right:0;bottom:215px;width:226px;min-height:24px;display:flex;flex-wrap:nowrap;gap:4px;
+    margin:0;padding:5px 6px;background:#392c3bed;border:1px solid #c9aa6e80;border-radius:6px;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchRitualTrack .ritual-label,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchRitualTrack .ritual-step small{display:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchRitualTrack .ritual-steps{order:0;flex-basis:auto;gap:5px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchRitualTrack .ritual-step b{font-size:.63rem}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchRitualTrack .ritual-countdown{font-size:.58rem;min-width:3em}
+
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.movement-bar{
+    position:absolute;z-index:4;left:calc(var(--hud-left) + 35px);bottom:calc(var(--thumb-bottom) + 157px);
+    display:flex;width:94px;height:10px;min-height:0;max-width:none;margin:0;padding:0;border:0;background:none;pointer-events:none;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar .ability-stat:first-child,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar .ability-stat>span,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar .ability-stat>b,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar button{display:none!important}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar #focusAbility{display:flex;flex:1;margin:0;gap:0}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar .meter{width:94px;min-width:94px;max-width:none;height:3px;background:#c3d8e12b;border-radius:3px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.party-strip,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>#storyStrip,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.action-panel,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.under-stage{display:none!important}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>#feedback{
+    position:absolute;z-index:5;left:28%;right:31%;bottom:calc(var(--thumb-bottom) + 7px);width:auto;height:auto;max-height:36px;min-height:0;
+    margin:0;padding:3px 7px;overflow:hidden;font-size:.61rem;line-height:1.45;text-align:center;color:#d6e9d4;
+    background:#10233077;border-radius:6px;pointer-events:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>#feedback:empty{display:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>#feedback.error{color:#f4b9b5}
+  .touch-layout #gameSurface.is-immersive .pause-overlay{background:#0b1927e6}
+  .touch-layout #gameSurface.is-immersive .pause-overlay h3{font-size:1.2rem}
+  .touch-layout #gameSurface.is-immersive .pause-overlay button{min-height:48px}
+  .touch-layout #gameSurface.is-immersive:has(#pauseOverlay:not([hidden]))>.touch-controls{visibility:hidden}
+
+  /* In-world encounters open a real scrollable sheet above both thumbs. */
+  .touch-layout #gameSurface.is-immersive.immersive-conversation:not(.immersive-terminal)>.action-panel.conversation-panel{
+    display:block!important;position:absolute;z-index:40;
+    inset:calc(var(--hud-top) + 54px) max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+    width:auto;height:auto;max-width:820px;max-height:none;min-height:0;margin:0 auto;padding:14px 18px;
+    border:1px solid #c3ad98;border-radius:13px;background:linear-gradient(130deg,#263c4ef5,#172b3df7);
+    overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;box-shadow:0 12px 50px #020d1acc;pointer-events:auto;
+  }
+  .touch-layout #gameSurface.is-immersive.immersive-conversation .conversation-panel>.action-heading{position:sticky;top:-14px;z-index:2;margin:0 0 10px;padding:8px 0;background:#263c4e}
+  .touch-layout #gameSurface.is-immersive.immersive-conversation .conversation-panel button{min-width:44px;min-height:44px}
+  .touch-layout #gameSurface.is-immersive.immersive-conversation .conversation-panel .choices{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .touch-layout #gameSurface.is-immersive.immersive-terminal{padding-top:max(8px,env(safe-area-inset-top));overflow-y:auto}
+  .touch-layout #gameSurface.is-immersive.immersive-terminal .arena{height:180px;min-height:140px;max-height:44dvh}
+  .touch-layout #gameSurface.is-immersive.immersive-terminal>.action-panel{position:static;display:block!important;max-height:none;overflow:visible;padding:18px}
+}
+
+/* Small landscape devices keep the full field and all touch targets reachable. */
+@media(orientation:landscape) and (max-width:740px){
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .boss-banner{top:calc(var(--hud-top) + 50px);width:250px;max-width:40vw}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .boss-heading strong{font-size:.59rem}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .boss-heading span{font-size:.47rem}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .cast-feedback{top:calc(var(--hud-top) + 112px);max-width:35%}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .arena-hud{max-width:160px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .arena-caption{display:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .joystick-wrap,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .move-joystick{width:144px;height:144px;min-width:144px;min-height:144px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .movement-bar{left:calc(var(--hud-left) + 25px);bottom:calc(var(--thumb-bottom) + 138px)}
+}
+@media(orientation:landscape) and (max-height:350px){
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal){--hud-top:max(6px,env(safe-area-inset-top));--thumb-bottom:max(6px,env(safe-area-inset-bottom))}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview{bottom:173px;min-height:26px;padding:3px 6px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .touch-spell-preview small{display:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchRitualTrack{bottom:207px}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .arena-hud{display:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.movement-bar{display:none!important}
+}
+@media(orientation:portrait){
+  .touch-layout #gameSurface.is-immersive:before{content:'橫放手機，開啟雙拇指全螢幕戰鬥';padding:6px 10px;font-size:.65rem;line-height:1.4;pointer-events:none}
+  .touch-layout #gameSurface.is-immersive #immersiveTools{display:grid;gap:5px;min-height:44px}
+  .touch-layout #gameSurface.is-immersive #immersiveTools>button{font-size:.63rem;padding:4px 6px;min-width:44px;min-height:44px}
+  .touch-layout #gameSurface.is-immersive .arena{height:min(43dvh,56.25vw);min-height:150px;aspect-ratio:auto;max-height:none}
+  .touch-layout #gameSurface.is-immersive .touch-action-buttons{grid-template-columns:repeat(2,minmax(44px,1fr));gap:6px}
+  .touch-layout #gameSurface.is-immersive .touch-action-buttons>button{min-width:44px;min-height:46px;height:46px;font-size:.68rem}
+  .touch-layout #gameSurface.is-immersive .touch-rune-keys{grid-template-columns:repeat(2,minmax(44px,1fr));gap:5px}
+  .touch-layout #gameSurface.is-immersive .rune-key{min-width:44px;min-height:46px}
+  .touch-layout #gameSurface.is-immersive.immersive-conversation .conversation-panel{max-height:none;overflow:visible}
+  .touch-layout #gameSurface.is-immersive.immersive-terminal>.action-panel{display:block!important;overflow:visible;padding:16px}
+}
+@media(prefers-reduced-motion:reduce){
+  .touch-layout #gameSurface.is-immersive .touch-action-buttons>button,
+  .touch-layout #gameSurface.is-immersive .rune-key,
+  .touch-layout #gameSurface.is-immersive .meter i{transition:none;animation:none}
+  .touch-layout #gameSurface.is-immersive .touch-action-buttons>button:active{transform:none}
+}

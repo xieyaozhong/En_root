@@ -123,8 +123,8 @@
       exploration = run.exploration = {
         version: VERSION, key: key, width: WIDTH, height: HEIGHT,
         bounds: { left: 32, right: 928, top: 60, bottom: 510 },
-        player: { x: 480, y: 435, r: 12, facingX: 0, facingY: -1, dashTime: 0, dashCooldown: 0, dashX: 0, dashY: -1, moving: false },
-        objects: [], obstacles: [], nearbyId: null, dialogId: null, time: 0, dashes: 0
+        player: { x: 480, y: 435, r: 12, facingX: 0, facingY: -1, dashTime: 0, dashCooldown: 0, dashBuffer: 0, dashX: 0, dashY: -1, moving: false },
+        objects: [], obstacles: [], nearbyId: null, dialogId: null, time: 0, dashes: 0, dashHeld: false
       };
     }
     exploration.width = WIDTH; exploration.height = HEIGHT;
@@ -168,7 +168,7 @@
     if (!exploration) return null;
     var player = exploration.player;
     player.moving = false;
-    if (exploration.dialogId) return exploration;
+    if (exploration.dialogId) { clearInput(run); return exploration; }
     var dt = clamp(finite(seconds, 0), 0, 0.1);
     if (!dt) return exploration;
     input = input || {};
@@ -177,13 +177,19 @@
     // Preserve a short joystick tilt for slow walking, but cap diagonal keyboard speed.
     if (length > 1) { x /= length; y /= length; }
     player.dashCooldown = Math.max(0, player.dashCooldown - dt);
-    if (input.dash && player.dashCooldown <= 0 && player.dashTime <= 0) {
-      player.dashTime = 0.22; player.dashCooldown = has(run, 'gale') ? 1.15 : 1.4;
+    player.dashBuffer = Math.max(0, (player.dashBuffer || 0) - dt);
+    if (input.dash && !exploration.dashHeld) {
       var facingLength = Math.hypot(player.facingX, player.facingY);
-      player.dashX = facingLength ? player.facingX / facingLength : 0;
-      player.dashY = facingLength ? player.facingY / facingLength : -1;
+      player.queuedDashX = facingLength ? player.facingX / facingLength : 0;
+      player.queuedDashY = facingLength ? player.facingY / facingLength : -1;
+      player.dashBuffer = 0.14;
+    }
+    if (player.dashBuffer > 0 && player.dashCooldown <= 0 && player.dashTime <= 0) {
+      player.dashTime = 0.22; player.dashCooldown = has(run, 'gale') ? 1.15 : 1.4;
+      player.dashX = player.queuedDashX; player.dashY = player.queuedDashY; player.dashBuffer = 0;
       exploration.dashes++;
     }
+    exploration.dashHeld = !!input.dash;
     var dashDt = Math.min(dt, player.dashTime), walkDt = dt - dashDt;
     var beforeX = player.x, beforeY = player.y;
     if (dashDt > 0) move(exploration, player.dashX * 760 * dashDt, player.dashY * 760 * dashDt);
@@ -214,7 +220,7 @@
     var target = nearObject(exploration);
     if (!target) return fail('請移動到目標附近，再按 E 互動。');
     if (target.kind === 'merchant' || target.kind === 'npc') {
-      exploration.dialogId = target.id; exploration.player.dashTime = 0; exploration.player.moving = false;
+      exploration.dialogId = target.id; exploration.player.dashTime = 0; exploration.player.moving = false; clearInput(run);
       return done('與' + target.name + '交談。', { dialog: true });
     }
     var result;
@@ -247,5 +253,11 @@
     exploration.dialogId = null; exploration.player.moving = false;
     return done('結束交談，可以繼續移動。');
   }
-  return { ensure: ensure, update: update, nearest: nearest, interact: interact, act: act, close: close, RANGE: RANGE, STATES: STATES.slice() };
+  function clearInput(run) {
+    var exploration = run && run.exploration;
+    if (!exploration || !exploration.player) return;
+    exploration.dashHeld = false; exploration.player.dashBuffer = 0;
+    delete exploration.player.queuedDashX; delete exploration.player.queuedDashY;
+  }
+  return { ensure: ensure, update: update, nearest: nearest, interact: interact, act: act, close: close, clearInput: clearInput, RANGE: RANGE, STATES: STATES.slice() };
 });
