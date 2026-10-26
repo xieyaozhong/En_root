@@ -184,7 +184,7 @@
         name: boss ? run.enemy.name : ACTOR_NAMES[kind], x: 0, y: 0, r: boss ? 30 : kind === 'charger' ? 20 : 16,
         hp: hp, maxHp: maxHp, alive: hp > 0, active: spawnAt === 0, spawnAt: spawnAt, phase: run.enemy.phase,
         cooldown: 1.8 + i * 0.3, telegraph: 0, chargeX: 0, chargeY: 0, chargeTime: 0, volley: null, hurt: 0,
-        facingX: -1, facingY: 0, action: null, counterWindow: 0, perfectWindow: 0 };
+        facingX: -1, facingY: 0, action: null, counterWindow: 0, perfectWindow: 0, counterReady: false };
       var spawn = plan ? layoutPoint(spots[i][0], spots[i][1], room.layout) : { x: spots[i][0], y: spots[i][1] };
       if (plan) placeFormationActor(a, enemy, spawn.x, spawn.y); else place(a, enemy, spawn.x, spawn.y);
       a.enemies.push(enemy);
@@ -271,7 +271,7 @@
       effect(a, 'death', actor.x, actor.y, { r: actor.r + 18, life: actor.kind === 'boss' ? 1.6 : 0.95, color: actor.kind === 'boss' ? '#ffbe83' : '#a9e5d0', boss: actor.kind === 'boss',
         actor: { id: actor.id, npcId: actor.npcId, sprite: actor.sprite, kind: actor.kind, name: actor.name, x: actor.x, y: actor.y, r: actor.r, phase: actor.phase,
           facingX: actor.facingX, facingY: actor.facingY, action: actor.action } });
-      actor.action = null; actor.chargeTime = 0; actor.counterWindow = 0;
+      actor.action = null; actor.chargeTime = 0; actor.counterWindow = 0; actor.perfectWindow = 0; actor.counterReady = false;
       a.hazards = a.hazards.filter(function (h) { return h.ownerId !== actor.id; });
       a.projectiles = a.projectiles.filter(function (shot) { return shot.ownerId !== actor.id; });
       a.bossShots = (a.bossShots || []).filter(function (shot) { return shot.ownerId !== actor.id; });
@@ -300,6 +300,7 @@
     var result = Engine.damagePlayer(run, Math.max(1, Math.round(amount * difficulty(run).damage)), { drain: source && source.drain, name: source && source.source === 'trap' ? '地面陷阱' : run.enemy.name });
     if (!result.ok) return false;
     p.invulnerable = 0.75; a.hitsTaken += 1;
+    if (result.damage > 0) a.enemies.forEach(function (e) { e.counterReady = false; });
     effect(a, 'hit', p.x, p.y, { color: result.damage ? '#ff847a' : '#8ad6ff', life: 0.3, r: 22 });
     if (run.status === 'lost') effect(a, 'death', p.x, p.y, { r: 34, life: 1.3, color: '#b8d5ff', actor: { id: 'player', kind: 'player', sprite: 'player', x: p.x, y: p.y, r: p.r } });
     if (result.restored > 0) {
@@ -313,9 +314,13 @@
       danger.dodgeCounted = true; a.dodges += 1;
       var owner = a.enemies.find(function (e) { return e.id === (danger.ownerId || danger.id) && e.alive; });
       if (owner) {
-        owner.perfectWindow = Math.max(owner.perfectWindow || 0, 2.5);
-        owner.counterWindow = Math.max(owner.counterWindow || 0, 2.5);
-        effect(a, 'counter', owner.x, owner.y, { text: '完美閃避 · 反擊 ×2', r: owner.r + 30, color: '#b8fff0', life: 1.2 });
+        var action = owner.action;
+        var safe = !action || action.stage === 'stagger' || action.stage === 'recovery' && (!action.attacks || action.combo >= action.attacks.length);
+        if (safe) {
+          owner.perfectWindow = Math.max(owner.perfectWindow || 0, 2.5);
+          owner.counterWindow = Math.max(owner.counterWindow || 0, 2.5);
+        } else owner.counterReady = true;
+        effect(a, 'counter', owner.x, owner.y, { text: safe ? '精準閃避 · 反擊 ×2' : '精準閃避 · 等待連段結束', r: owner.r + 30, color: safe ? '#b8fff0' : '#ffdda6', life: 1.2 });
         cue(a, 'perfect-dodge', owner.kind === 'boss');
       }
     }
@@ -340,6 +345,8 @@
     e.action = Object.assign({ id: 'action-' + a.nextId++, kind: 'spell', stage: 'windup', elapsed: 0, duration: 1,
       progress: 0, name: '蓄力', combo: 1, angle: Math.atan2(e.facingY || 0, Number.isFinite(e.facingX) ? e.facingX : -1), recovery: 1.4 }, spec);
     e.telegraph = e.action.stage === 'windup' ? e.action.duration : 0;
+    e.action.comboTotal = e.action.attacks ? e.action.attacks.length : 1;
+    if (e.action.stage === 'windup') { e.counterWindow = 0; e.perfectWindow = 0; }
     if (e.kind === 'boss') cue(a, e.action.stage === 'stagger' ? 'recover' : 'windup', true);
     return e.action;
   }
@@ -347,24 +354,40 @@
     var phase = run.enemy.phase, turn = run.enemy.turn, boss = e.kind === 'boss';
     if (!boss) return [{ name: e.kind === 'charger' ? '破陣衝撞' : '獵影揮擊', kind: e.kind === 'charger' ? 'charge' : 'melee',
       windup: e.kind === 'charger' ? 1.05 : 0.85, active: e.kind === 'charger' ? 0.6 : 0.26, recovery: e.kind === 'charger' ? 1.3 : 0.8,
-      r: e.kind === 'charger' ? 230 : 83, spread: 2.05, lunge: e.kind === 'charger' ? 365 : 55, damage: damage }];
+      r: e.kind === 'charger' ? 230 : 83, spread: 2.05, lunge: e.kind === 'charger' ? 365 : 55, damage: damage,
+      motion: e.kind === 'charger' ? 'charge' : 'claw' }];
     var id = e.npcId || e.id, heavy = id === 'king' || id === 'smith';
     var list = [{ name: id === 'king' ? '失名延遲斬' : id === 'prism' ? '鏡爪伏擊' : id === 'smith' ? '熔星落鎚' : '紙鋒拔刀',
       kind: 'melee', windup: heavy ? 1.55 : 1.15, active: 0.28, recovery: 0.16, r: heavy ? 185 : 165,
-      spread: heavy ? 2.45 : 1.85, lunge: heavy ? 110 : 190, damage: Math.max(18, damage + 4) },
+      spread: heavy ? 2.45 : 1.85, lunge: heavy ? 110 : 190, damage: Math.max(18, damage + 4), motion: heavy ? 'overhead' : 'claw' },
       { name: heavy ? '追身橫斬' : '折返追刃', kind: 'melee', windup: heavy ? 0.78 : 0.68, active: 0.26,
-        recovery: 1.9, r: heavy ? 190 : 180, spread: 2.35, lunge: 150, damage: Math.max(17, damage + 2) }];
+        recovery: 1.9, r: heavy ? 190 : 180, spread: 2.35, lunge: 150, damage: Math.max(17, damage + 2), motion: 'sweep' }];
+    if (id === 'king') {
+      list[0].spread = 1.1; list[0].r = 215;
+      list[1].spread = 2.7; list[1].windup = 0.9;
+    } else if (id === 'smith') {
+      Object.assign(list[0], { name: '熔星懸鎚', windup: 1.85, r: 175, spread: 1.35, lunge: 60 });
+      Object.assign(list[1], { name: '鐵砧橫掃', windup: 1.05, r: 155, spread: 2.85, lunge: 45, recovery: 2.15 });
+    } else if (id === 'sentinel') {
+      Object.assign(list[0], { name: '紙鋒蓄刺', motion: 'thrust', windup: 1.25, r: 235, spread: 0.85, lunge: 150 });
+      Object.assign(list[1], { name: '摺紙迴斬', windup: 0.9, r: 170, spread: 2.6, lunge: 65, recovery: 2 });
+    } else if (id === 'prism') {
+      Object.assign(list[0], { name: '鏡爪伏擊', windup: 1.1, r: 165, spread: 1.75 });
+      Object.assign(list[1], { name: '裂光反爪', motion: 'claw', windup: 0.8, r: 185, spread: 2.1, recovery: 2 });
+    }
     if (phase === 2 && turn % 2 === 0) {
       list[1].recovery = 0.18;
       list.push({ name: heavy ? '墜王重擊' : '裂鏡終刺', kind: 'melee', windup: heavy ? 1.25 : 0.95, active: 0.32,
-        recovery: 2.15, r: 225, spread: heavy ? 2.7 : 1.35, lunge: 220, damage: Math.max(24, damage + 9) });
+        recovery: 2.15, r: 225, spread: heavy ? 1.5 : 1.35, lunge: 220, damage: Math.max(24, damage + 9), motion: heavy ? 'overhead' : 'thrust' });
+      if (id === 'smith') Object.assign(list[2], { name: '星鐵終鎚', windup: 1.5, lunge: 75, recovery: 2.4 });
+      if (id === 'sentinel') Object.assign(list[2], { name: '穿頁終刺', r: 260, spread: 0.85, windup: 1.05 });
     }
     return list;
   }
   function beginMelee(run, a, e, damage) {
     var attacks = meleeSequence(run, e, damage), attack = attacks[0];
     face(e, a.player.x, a.player.y);
-    setAction(a, e, { kind: attack.kind, name: attack.name, duration: attack.windup, attacks: attacks, combo: 1, locked: false });
+    setAction(a, e, { kind: attack.kind, motion: attack.motion, name: attack.name, duration: attack.windup, attacks: attacks, combo: 1, locked: false });
     a.lastPattern = e.kind === 'boss' ? attack.name + ' · 讀取抬手，連擊後反擊' : a.lastPattern;
   }
   function lockAttack(a, e, action, attack) {
@@ -374,10 +397,11 @@
     if (attack.kind === 'charge') {
       hazard(a, { kind: 'line', x: e.x, y: e.y, x2: clamp(e.x + e.chargeX * attack.r, 55, 905),
         y2: clamp(e.y + e.chargeY * attack.r, 73, 485), width: e.r * 2, delay: delay, life: 0.08,
-        cosmetic: true, damage: 0, ownerId: e.id, color: '#ffa46d' });
+        cosmetic: true, damage: 0, ownerId: e.id, actionId: action.id, combo: action.combo, warningOnly: true, color: '#ffa46d' });
     } else {
       hazard(a, { kind: 'arc', x: e.x, y: e.y, r: attack.r, innerR: 0, angle: action.angle, spread: attack.spread,
-        delay: delay, life: attack.active, damage: attack.damage, ownerId: e.id, followOwner: true, source: e.kind === 'boss' ? 'boss' : 'enemy',
+        delay: delay, life: attack.active, hitStart: attack.motion === 'thrust' ? 0.28 : 0.18, hitEnd: 0.94,
+        damage: attack.damage, ownerId: e.id, actionId: action.id, combo: action.combo, followOwner: true, source: e.kind === 'boss' ? 'boss' : 'enemy',
         color: e.kind === 'boss' ? '#ffac78' : '#edbd9b' });
     }
   }
@@ -419,6 +443,9 @@
         action.stage = 'recovery'; action.elapsed = 0; action.progress = 0; action.duration = attack ? attack.recovery : action.recovery;
         e.chargeTime = 0;
         if (!attack || action.combo === action.attacks.length) {
+          if (e.counterReady) {
+            action.duration = Math.max(action.duration, 2.5); e.perfectWindow = action.duration; e.counterReady = false;
+          }
           e.counterWindow = Math.max(e.counterWindow || 0, action.duration);
           if (e.kind === 'boss') cue(a, 'recover', true);
         }
@@ -426,7 +453,7 @@
     } else if (action.stage === 'recovery' && action.progress >= 1) {
       if (attack && action.combo < action.attacks.length) {
         action.combo += 1; attack = action.attacks[action.combo - 1];
-        action.stage = 'windup'; action.name = attack.name; action.kind = attack.kind;
+        action.stage = 'windup'; action.name = attack.name; action.kind = attack.kind; action.motion = attack.motion;
         action.duration = attack.windup; action.elapsed = 0; action.progress = 0; action.locked = false;
         if (e.kind === 'boss') cue(a, 'windup', true);
       } else e.action = null;
@@ -435,6 +462,7 @@
   }
   var RITUAL_WORDS = [['sun', 'ash', 'seal'], ['ice', 'moon', 'bind'], ['star', 'dawn', 'ward'], ['root', 'rain', 'bloom']];
   function startRitual(run, a, boss, intent) {
+    boss.counterReady = false;
     var duration = run.difficulty === 'story' ? 14 : run.difficulty === 'veteran' ? 11 : 12;
     var names = { thorn: '萬棘葬歌', spore: '孢冠永夜', witch: '月鏡崩解', prism: '千面破界', king: '末頁湮滅',
       hollow: '第十三聲終鐘', astral: '忘誓星墜', cometqueen: '彗冕滅世', constellation: '雙星無歸' };
@@ -468,7 +496,7 @@
     if (completed) {
       ritual.status = 'broken'; ritual.message = '三重破咒成功！首領失衡，反擊傷害 ×2。';
       a.interrupts = (a.interrupts || 0) + 1;
-      if (boss) { setAction(a, boss, { kind: 'spell', stage: 'stagger', duration: 3.2, name: '禁式反噬' }); boss.counterWindow = 3.2; boss.perfectWindow = 3.2; }
+      if (boss) { setAction(a, boss, { kind: 'spell', stage: 'stagger', duration: 3.2, name: '禁式反噬' }); boss.counterWindow = 3.2; boss.perfectWindow = 3.2; boss.counterReady = false; }
       run.enemy.intent.remaining = Math.max(run.enemy.intent.remaining, 1.2);
       effect(a, 'counter', boss ? boss.x : a.player.x, boss ? boss.y : a.player.y, { text: '禁式擊破 · 反擊 ×2', color: '#b8fff0', r: 105, life: 1.3 });
       cue(a, 'ritual-break', true);
@@ -497,7 +525,7 @@
     if (run.status === 'lost') effect(a, 'death', a.player.x, a.player.y, { r: 34, life: 1.3, color: '#b8d5ff',
       actor: { id: 'player', kind: 'player', sprite: 'player', x: a.player.x, y: a.player.y, r: a.player.r } });
     setAction(a, boss, { kind: 'spell', stage: 'recovery', duration: 2, name: ritual.name + '・收勢' });
-    boss.counterWindow = 2; boss.telegraph = 0; run.enemy.intent.remaining = Math.max(run.enemy.intent.remaining, 2.5);
+    boss.counterWindow = 2; boss.counterReady = false; boss.telegraph = 0; run.enemy.intent.remaining = Math.max(run.enemy.intent.remaining, 2.5);
     cue(a, 'ritual-fail', true);
   }
   function npcPattern(run, a, boss, intent, turn, phase) {
@@ -972,13 +1000,27 @@
   }
   function updateHazards(run, a, dt, motionScale) {
     a.hazards.forEach(function (h) {
-      if (h.followOwner) {
-        var owner = a.enemies.find(function (e) { return e.id === h.ownerId && e.alive; });
+      var owner = null;
+      if (h.followOwner || h.actionId) {
+        owner = a.enemies.find(function (e) { return e.id === h.ownerId && e.alive; });
         if (!owner) { h.life = 0; return; }
-        h.x = owner.x; h.y = owner.y;
+        if (h.followOwner) { h.x = owner.x; h.y = owner.y; }
       }
-      if (h.delay > 0) { h.delay = Math.max(0, h.delay - dt); return; }
-      h.life -= dt;
+      if (h.actionId) {
+        // The weapon owns this hitbox. Windup and recovery can never deal a
+        // lingering hit because of a second, independently rounded timer.
+        var action = owner.action;
+        if (!action || action.id !== h.actionId || action.combo !== h.combo) { h.life = 0; return; }
+        if (action.stage === 'windup') { h.delay = Math.max(0.001, action.duration - action.elapsed); return; }
+        if (action.stage !== 'active' || h.warningOnly) { h.life = 0; return; }
+        h.delay = Math.max(0, ((h.hitStart || 0) - action.progress) * action.duration);
+        h.life = Math.max(0, ((h.hitEnd || 1) - action.progress) * action.duration);
+        if (h.delay > 0) return;
+      } else {
+        if (h.delay > 0) { h.delay = Math.max(0, h.delay - dt); return; }
+        h.life -= dt;
+      }
+      if (h.life <= 0) return;
       if (h.pushX && contains(h, a.player) && a.player.dashTime <= 0) move(a, a.player, h.pushX * dt, 0);
       if (!h.impactShown && !h.cosmetic) { h.impactShown = true; effect(a, 'impact', h.x, h.y, { r: h.r || 26, color: h.color, life: 0.4 }); }
       if (!h.cosmetic && (!h.hit || h.repeat) && contains(h, a.player)) {
@@ -1051,7 +1093,7 @@
       effect(a, 'phase', a.enemies[0].x, a.enemies[0].y, { name: run.enemy.name + ' · 第二階段', text: '第二階段 · 封印崩解', r: 120, life: 1.3, color: '#ffd3a0' });
       if (run.enemy.kind === 'boss') {
         var phaseBoss = a.enemies[0];
-        phaseBoss.volley = null; phaseBoss.action = null; phaseBoss.counterWindow = 0; phaseBoss.perfectWindow = 0; phaseBoss.telegraph = 0; phaseBoss.chargeTime = 0;
+        phaseBoss.volley = null; phaseBoss.action = null; phaseBoss.counterWindow = 0; phaseBoss.perfectWindow = 0; phaseBoss.counterReady = false; phaseBoss.telegraph = 0; phaseBoss.chargeTime = 0;
         if (a.ritual && a.ritual.status === 'charging') a.ritual.status = 'cancelled';
         [115, 215].forEach(function (radius, index) { hazard(a, { kind: 'ring', source: 'boss', ownerId: phaseBoss.id,
           x: phaseBoss.x, y: phaseBoss.y, r: radius, innerR: radius - 25, delay: 1.3 + index * 0.5, life: 0.4,
@@ -1068,12 +1110,12 @@
     advanceBossShots(run, a, worldDt);
     a.enemies.forEach(function (e) { if (run.status === 'combat') enemyAI(run, a, e, worldDt, motionScale * (a.enemyMoveScale || 1)); });
     var bossBody = a.enemies.find(function (e) { return e.kind === 'boss' && e.alive; });
-    if (!bossBody || !bossBody.action) {
+    if (!bossBody || (!bossBody.action && !(bossBody.counterWindow > 0))) {
       run.enemy.intent.remaining = Math.max(0, run.enemy.intent.remaining - worldDt);
       if (run.enemy.intent.remaining <= 0) intentPattern(run, a);
     }
     updateHazards(run, a, worldDt, motionScale);
-    if (bossBody) { run.enemy.action = bossBody.action; run.enemy.counterWindow = bossBody.counterWindow || 0; run.enemy.perfectWindow = bossBody.perfectWindow || 0; }
+    if (bossBody) { run.enemy.action = bossBody.action; run.enemy.counterWindow = bossBody.counterWindow || 0; run.enemy.perfectWindow = bossBody.perfectWindow || 0; run.enemy.counterReady = !!bossBody.counterReady; }
     a.effects.forEach(function (e) { e.life -= dt; }); a.effects = a.effects.filter(function (e) { return e.life > 0; });
     updateTarget(a); return a;
   }

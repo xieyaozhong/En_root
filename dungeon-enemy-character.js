@@ -36,27 +36,41 @@
     const action=pose.action||{},stage=action.stage||'',q=clamp(n(action.progress),0,1),still=!!pose.still;
     const moving=still?0:clamp(n(pose.moving),0,1),phase=still?0:n(pose.phase),time=still?0:n(pose.time);
     let coil=0,release=0,recover=0;
-    if(stage==='windup'){coil=.35+.65*ease(q);}
-    else if(stage==='active'){release=ease(clamp(q*1.7,0,1));coil=(1-release)*.9;}
-    else if(stage==='recovery'){recover=1-ease(q);release=recover;}
+    // Stage endpoints share the same pose: raise, hold, commit, then settle.
+    // The long held anticipation makes a delayed swing readable without a
+    // second animation clock drifting away from the collision simulation.
+    if(stage==='windup'){coil=ease(q/.58);}
+    else if(stage==='active'){release=ease(q/.58);coil=1-release;}
+    else if(stage==='recovery'){recover=1-ease((q-.14)/.86);release=recover;}
     else if(pose.mode==='chant')coil=.7;
     else if(pose.mode==='cast'){const cp=n(pose.castProgress);coil=1-ease(cp/.28);release=ease((cp-.2)/.16)*(1-ease((cp-.62)/.38));}
-    const stagger=stage==='stagger'?(1-ease(q)):(pose.mode==='hurt'?1-ease(n(pose.hurtProgress)):0);
+    const hit=clamp(n(pose.hitRecoil,pose.mode==='hurt'?1-ease(n(pose.hurtProgress)):0),0,1);
+    // A hit adds a small recoil to a committed attack; only an actual stagger
+    // changes the action. This keeps damage feedback from faking an interrupt.
+    const stagger=Math.max(stage==='stagger'?1-ease(q):0,hit*(stage&&stage!=='stagger'?.38:1));
     const fall=pose.mode==='fallen'?ease(n(pose.hurtProgress)):0;
     return {stage,q,time,phase,moving,coil,release,recover,stagger,fall,still,
-      melee:action.kind==='melee'||action.kind==='charge',step:Math.sin(phase)*moving,
+      melee:action.kind==='melee'||action.kind==='charge',style:action.motion||(action.kind==='charge'?'charge':'sweep'),step:Math.sin(phase)*moving,
       bob:still?0:Math.sin(time*2)*.6-Math.abs(Math.sin(phase))*moving*1.4,
       flutter:still?0:Math.sin(time*2.8-phase*.3)*1.3+moving*Math.sin(phase-.8)*2,
       lean:.05*moving-.12*coil+.2*release-.15*stagger+.56*fall,
-      directionY:clamp(n(pose.facingY),-1,1),back:n(pose.facingY)<-.45};
+      directionX:Math.abs(clamp(n(pose.facingX,1),-1,1)),directionY:clamp(n(pose.facingY),-1,1),back:n(pose.facingY)<-.45};
   }
   function bodyPoint(m,x,y){return [x-y*m.lean,y*(1-m.fall*.68)+m.bob+m.coil*1.5];}
   function aura(c,x,y,r,power,color){if(power<=0)return;c.save();c.globalAlpha*=.13*power;disk(c,x,y,r,color);c.globalAlpha*=2;gem(c,x,y,r*.7,color);c.restore();}
   function armPose(m,side,wide=15){
     const shoulder=bodyPoint(m,side*wide,-49),rear=side<0;
     const idle=[side*(wide+6)-m.step*4,-29+(rear?m.step*3:-m.step*3)];
-    const wind=rear?[-wide-8,-62]:[wide-19,-75];
-    const attack=rear?[-wide-7,-42]:[wide+24,-37+m.directionY*12];
+    let wind=rear?[-wide-8,-62]:[wide-19,-75];
+    let attack=rear?[-wide-7,-42]:[wide+24,-37+m.directionY*12];
+    if(m.melee&&!rear){
+      const reach=.45+m.directionX*.55;
+      if(m.style==='overhead'){wind=[wide-15,-81];attack=[wide+18*reach,-22+m.directionY*15];}
+      else if(m.style==='thrust'){wind=[wide-8,-41];attack=[wide+38*reach,-44+m.directionY*22];}
+      else if(m.style==='charge'){wind=[wide+2,-43];attack=[wide+23*reach,-35+m.directionY*16];}
+      else if(m.style==='claw'){wind=[wide-14,-64];attack=[wide+28*reach,-25+m.directionY*18];}
+      else{wind=[-wide-8,-52];attack=[wide+30*reach,-39+m.directionY*18];}
+    }
     const wrist=bodyPoint(m,mix(idle[0],wind[0],m.coil)+m.release*(attack[0]-idle[0]),mix(idle[1],wind[1],m.coil)+m.release*(attack[1]-idle[1])+m.stagger*11+m.fall*13);
     const elbow=[mix(shoulder[0],wrist[0],.5)+side*(8-m.coil*3),mix(shoulder[1],wrist[1],.5)+7-m.release*5];
     return {shoulder,elbow,wrist};
@@ -161,7 +175,14 @@
       const q=left.wrist;poly(c,[[q[0]-12,q[1]-15],[q[0]+8,q[1]-15],[q[0]+11,q[1]+9],[q[0]-1,q[1]+18],[q[0]-14,q[1]+5]],p.dark);poly(c,[[q[0]-9,q[1]-12],[q[0]+5,q[1]-12],[q[0]+8,q[1]+7],[q[0]-1,q[1]+13],[q[0]-10,q[1]+3]],p.edge);gem(c,q[0]-1,q[1],7,p.gold);
     }
     const tool=id==='king'?'greatsword':id==='smith'?'hammer':id==='sentinel'?'spear':id==='knight'||id==='golem'?'sword':id==='merchant'?'scales':id==='ferryman'?'oar':id==='cartographer'?'scroll':id==='echo'?'mirror':id==='lantern'?'lantern':'staff';
-    const angle=-.1-m.coil*.85+m.release*(m.melee?2.1:1.05)+m.step*.05+m.fall*.6;
+    let angle=-.1-m.coil*.85+m.release*1.05;
+    if(m.melee){
+      const direction=Math.atan2(m.directionX,-m.directionY);
+      const strike=direction+(m.style==='overhead'?.48:m.style==='sweep'?.4:0);
+      const wind=m.style==='overhead'?-.22:m.style==='thrust'?direction-.35:m.style==='charge'?direction-.25:direction-2.15;
+      angle=-.1+m.coil*(wind+.1)+m.release*(strike+.1);
+    }
+    angle+=m.step*.05+m.fall*.6;
     weapon(c,right.wrist,angle,tool,p,m);
     if(m.coil>0&&!m.melee)aura(c,left.wrist[0],left.wrist[1],13+m.coil*8,m.coil,p.glow);
   }

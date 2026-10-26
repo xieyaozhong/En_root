@@ -1,9 +1,9 @@
 /* Combat cues stay at the edge of the field; input stays in the control deck. */
 .boss-rhythm[hidden],.ritual-track[hidden]{display:none!important}
 .boss-rhythm{--duel-accent:#efc087;position:relative;display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:21px;margin-top:4px;padding:3px 0 5px;border-top:1px solid #d1ac882e;color:var(--duel-accent);font-size:.62rem;line-height:1.35;overflow:hidden;pointer-events:none}
-.boss-rhythm>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}.boss-rhythm>b{font:inherit;font-variant-numeric:tabular-nums;white-space:nowrap;max-width:48%;overflow:hidden;text-overflow:ellipsis}
+.boss-rhythm>span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}.boss-rhythm>b{font:inherit;font-variant-numeric:tabular-nums;white-space:nowrap;max-width:34%;overflow:hidden;text-overflow:ellipsis}.boss-rhythm>small{flex-shrink:0;border:1px solid currentColor;border-radius:3px;padding:0 4px;font:inherit;font-variant-numeric:tabular-nums;white-space:nowrap}.boss-rhythm>small[hidden]{display:none}
 .boss-rhythm>i{position:absolute;bottom:0;left:0;height:2px;background:var(--duel-accent);opacity:.75;transition:width .08s linear}
-.boss-rhythm[data-stage=active]{--duel-accent:#ff9f8e}.boss-rhythm[data-stage=recovery],.boss-rhythm[data-stage=counter],.boss-rhythm[data-stage=stagger]{--duel-accent:#c9f2bb}.boss-rhythm[data-stage=ritual]{--duel-accent:#ffe0a7}
+.boss-rhythm[data-stage=active]{--duel-accent:#ff9f8e}.boss-rhythm[data-stage=chain]{--duel-accent:#f2bc89}.boss-rhythm[data-stage=pending]{--duel-accent:#c5c5ff}.boss-rhythm[data-stage=counter],.boss-rhythm[data-stage=stagger]{--duel-accent:#c9f2bb}.boss-rhythm[data-stage=ritual]{--duel-accent:#ffe0a7}
 #bossBanner.ritual-ready{border-color:#f6d18d;background:linear-gradient(120deg,#432d36ef,#30263cef);box-shadow:0 0 16px #f5bf6429;cursor:pointer;pointer-events:auto;touch-action:manipulation}
 #bossBanner.ritual-ready .boss-heading strong{color:#ffe4b3}
 .ritual-track{grid-column:1/-1;display:flex;align-items:center;gap:10px;min-width:0;padding:7px 10px;border:1px solid #c2a16f88;border-radius:5px;background:linear-gradient(105deg,#4f39452e,#282c4177);color:#eed6b3;pointer-events:none;user-select:none;-webkit-user-select:none}
