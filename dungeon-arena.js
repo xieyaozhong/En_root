@@ -151,7 +151,7 @@
     var a = run.arena = {
       version: 1, key: key, width: WIDTH, height: HEIGHT, bounds: { left: 40, top: 58, right: 920, bottom: 500 },
       player: { x: 200, y: 280, r: 12, facingX: 1, facingY: 0, dashTime: 0, dashCooldown: 0, invulnerable: 0,
-        dashX: 1, dashY: 0, focusEnergy: 100 },
+        dashX: 1, dashY: 0, dashBuffer: 0, focusEnergy: 100 },
       enemies: [], obstacles: [], hazards: [], projectiles: [], effects: [], room: room, time: 0, realTime: 0,
       casts: 0, dodges: 0, dashes: 0, hitsTaken: 0, nextId: 1, roomClock: 2.5, roomPulse: 0, springClock: 0,
       slowTime: 0, focusActive: false, targetId: null, castRange: RANGE, wavesReleased: 1,
@@ -1053,36 +1053,44 @@
     var raw = Number(deltaSeconds), dt = Number.isFinite(raw) ? clamp(raw, 0, 0.1) : 0;
     if (!dt) return a;
     input = input || {}; var p = a.player;
-    var focusRequested = !!input.focus;
+    var focusRequested = !!input.focus, mobileFocus = !!input.mobile && focusRequested;
+    var ix = Number(input.x) || 0, iy = Number(input.y) || 0, magnitude = Math.hypot(ix, iy);
+    if (!Number.isFinite(magnitude)) { ix = 0; iy = 0; magnitude = 0; }
+    if (magnitude > 1) { ix /= magnitude; iy /= magnitude; }
+    var canMove = !focusRequested || mobileFocus;
     a.focusActive = focusRequested && p.focusEnergy > 0;
     if (focusRequested) p.focusEnergy = Math.max(0, p.focusEnergy - dt * 12);
     else p.focusEnergy = Math.min(100, p.focusEnergy + dt * 25);
     var meleeEncounter = a.enemies.some(meleeBoss);
-    // Reading a melee windup remains meaningful while the chant keys are open.
-    // Ordinary encounters keep their generous mobile typing slowdown.
-    var worldDt = dt * (a.focusActive ? meleeEncounter ? 0.72 : 0.18 : 1);
+    // Mobile chanting allows slower walking. Moving keeps ordinary threats
+    // active enough to require positioning; melee timing remains unchanged.
+    var focusScale = meleeEncounter ? 0.72 : mobileFocus && magnitude > 0 ? 0.55 : 0.18;
+    var worldDt = dt * (a.focusActive ? focusScale : 1);
     a.realTime += dt; a.time += worldDt;
     a.introRemaining = Math.max(0, (a.introRemaining || 0) - dt);
     run.elapsed += dt; run.stats.elapsed = run.elapsed; run.spell.elapsed += dt;
     p.invulnerable = Math.max(0, p.invulnerable - dt); p.dashCooldown = Math.max(0, p.dashCooldown - dt);
-    var ix = Number(input.x) || 0, iy = Number(input.y) || 0, magnitude = Math.hypot(ix, iy);
-    if (!Number.isFinite(magnitude)) { ix = 0; iy = 0; magnitude = 0; }
-    if (magnitude > 1) { ix /= magnitude; iy /= magnitude; }
-    if (magnitude && !focusRequested) { p.facingX = ix; p.facingY = iy; }
-    if (input.dash && !a.dashHeld && p.dashCooldown <= 0 && p.dashTime <= 0) {
-      var facing = unit(!focusRequested && magnitude ? ix : p.facingX, !focusRequested && magnitude ? iy : p.facingY);
-      p.dashX = facing.x; p.dashY = facing.y; p.dashTime = 0.22; p.dashCooldown = has(run, 'gale') ? 1.15 : 1.4; p.invulnerable = 0.28;
+    if (magnitude && canMove) { p.facingX = ix; p.facingY = iy; }
+    p.dashBuffer = Math.max(0, (p.dashBuffer || 0) - dt);
+    if (input.dash && !a.dashHeld) {
+      var facing = unit(canMove && magnitude ? ix : p.facingX, canMove && magnitude ? iy : p.facingY);
+      p.queuedDashX = facing.x; p.queuedDashY = facing.y; p.dashBuffer = 0.14;
+    }
+    if (p.dashBuffer > 0 && p.dashCooldown <= 0 && p.dashTime <= 0) {
+      p.dashX = p.queuedDashX; p.dashY = p.queuedDashY; p.dashBuffer = 0;
+      p.dashTime = 0.22; p.dashCooldown = has(run, 'gale') ? 1.15 : 1.4; p.invulnerable = 0.28;
       a.dashes += 1; effect(a, 'dash', p.x, p.y, { x2: p.x + p.dashX * 50, y2: p.y + p.dashY * 50, life: 0.25, color: '#9cdaff' });
     }
     a.dashHeld = !!input.dash;
-    if (p.dashTime > 0) {
-      var dashDt = Math.min(dt, p.dashTime);
+    var dashDt = Math.min(dt, p.dashTime), walkDt = dt - dashDt;
+    if (dashDt > 0) {
       move(a, p, p.dashX * 760 * dashDt, p.dashY * 760 * dashDt);
       p.dashTime = Math.max(0, p.dashTime - dt);
       if (p.dashTime === 0) dashBurst(run, a);
-    } else if (!focusRequested) {
-      var speed = 180 * (has(run, 'gale') ? 1.22 : 1);
-      move(a, p, ix * speed * dt, iy * speed * dt);
+    }
+    if (walkDt > 0 && canMove) {
+      var speed = 180 * (has(run, 'gale') ? 1.22 : 1) * (mobileFocus ? 0.75 : 1);
+      move(a, p, ix * speed * walkDt, iy * speed * walkDt);
     }
     if (run.status !== 'combat') return a;
     a.slowTime = Math.max(0, a.slowTime - dt);
@@ -1189,7 +1197,13 @@
       time: a.realTime, pattern: a.lastPattern, counterHits: a.counterHits || 0, interrupts: a.interrupts || 0,
       ritual: getInterrupt(run), counterWindow: run.enemy && run.enemy.counterWindow || 0 } : null;
   }
-  return { ensure: ensure, update: update, cast: cast, useItem: useItem, getSummary: getSummary,
+  function clearInput(run) {
+    var a = run && run.arena;
+    if (!a || !a.player) return;
+    a.dashHeld = false; a.player.dashBuffer = 0;
+    delete a.player.queuedDashX; delete a.player.queuedDashY;
+  }
+  return { ensure: ensure, update: update, cast: cast, useItem: useItem, getSummary: getSummary, clearInput: clearInput,
     getInterrupt: getInterrupt, submitInterrupt: submitInterrupt, ROOMS: ROOMS,
     WIDTH: WIDTH, HEIGHT: HEIGHT, CAST_RANGE: RANGE };
 });
