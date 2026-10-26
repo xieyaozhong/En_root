@@ -72,7 +72,7 @@
       patterns: ['藥園禁足', '千露根環'] },
     smith: { id: 'smith', name: '星鐵鍛師・布洛', title: '星鐵鍛師', sprite: 'smith', color: '#ffa578', icon: '⚒',
       description: '他的巨錘能替咒語鍛出鋒芒，也能把整座庭院當作鐵砧。', helpDescription: '本趟所有咒語威力永久增加 4 點。',
-      challengeWord: 'forge', challengeDescription: '輸入 forge 提出試煉，閃避巨錘落點與熔鐵橫掃。', lootId: 'forgecore', lootName: '不滅爐心', hp: 280,
+      challengeWord: 'forge', challengeDescription: '輸入 forge 提出試煉；巨錘會延遲落下並接續橫掃，抓準出手衝刺，等完整收招再反擊。', lootId: 'forgecore', lootName: '不滅爐心', hp: 280,
       patterns: ['星鐵墜錘', '熔爐掃刃'] },
     cartographer: { id: 'cartographer', name: '迷途繪師・墨里', title: '迷途繪師', sprite: 'cartographer', color: '#b8abff', icon: '✥',
       description: '他不停重畫不存在的道路，據說每張星圖都有自己的意志。', helpDescription: '獲得一件未持有的探索遺物；已全數擁有時改贈 40 金幣。',
@@ -94,7 +94,7 @@
       patterns: ['雙聲迴廊', '遲來的咒語'] },
     sentinel: { id: 'sentinel', name: '紙甲衛士・折鋒', title: '千摺守衛', sprite: 'sentinel', color: '#f5d48c', icon: '▱', companionRole: 'guard',
       description: '一頁古老的守護誓言摺成了鎧甲。它不說話，只會跟上值得守護的旅人。', helpDescription: '邀請折鋒同行至本趟結束；跟隨玩家，定期以紙刃迎擊附近敵人。',
-      challengeWord: 'unfold', challengeDescription: '輸入 unfold 展開戰書，躲過摺紙斬線與千刃交叉突擊。', lootId: 'paperedge', lootName: '千摺刃印', hp: 290,
+      challengeWord: 'unfold', challengeDescription: '輸入 unfold 展開戰書；紙刃交替延遲斬與追擊，閃過最後一刀後抓住收招空檔。', lootId: 'paperedge', lootName: '千摺刃印', hp: 290,
       patterns: ['摺界斬', '千刃列陣'] }
   });
   Object.assign(RELICS, {
@@ -134,9 +134,9 @@
   var BOSS = {
     thorn: { id: 'thorn', name: '棘冠典獄長', description: '交替編織荊棘護盾與重擊；本命咒語可穿透部分護盾。', hp: 205 },
     spore: { id: 'spore', name: '孢冠菌后', description: '孢雨記住你的位置，菌環接著封住落腳處。第二階段孢子增生，離開第一道預警後還要保留退路。', hp: 215, patterns: ['孢雨追跡', '菌環封場'] },
-    witch: { id: 'witch', name: '鏡月女巫', description: '月蝕會吸取生命；用護盾擋住傷害，就能阻止她恢復。', hp: 280 },
-    prism: { id: 'prism', name: '千面鏡獸', description: '折射光線交織成囚籠，碎鏡隨後扇形散射。第二階段增加折射方向，趁光線預警找出缺口。', hp: 290, patterns: ['折射囚籠', '碎鏡扇陣'] },
-    king: { id: 'king', name: '失名之王', description: '每三次行動蓄力末頁湮滅；把沙漏與護符留給重擊。', hp: 365 },
+    witch: { id: 'witch', name: '鏡月女巫', description: '月蝕會吸取生命；護盾能阻止她吸血。出現三重禁咒時，連續完成三組提示短咒語，打斷施法並創造反擊空檔。', hp: 280 },
+    prism: { id: 'prism', name: '千面鏡獸', description: '鏡爪蓄勢後迅速追擊，別在抬爪時過早衝刺。留意連段與鎖定方向，閃過最後一擊再趁收招施法。', hp: 290, patterns: ['折射囚籠', '碎鏡扇陣'] },
+    king: { id: 'king', name: '失名之王', description: '王劍會延遲落下，再接續橫斬。詠唱只能稍微放慢他的攻勢；抓準劍刃出手時衝刺，完整收招後反擊。', hp: 365 },
     hollow: { id: 'hollow', name: '空鐘司祭', description: '三聲空鐘依序震開地面，默禱將空間切成斷層。第二階段鐘聲更密集，在震波間隙移動。', hp: 375, patterns: ['空鐘三響', '默禱斷層'] },
     astral: { id: 'astral', name: '忘誓星龍', description: '龍翼刻出星軌，接著落下延遲星雨；第二階段月環與交錯光線接連爆發。', hp: 440 },
     cometqueen: { id: 'cometqueen', name: '彗尾女皇', description: '兩道彗尾交錯掠過，接著召來天穹墜星。第二階段星雨追蹤最後的落腳處，持續換位迎接終幕。', hp: 450, patterns: ['彗尾雙襲', '天穹墜星'] },
