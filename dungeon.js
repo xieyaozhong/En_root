@@ -67,6 +67,7 @@
   let joystick=null, previousTyped='', qtePulseUntil=0, castFeedbackUntil=0;
   let partySignature='', presentationRun=null, presentedCombat='', presentedPhase=0, presentedStatus='', lastEchoEffect='';
   let chantTargetKey='', chantTargetRun=null, duelTrackKey='', cueArena=null, cueId='';
+  let chantTargetArena=null, chantTargetEncounter=null, chantTargetSpell=null, suspendedChantDraft=null, duelCounter=null;
   const directionKeys = {KeyW:'up',ArrowUp:'up',KeyS:'down',ArrowDown:'down',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
   const difficultyNames = {story:'故事',standard:'標準',veteran:'試煉'};
   const explorationStatuses = ['route','shop','npc','camp','reward'];
@@ -98,7 +99,7 @@
         cueId=cue.id;tone(cue.kind);
         if(cue.kind==='ritual-start')notify('首領正在編織強咒！按詠唱，連續完成三組封咒。');
         if(cue.kind==='ritual-fail'){notify('封咒逾時，強咒爆發！',true);$('castFeedback').textContent='封咒失敗 · 強咒爆發';castFeedbackUntil=performance.now()+1100;}
-        if(cue.kind==='perfect-dodge'){$('castFeedback').textContent='✦ 精準閃避 · 抓住反擊時機';castFeedbackUntil=performance.now()+900;}
+        if(cue.kind==='perfect-dodge'){$('castFeedback').textContent=run.enemy.counterReady?'✦ 精準閃避 · 連段未完':'✦ 精準閃避 · 抓住反擊時機';castFeedbackUntil=performance.now()+900;}
       }
       if(presentedCombat!==key){presentedCombat=key;presentedPhase=run.enemy.phase || 1;if(isBoss)tone('bossIntro');syncAudio();}
       else if(presentedPhase!==run.enemy.phase){presentedPhase=run.enemy.phase;if(isBoss)tone('bossPhase');syncAudio();}
@@ -138,11 +139,22 @@
     return {...run.spell,key:'spell:'+run.spell.word+':'+(run.stats?.casts || 0)};
   }
   function syncChantTarget() {
-    const target=chantTarget(),key=target?.key || '';
-    if(chantTargetRun!==run || chantTargetKey!==key){
-      chantTargetRun=run;chantTargetKey=key;previousTyped='';touchSpell=null;touchLettersKey='';touchButtonsKey='';touchMissUntil=0;
-      const input=$('spellInput');
-      if(input){input.value='';input.removeAttribute('aria-invalid');input.setAttribute('aria-label',target?.ritual?'輸入第 '+(target.ritual.index+1)+' 組封咒':'輸入咒語');}
+    const target=chantTarget(),key=target?.key || '',input=$('spellInput');
+    const spellKey=run?.spell?'spell:'+run.spell.word+':'+(run.stats?.casts || 0):'';
+    const scopeChanged=chantTargetRun!==run || chantTargetArena!==run?.arena || chantTargetEncounter!==run?.encounter;
+    // Drafts belong to this live spell only; they are never persisted into a saved run.
+    if(suspendedChantDraft && (run?.status!=='combat' || suspendedChantDraft.run!==run || suspendedChantDraft.arena!==run.arena ||
+      suspendedChantDraft.encounter!==run.encounter || suspendedChantDraft.spell!==run.spell || suspendedChantDraft.key!==spellKey))suspendedChantDraft=null;
+    if(scopeChanged || chantTargetKey!==key || chantTargetSpell!==run?.spell){
+      let typed='';
+      if(!scopeChanged && target?.ritual && chantTargetKey===spellKey && chantTargetSpell===run.spell && input?.value){
+        suspendedChantDraft={run,arena:run.arena,encounter:run.encounter,spell:run.spell,key:spellKey,text:input.value};
+      }else if(!target?.ritual && chantTargetKey.startsWith('ritual:') && suspendedChantDraft && key===suspendedChantDraft.key){
+        typed=suspendedChantDraft.text;suspendedChantDraft=null;
+      }
+      chantTargetRun=run;chantTargetArena=run?.arena;chantTargetEncounter=run?.encounter;chantTargetSpell=run?.spell;chantTargetKey=key;
+      previousTyped=typed;touchSpell=null;touchLettersKey='';touchButtonsKey='';touchMissUntil=0;
+      if(input){input.value=typed;input.removeAttribute('aria-invalid');input.setAttribute('aria-label',target?.ritual?'輸入第 '+(target.ritual.index+1)+' 組封咒':'輸入咒語');}
       const row=$('actionPanel').querySelector('.spell-row');
       if(row && target){row.dataset.element=spellIcon(target);row.querySelector('.spell-emblem').innerHTML=icon(spellIcon(target));row.querySelector('.spell-meaning').textContent=target.zh || '';row.querySelector('.spell-type').textContent=target.ritual?'三重封咒':spellTypes[target.type] || '魔法咒語';}
       $('actionPanel').classList.toggle('is-interrupting',!!target?.ritual);
@@ -150,10 +162,26 @@
     }
     return target;
   }
+  function duelPresentation() {
+    const enemy=run?.enemy,action=enemy?.action,counter=Math.max(0,enemy?.counterWindow || 0);
+    const total=Math.max(1,action?.comboTotal || action?.attacks?.length || 1),index=Math.min(total,Math.max(1,action?.combo || 1));
+    const pending=!!enemy?.counterReady && counter<=0,between=action?.stage==='recovery' && index<total;
+    const stage=counter>0?'counter':pending?'pending':between?'chain':action?.stage || 'idle';
+    const labels={windup:'蓄勢 · 看清出手',active:total>1?'連段 · 保留閃避':'出手 · 閃避',chain:'接招中 · 連段未完',
+      pending:'精準閃避 · 連段未完',recovery:'收招 · 觀察破綻',stagger:'失衡 · 立即反擊',
+      counter:enemy?.perfectWindow>0?'精準反擊窗口 ×2':'反擊窗口',idle:'觀察下一招'};
+    if(counter<=0)duelCounter=null;
+    else if(!duelCounter || duelCounter.run!==run || duelCounter.arena!==run.arena || counter>duelCounter.remaining+.05){
+      duelCounter={run,arena:run.arena,duration:Math.max(counter,['recovery','stagger'].includes(action?.stage)?action.duration:0),remaining:counter};
+    }else duelCounter.remaining=counter;
+    return {action,counter,total,index,stage,label:labels[stage] || action?.name || '觀察首領動作',
+      remaining:counter || Math.max(0,(action?.duration || 0)-(action?.elapsed || 0)),
+      progress:counter>0?Math.min(1,counter/duelCounter.duration):1-Math.min(1,action?.progress || 0)};
+  }
   function ensureDuelHUD() {
     if(!$('bossRhythm')){
       const rhythm=document.createElement('div');rhythm.id='bossRhythm';rhythm.className='boss-rhythm';rhythm.hidden=true;
-      rhythm.innerHTML='<span id="bossActionName"></span><b id="bossActionTime"></b><i id="bossActionProgress"></i>';$('bossBanner').append(rhythm);
+      rhythm.innerHTML='<small id="bossActionCombo" hidden></small><span id="bossActionName"></span><b id="bossActionTime"></b><i id="bossActionProgress"></i>';$('bossBanner').append(rhythm);
       bindTouchPress($('bossBanner'),()=>{if(activeInterrupt() && !paused)setChant(true);});
       $('bossBanner').onkeydown=event=>{if(activeInterrupt() && !paused && ['Enter',' '].includes(event.key)){event.preventDefault();event.stopPropagation();setChant(true);}};
     }
@@ -165,19 +193,20 @@
   function renderDuelHUD() {
     ensureDuelHUD();
     const ritual=activeInterrupt(),active=run?.status==='combat' && !paused && !$('infoDialog').open;
-    const action=run?.enemy?.action,counter=run?.enemy?.counterWindow || 0;
+    const duel=duelPresentation(),action=duel.action,counter=duel.counter;
     $('bossBanner').classList.toggle('ritual-ready',active && !!ritual);
     $('bossBanner').tabIndex=active && ritual?0:-1;
     if(active && ritual){$('bossBanner').setAttribute('role','button');$('bossBanner').setAttribute('aria-label','首領強咒蓄力，按下開始第 '+(ritual.index+1)+' 組封咒');}
     else {$('bossBanner').removeAttribute('role');$('bossBanner').removeAttribute('aria-label');}
-    const rhythm=$('bossRhythm');rhythm.hidden=!active || run.enemy.kind!=='boss' || (!action && !ritual);
+    const rhythm=$('bossRhythm');rhythm.hidden=!active || run.enemy.kind!=='boss' || (!action && !ritual && counter<=0 && !run.enemy.counterReady);
     if(!rhythm.hidden){
-      const stage=ritual?'ritual':counter>0?'counter':action.stage;
-      const labels={windup:'蓄勢 · 看清出手',active:action?.combo?'連段 · 保留閃避':'出手 · 閃避',recovery:'收招 · 趁隙施法',stagger:'失衡 · 立即反擊',counter:'反擊窗口',ritual:'強咒蓄力 · 點此封咒'};
-      rhythm.dataset.stage=stage;
-      textIfChanged('bossActionName',labels[stage] || action?.name || '觀察首領動作');
+      rhythm.dataset.stage=ritual?'ritual':duel.stage;
+      $('bossActionCombo').hidden=!!ritual || duel.total<=1;
+      textIfChanged('bossActionCombo',duel.index+' / '+duel.total);
+      $('bossActionCombo').setAttribute('aria-label','連段第 '+duel.index+' 招，共 '+duel.total+' 招');
+      textIfChanged('bossActionName',ritual?'強咒蓄力 · 點此封咒':duel.label);
       textIfChanged('bossActionTime',ritual?ritual.remaining.toFixed(1)+' 秒':counter>0?counter.toFixed(1)+' 秒':action?.name || '');
-      $('bossActionProgress').style.width=(ritual?Math.max(0,ritual.remaining/ritual.duration):1-Math.min(1,action?.progress || 0))*100+'%';
+      $('bossActionProgress').style.width=(ritual?Math.max(0,ritual.remaining/ritual.duration):duel.progress)*100+'%';
     }
     const trackKey=ritual?ritual.id+':'+ritual.index:'';
     if(trackKey!==duelTrackKey || (ritual && !$('ritualTrack')?.childElementCount)){
@@ -353,7 +382,7 @@
   function panel(title, content, extra='') { return `<section class="side-panel ${extra}"><div class="panel-title"><h2>${icon(title==='冒險行囊'?'bag':'spell')}${title}</h2></div>${content}</section>`; }
   function catalogValues(value) { return Array.isArray(value) ? value : Object.values(value || {}); }
   function bondProfile() { return Story.createProfile(run?.relationship || saved?.relationship); }
-  function portrait() { return '<img class="bond-portrait" src="assets/dungeon/lumina-portrait.svg?v=20261026-duels1" alt="星露法師露米娜，24 歲的星象研究員" width="160" height="180">'; }
+  function portrait() { return '<img class="bond-portrait" src="assets/dungeon/lumina-portrait.svg?v=20261026-duels2" alt="星露法師露米娜，24 歲的星象研究員" width="160" height="180">'; }
   function bondMeter(profile) {
     const bond=Story.getBond(profile);
     return `<div class="bond-status"><b>${esc(bond.name)}</b><span>好感 ${profile.affection} / 100</span></div><div class="bond-meter" role="progressbar" aria-label="露米娜好感度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${profile.affection}"><i style="width:${profile.affection}%"></i></div><p class="bond-next">${esc(bond.next)}</p>`;
@@ -399,6 +428,7 @@
     if(immersive)void exitImmersive();
     if(releaseSession){releaseSession();releaseSession=null;sessionHeld=false;}
     run = null; receipt = null; paused = false; finished = false; persistenceBroken = false; settlementPromise = null;
+    suspendedChantDraft=null;chantTargetRun=null;chantTargetArena=null;chantTargetEncounter=null;chantTargetSpell=null;chantTargetKey='';duelCounter=null;
     chanting=false;clearMovement();document.body.classList.remove('in-run');$('actionPanel').classList.remove('combat-panel','is-chanting');$('actionPanel').inert=false;
     actionSignature = sidebarSignature = logSignature = '';
     $('pauseButton').hidden = true; $('pauseOverlay').hidden = true; $('bossBanner').hidden = true;
@@ -535,15 +565,17 @@
     area.classList.remove('conversation-panel');
     area.classList.toggle('combat-panel',run.status==='combat');area.classList.toggle('is-chanting',chanting && run.status==='combat');
     if (run.status === 'combat') {
-      const spell = syncChantTarget(), enemy = run.enemy;
+      const spell = syncChantTarget(), enemy = run.enemy, typed=$('spellInput')?.value || '';
       area.innerHTML = `<div class="enemy-intent"><span id="enemyIntent"></span><b id="intentTime"></b></div><div class="meter enemy-meter"><i id="intentBar"></i></div><div class="spell-row" data-element="${spellIcon(spell)}"><span class="spell-emblem">${icon(spellIcon(spell))}</span><div class="spell-copy"><div class="spell-word" id="spellWord">${esc(spell.word)}</div><div class="spell-meaning">${esc(spell.zh || '')}</div></div><div class="spell-type">${esc(spellTypes[spell.type]||'魔法咒語')}<br><small>${esc(spell.description||'')}</small></div></div><div id="inlineQte" class="inline-qte" hidden><div class="qte-top"><b>✦ 咒語連鎖</b><span id="inlineQteTime"></span></div><div class="qte-letters" id="inlineQteLetters" aria-hidden="true"></div><p id="inlineQteHint" role="status" aria-live="polite"></p></div><form class="spell-form" id="spellForm" autocomplete="off"><input id="spellInput" name="spell" aria-label="輸入咒語" placeholder="按 Enter 開始詠唱…" ${chanting?'':'readonly'} autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" enterkeyhint="send" maxlength="80"><button class="primary" type="submit">施法 ↵</button></form>`;
       const ritualTrack=document.createElement('div');ritualTrack.id='ritualTrack';ritualTrack.className='ritual-track';ritualTrack.hidden=true;area.prepend(ritualTrack);
       $('spellForm').onsubmit = event => {event.preventDefault();cast();};
       $('spellInput').oninput = event=>{if(!event.isComposing)paintLetters(true);};
       $('spellInput').oncompositionend=()=>paintLetters(true);
       $('spellInput').readOnly=touchLayout || !chanting;
+      $('spellInput').value=typed;
+      $('spellInput').setAttribute('aria-label',spell.ritual?'輸入第 '+(spell.ritual.index+1)+' 組封咒':'輸入咒語');
       $('spellInput').onfocus=()=>{if(touchLayout){$('spellInput').blur();return;}if(!chanting)setChant(true);};
-      previousTyped='';paintLetters();
+      previousTyped=typed;paintLetters();
       liveCombat();
     } else if (explorationStatuses.includes(run.status)) {
       renderExploration(area);
@@ -582,7 +614,9 @@
   }
   function cast() {
     if(!run || run.status!=='combat' || paused || busy || persistenceBroken)return;
-    const target=syncChantTarget(),input=$('spellInput'), text=input.value;
+    const priorTarget=chantTargetKey,target=syncChantTarget(),input=$('spellInput'), text=input.value;
+    // An input submitted as the ritual expires must not cast the restored ordinary spell.
+    if(priorTarget.startsWith('ritual:') && !target.ritual){paintLetters();return;}
     if(!text.trim()){setChant(true);return;}
     paintLetters();
     if(target.ritual){
@@ -611,10 +645,10 @@
   function liveCombat() {
     if(run.status!=='combat' || !$('enemyIntent'))return;
     const enemy=run.enemy,intent=enemy.intent;
-    const ritual=activeInterrupt(),action=enemy.action;
-    $('enemyIntent').textContent=ritual?`${enemy.name} · ${ritual.name} · 三組封咒阻止重創`:action?`${enemy.name} · ${action.name} · ${action.stage==='windup'?'蓄勢，留意出手時機':action.stage==='active'?'攻擊中，準備閃避':(enemy.counterWindow || 0)>0?'破綻出現，立即反擊':'觀察下一招'}`:`${enemy.name} · ${intent.name} · 留意地面預警`;
-    $('intentTime').textContent=Math.max(0,ritual?.remaining ?? (action? action.duration-action.elapsed:intent.remaining)).toFixed(1)+' 秒';
-    $('intentBar').style.width=Math.max(0,Math.min(100,ritual?ritual.remaining/ritual.duration*100:action?(1-action.progress)*100:intent.remaining/intent.duration*100))+'%';
+    const ritual=activeInterrupt(),duel=duelPresentation(),action=duel.action;
+    $('enemyIntent').textContent=ritual?`${enemy.name} · ${ritual.name} · 三組封咒阻止重創`:action || duel.counter>0?`${enemy.name} · ${action?.name || '反擊時機'}${duel.total>1?' · '+duel.index+'/'+duel.total+' 招':''} · ${duel.label}`:`${enemy.name} · ${intent.name} · 留意地面預警`;
+    $('intentTime').textContent=Math.max(0,ritual?.remaining ?? (action || duel.counter>0?duel.remaining:intent.remaining)).toFixed(1)+' 秒';
+    $('intentBar').style.width=Math.max(0,Math.min(100,ritual?ritual.remaining/ritual.duration*100:action || duel.counter>0?duel.progress*100:intent.remaining/intent.duration*100))+'%';
     $('bossBanner').hidden=enemy.kind!=='boss';
     $('bossName').textContent=enemy.name;$('bossPhase').textContent=enemy.phase===2?'Ⅱ · 狂怒覺醒':'Ⅰ · 封印守衛';
     $('bossHealth').textContent=`${Math.ceil(enemy.hp)} / ${enemy.maxHp}${enemy.shield?' · 護盾 '+enemy.shield:''}`;

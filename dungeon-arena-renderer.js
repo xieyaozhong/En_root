@@ -250,25 +250,29 @@
       else if(Number.isFinite(actor.facingX)&&Number.isFinite(actor.facingY)){fx=actor.facingX;fy=actor.facingY;}
       if(Math.hypot(fx,fy)>.01){
         const from=Math.atan2(state.facingY,state.facingX),to=Math.atan2(fy,fx);
-        const difference=Math.atan2(Math.sin(to-from),Math.cos(to-from)),angle=from+difference*(1-Math.exp(-dt*20));
+        const committed=action&&Number.isFinite(action.angle)&&(action.locked||action.stage==='active'||action.stage==='recovery');
+        const difference=Math.atan2(Math.sin(to-from),Math.cos(to-from)),angle=committed?to:from+difference*(1-Math.exp(-dt*20));
         state.facingX=Math.cos(angle);state.facingY=Math.sin(angle);
       }
       let mode=options.fallen?'fallen':dash?'dash':hurting?'hurt':casting?'cast':options.chant?'chant':state.moving>.08?'walk':'idle';
       const reduced=context.reducedMotion;
       const authoritative=action&&['windup','active','recovery','stagger'].includes(action.stage)?{
-        kind:action.kind,stage:action.stage,progress:clamp(val(action.progress,val(action.elapsed)/Math.max(.001,val(action.duration,1))),0,1),
-        angle:action.angle,combo:action.combo,ritual:!!action.ritual,name:action.name}:null;
+        kind:action.kind,motion:action.motion,stage:action.stage,progress:clamp(val(action.progress,val(action.elapsed)/Math.max(.001,val(action.duration,1))),0,1),
+        angle:action.angle,locked:!!action.locked,combo:action.combo,comboTotal:val(action.comboTotal,action.attacks?.length||1),ritual:!!action.ritual,name:action.name}:null;
       if(authoritative&&!options.fallen)mode=authoritative.stage==='stagger'?'hurt':'cast';
       state.pose={time:reduced?0:this.clock,phase:reduced?0:state.phase,moving:reduced?0:state.moving,speed:reduced?0:state.speed,
         facingX:state.facingX,facingY:state.facingY,mode,castProgress:casting?(reduced?.46:clamp(state.castAge/.52,0,1)):0,
-        hurtProgress:hurting?(reduced?.4:clamp(state.hurtAge/.28,0,1)):0,still:reduced,action:authoritative};
+        hurtProgress:hurting?(reduced?.4:clamp(state.hurtAge/.28,0,1)):0,
+        hitRecoil:hurting?(reduced?.4:1-clamp(state.hurtAge/.28,0,1)):0,still:reduced,action:authoritative};
       if(authoritative){
         // Lumina uses the player's existing rig; its charge/release/recovery
         // progress is driven by the same authoritative stages as every enemy.
         const q=reduced?.5:authoritative.progress;
-        if(authoritative.stage==='windup')state.pose.castProgress=.12*(1-q);
-        else if(authoritative.stage==='active')state.pose.castProgress=.2+q*.42;
-        else if(authoritative.stage==='recovery')state.pose.castProgress=.62+q*.38;
+        const commit=clamp(q/.58,0,1),settle=clamp((q-.14)/.86,0,1);
+        const commitEase=commit*commit*(3-2*commit),settleEase=settle*settle*(3-2*settle);
+        if(authoritative.stage==='windup')state.pose.castProgress=.2*(1-commitEase);
+        else if(authoritative.stage==='active')state.pose.castProgress=.62*commitEase;
+        else if(authoritative.stage==='recovery')state.pose.castProgress=.62+settleEase*.38;
         else state.pose.hurtProgress=q;
         if(reduced)state.pose.action={...authoritative,progress:.5};
       }
@@ -740,6 +744,9 @@
       c.save();c.globalAlpha*=spawning?.25:.4;oval(c,x,y+2,boss?39:20,boss?10:6,p.void);c.restore();
       if(spawning){c.save();c.globalAlpha=.35;this.targetRing(c,e,p,t);c.restore();}
       c.save();if(spawning)c.globalAlpha*=.45;c.translate(Math.round(x),Math.round(y));if(!modern)c.scale(scale,scale);
+      // Lumina keeps her original rig while damage still adds a small recoil
+      // over its authoritative cast pose, without changing the player's art.
+      if(modern&&!articulated&&pose?.action&&pose.hitRecoil>0)c.translate(-pose.facingX*pose.hitRecoil*2,pose.hitRecoil);
       if(articulated)window.DungeonEnemyCharacter.draw(c,pose,{...e,sprite:npcId,boss});
       else if(isNpc)this.npc(c,npcId,p,t,still,boss,val(e.phase,1),pose);
       else if(this.legacy?.enemy)this.legacy.enemy.call(this.legacy,c,0,0,{id:type,kind:boss?'boss':e.kind,boss,phase:e.phase},t,p,still,[1,0,2,3][region]);
@@ -765,12 +772,17 @@
     }
     combatIntent(c,e,a,p,still){
       const action=e.action,boss=e.kind==='boss'||e.boss;
-      if(!action&&!val(e.counterWindow))return;
-      const x=val(e.x),y=val(e.y),counter=val(e.counterWindow)>0,ritual=a.ritual&&a.ritual.status==='charging'&&String(a.ritual.bossId)===String(e.id);
-      const color=counter?'#a5f4d3':ritual?'#f5bdff':action?.stage==='windup'?'#ffce96':action?.stage==='active'?'#ffa79b':'#c8b6dc';
+      if(!action&&!val(e.counterWindow)&&!e.counterReady)return;
+      const x=val(e.x),y=val(e.y),comboTotal=val(action?.comboTotal,action?.attacks?.length||1);
+      const intermediate=action?.stage==='recovery'&&val(action.combo,1)<comboTotal;
+      const committed=action?.stage==='windup'||action?.stage==='active';
+      const counter=val(e.counterWindow)>0&&!intermediate&&!committed,banked=!!e.counterReady&&!counter;
+      const ritual=a.ritual&&a.ritual.status==='charging'&&String(a.ritual.bossId)===String(e.id);
+      const color=counter?'#a5f4d3':banked||intermediate?'#ffcf83':ritual?'#f5bdff':action?.stage==='windup'?'#ffce96':action?.stage==='active'?'#ffa79b':'#c8b6dc';
       if(boss){
-        const label=counter?'破綻・反擊':ritual?'禁咒詠唱':action?.stage==='windup'?'蓄勢':action?.stage==='active'?'出招':action?.stage==='stagger'?'失衡':'收招';
-        c.save();c.textAlign='center';c.font='bold 11px sans-serif';c.fillStyle='#152033';c.fillRect(x-34,y+17,68,17);c.fillStyle=color;c.fillText(label,x,y+29);c.restore();
+        const label=counter?'破綻・反擊':banked?'閃避成功・等連段結束':intermediate?'連段未完':ritual?'禁咒詠唱':action?.stage==='windup'?'蓄勢':action?.stage==='active'?'出招':action?.stage==='stagger'?'失衡':'收招';
+        const width=Math.max(68,label.length*11+12),labelX=clamp(x,width/2+8,W-width/2-8);
+        c.save();c.textAlign='center';c.font='bold 11px sans-serif';c.fillStyle='#152033';c.fillRect(labelX-width/2,y+17,width,17);c.fillStyle=color;c.fillText(label,labelX,y+29);c.restore();
       }
       if(counter){c.save();c.globalAlpha=.85;c.strokeStyle=color;c.lineWidth=2;for(let i=0;i<4;i++){const angle=i*TAU/4+.3;c.beginPath();c.ellipse(x,y+2,val(e.r,24)+11,14,0,angle,angle+.65);c.stroke();}c.restore();}
       if(action?.stage==='windup'){
