@@ -23,7 +23,7 @@
   function poly(c,points,color){c.fillStyle=color;c.beginPath();points.forEach((p,i)=>i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));c.closePath();c.fill();}
   const regionOf=(run)=>typeof run?.region==='string'?({forest:0,mirror:1,library:1,void:2,obsidian:2,astral:3}[run.region]??0):clamp(val(run?.region),0,3);
   const NPC_IDS=new Set(['merchant','healer','smith','cartographer','ferryman','lantern','echo','sentinel','lumina']);
-  const EXPLORATION_STATES=new Set(['route','shop','npc','camp','reward']);
+  const EXPLORATION_STATES=new Set(['route','shop','npc','camp','reward','event']);
 
   class DungeonArenaRenderer {
     constructor(canvas){
@@ -354,6 +354,13 @@
     }
     drawExploration(c,a,run,scene,p,region,t,dt,still){
       const player=a.player||{x:480,y:420,r:12},objects=Array.isArray(a.objects)?a.objects:[],obstacles=Array.isArray(a.obstacles)?a.obstacles:[];
+      if(run.status==='event'){
+        const color=objects.find(o=>o.kind==='event')?.color || '#c7b9e9';
+        c.save();c.globalAlpha=.14;oval(c,480,260,330,118,color);c.globalAlpha=.3;
+        for(let i=0;i<18;i++){const a=i*TAU/18,x=480+Math.cos(a)*320,y=264+Math.sin(a)*115;gem(c,x,y,3,color);}
+        if(!still)for(let i=0;i<12;i++){const x=94+(i*71)%780,y=110+(i*47+t*9)%325;box(c,x,y,2,2,color);}
+        c.restore();
+      }
       objects.forEach(o=>{
         const x=val(o.x),y=val(o.y),r=Math.max(1,val(o.interactionRadius,85)),near=String(o.id)===String(a.nearbyId)||String(o.id)===String(a.dialogId),color=o.color||p.glow;
         // The circle is the exact interaction radius in world space.
@@ -481,6 +488,8 @@
         const modern=npcId==='lumina'?typeof window.DungeonCharacter?.draw==='function':!!window.DungeonEnemyCharacter?.supports(npcId);
         const pose=modern?this.actorPose('npc:'+String(o.id||npcId),o,{lookAt:near?this.actorContext?.space?.player:null}):null;
         c.save();c.translate(x,y);if(!modern)c.scale(.88,.88);this.npc(c,npcId,p,t,still,false,1,pose);c.restore();
+      }else if(o.kind==='event'){
+        this.eventShrine(c,o,p,t,still,near);
       }else if(o.kind==='camp'){
         const training=/train|power|strength|forge/.test(String(o.id)+' '+String(o.action)+' '+String(o.args));
         if(training){
@@ -502,6 +511,38 @@
           box(c,x-13,y-53+bob,26,32,'#192b3a');box(c,x-10,y-45+bob,20,21,color);box(c,x-6,y-61+bob,12,10,p.accent);box(c,x-8,y-56+bob,16,5,p.light);box(c,x-6,y-42+bob,3,13,p.light);
         }else{box(c,x-18,y-59+bob,36,40,'#d6c4a0');box(c,x-14,y-55+bob,28,32,'#625372');gem(c,x,y-40+bob,12,color);box(c,x-10,y-25+bob,20,2,p.accent);}
       }
+    }
+    eventShrine(c,o,p,t,still,near){
+      const x=val(o.x),y=val(o.y),color=o.color||p.glow,bob=still?0:Math.sin(t*2.1+x)*2;
+      aura(c,x,y-30,38,color,near?.14:.06);
+      box(c,x-35,y-4,70,10,p.wall);box(c,x-29,y-11,58,8,p.stone);box(c,x-26,y-14,52,3,p.trim);
+      if(o.eventId==='altar'){
+        box(c,x-16,y-47,32,34,'#674957');box(c,x-22,y-51,44,7,'#a17b79');box(c,x-10,y-43,4,23,'#d5af91');
+        poly(c,[[x-14,y-52],[x-9,y-70],[x-2,y-65],[x+3,y-90-bob],[x+9,y-69],[x+16,y-52]],'#d67d60');
+        poly(c,[[x-7,y-53],[x-3,y-68],[x+4,y-77-bob],[x+9,y-53]],'#ffe1a4');
+      }else if(o.eventId==='well'){
+        box(c,x-29,y-36,58,22,'#466074');box(c,x-32,y-41,64,9,'#9cb4bb');oval(c,x,y-40,25,7,'#203643');
+        c.save();c.globalAlpha=.7;oval(c,x,y-40,20,4,color);c.restore();
+        for(let i=0;i<4;i++)box(c,x-25+i*15,y-26,11,2,'#718b9a');
+        c.save();c.strokeStyle=color;c.lineWidth=3;c.beginPath();c.arc(x,y-72+bob,13,.3,Math.PI*1.6);c.stroke();c.restore();
+      }else if(o.eventId==='cache'){
+        poly(c,[[x-24,y-17],[x-22,y-51],[x-12,y-62],[x+17,y-59],[x+25,y-42],[x+24,y-17]],'#6d5360');
+        box(c,x-21,y-43,43,25,'#ad8262');box(c,x-9,y-59,17,46,'#c6a17b');box(c,x-6,y-42,12,10,'#e6cc91');
+        box(c,x-33,y-32,13,19,'#7b9e91');box(c,x-30,y-38,7,7,'#d1bd93');gem(c,x+31,y-25,6,color);
+      }else if(o.eventId==='inscription'){
+        poly(c,[[x-22,y-15],[x-25,y-79],[x-12,y-91],[x+22,y-84],[x+26,y-15]],'#394b62');
+        poly(c,[[x-17,y-17],[x-19,y-75],[x-10,y-84],[x+17,y-78],[x+20,y-17]],'#66778c');
+        for(let i=0;i<5;i++){const shift=still?0:Math.round(Math.sin(t+i)*2);box(c,x-11+shift,y-69+i*10,18-i%3*3,2,color);box(c,x+8,y-69+i*10,2,5,color);}
+      }else if(o.eventId==='wish'){
+        box(c,x-13,y-36,26,22,'#5c697a');box(c,x-24,y-41,48,7,'#a3b1b1');
+        poly(c,[[x,y-88+bob],[x+5,y-71+bob],[x+22,y-68+bob],[x+8,y-57+bob],[x+12,y-40+bob],[x,y-49+bob],[x-14,y-40+bob],[x-8,y-57+bob],[x-22,y-68+bob],[x-5,y-71+bob]],color);
+        gem(c,x,y-65+bob,8,'#fff0ca');
+      }else{
+        box(c,x-4,y-54,8,40,'#856d79');poly(c,[[x-27,y-58],[x+21,y-63],[x+28,y-36],[x-23,y-31]],'#cfbca4');
+        poly(c,[[x-24,y-56],[x+21,y-61],[x,y-42]],'#f0debc');gem(c,x,y-43,6,'#b981a2');
+        stroke(c,x+25,y-15,x+31,y-46,'#91aa94',2);for(let i=0;i<5;i++){const a=i*TAU/5;pixelDisk(c,x+31+Math.cos(a)*7,y-48+Math.sin(a)*7,4,color);}pixelDisk(c,x+31,y-48,3,'#f1dda3');
+      }
+      if(near){c.save();c.globalAlpha=.8;gem(c,x,y-105+bob,5,color);c.restore();}
     }
     interactionLabel(c,o,p,near,open){
       const x=val(o.x),y=val(o.y),name=String(o.name||'互動'),color=o.color||p.light;

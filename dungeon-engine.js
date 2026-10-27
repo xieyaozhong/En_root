@@ -157,6 +157,78 @@
     ward: { id: 'ward', name: '守望星象', description: '進入普通或精英戰鬥時，額外獲得 12 點護盾。', color: '#a9e9cc', shield: 12 },
     fortune: { id: 'fortune', name: '豐饒星象', description: '敵人生命增加 12%；獲勝額外獲得 12 金幣。', color: '#f4d18c', health: 1.12, gold: 12 }
   };
+  var EVENTS = {
+    altar: { id: 'altar', name: '餘火誓壇', color: '#efac80', description: '最後一束星火仍記得戰士的誓言。它願意借出力量，但需要你以生命點燃。', choices: [
+      { id: 'offer', name: '獻出生命', description: '消耗 12 點生命，這趟遠征咒語威力 +3；生命必須高於 12。', hp: 12, power: 3, icon: '✦' },
+      { id: 'warm', name: '靠近餘火', description: '免費恢復 10 點生命，隨後繼續旅程。', heal: 10, icon: '♨' }] },
+    well: { id: 'well', name: '倒映月露的井', color: '#a7dce7', description: '井底映照著一個沒有受傷的你。銀月說，記憶也能讓生命變得更堅韌。', choices: [
+      { id: 'silver', name: '投入 25 金幣', description: '消耗 25 金幣，最大生命 +10，恢復 15 點生命。', gold: 25, maxHp: 10, heal: 15, icon: '☾' },
+      { id: 'drink', name: '飲一口月露', description: '免費恢復 18 點生命。', heal: 18, icon: '◈' }] },
+    cache: { id: 'cache', name: '無主的行囊', color: '#e1c58e', description: '舊行囊裡留著一張字條：「拿走補給的人，請替下一位旅人留下路費。」', choices: [
+      { id: 'supplies', name: '留下 35 金幣', description: '消耗 35 金幣，獲得 2 瓶苔露藥水和 1 枚符文炸彈。', gold: 35, potion: 2, bomb: 1, icon: '▣' },
+      { id: 'coins', name: '拾取散落路費', description: '獲得 12 金幣；金幣遺物加成照常生效。', gainGold: 12, icon: '◆' }] },
+    inscription: { id: 'inscription', name: '逆寫者的石碑', color: '#cbb6ef', description: '石碑上的文字倒著流動。一件遺物被封在句末，等待有人付出解讀的代價。', choices: [
+      { id: 'relic', name: '解讀封印', description: '消耗 40 金幣，獲得碑中尚未擁有的普通遺物。', gold: 40, relic: true, icon: '◇' },
+      { id: 'ink', name: '收集殘墨', description: '免費獲得 1 份專注墨水，可在戰鬥中使用。', focus: 1, icon: '✒' }] },
+    wish: { id: 'wish', name: '墜星許願台', color: '#b4e6c2', description: '流星把願望留下，把答案藏進掌心。交出一份補給，換取走得更遠的力量。', choices: [
+      { id: 'strength', name: '獻上一瓶藥水', description: '消耗 1 瓶苔露藥水，這趟遠征咒語威力 +3。', potionCost: 1, power: 3, icon: '✦' },
+      { id: 'stardust', name: '收集星砂', description: '獲得 12 金幣；金幣遺物加成照常生效。', gainGold: 12, icon: '✧' }] },
+    letter: { id: 'letter', name: '未寄出的星箋', color: '#efbfd8', description: '信封寫著：「如果遇見一位尋找星圖的女孩，請替我告訴她，沿途的花還在等她。」', choices: [
+      { id: 'flower', name: '收藏月露小花', description: '獲得 1 朵月露小花，可在日後相逢時送給露米娜。', gift: 'flower', icon: '❀' },
+      { id: 'parcel', name: '補上 20 金幣郵資', description: '消耗 20 金幣，獲得 1 份蜜星花茶和 1 瓶星砂玻璃瓶。', gold: 20, gift: 'tea', extraGift: 'star', icon: '✉' }] }
+  };
+  function getEncounterEvent(s) {
+    if (!s || s.status !== 'event') return null;
+    var room = s.eventRoom || {}, definition = EVENTS[room.id] || EVENTS.letter;
+    var choices = definition.choices.map(function (choice) {
+      var result = copy(choice);
+      if (choice.relic) {
+        var relic = RELICS[room.relicId];
+        result.description = relic && !has(s, relic.id) ? '消耗 40 金幣，獲得「' + relic.name + '」：' + relic.description : '碑中的遺物已被取走，請收集殘墨或離開。';
+      }
+      return result;
+    });
+    choices.push({ id: 'leave', name: '繼續旅途', description: '不付出代價，也不領取獎勵，前往下一個節點。', icon: '➜' });
+    return Object.assign({}, definition, { choices: choices });
+  }
+  function enterEvent(s) {
+    var stream = { rng: hash(String(s.seed) + ':wayfarer:' + s.encounter) };
+    var id = pick(stream, Object.keys(EVENTS));
+    var available = Object.keys(RELICS).filter(function (key) { return !RELICS[key].special && !has(s, key); });
+    s.status = 'event'; s.eventRoom = { id: id, encounter: s.encounter, relicId: id === 'inscription' && available.length ? pick(stream, available) : null };
+    s.arena = null; s.exploration = null;
+    event(s, 'event', EVENTS[id].name + '：' + EVENTS[id].description);
+  }
+  function chooseEvent(s, id) {
+    var room = getEncounterEvent(s);
+    if (!room) return fail('目前沒有可互動的奇遇。');
+    var choice = room.choices.find(function (value) { return value.id === id; });
+    if (!choice) return fail('請走近奇遇中的標記作出選擇。');
+    var potion = s.inventory.find(function (item) { return item.id === 'potion'; });
+    if (choice.hp && s.player.hp <= choice.hp) return fail('生命必須高於 ' + choice.hp + '，可選擇另一份幫助或離開。');
+    if (choice.gold && s.player.gold < choice.gold) return fail('需要 ' + choice.gold + ' 金幣；目前有 ' + s.player.gold + '。');
+    if (choice.potionCost && (!potion || potion.count < choice.potionCost)) return fail('需要 1 瓶苔露藥水，或改為收集星砂。');
+    var relicId = s.eventRoom && s.eventRoom.relicId;
+    if (choice.relic && (!RELICS[relicId] || RELICS[relicId].special || has(s, relicId))) return fail('碑中沒有尚未擁有的遺物，可以收集殘墨。');
+    if (choice.hp) { s.player.hp -= choice.hp; s.stats.damageTaken += choice.hp; }
+    if (choice.gold) s.player.gold -= choice.gold;
+    if (choice.potionCost) potion.count -= choice.potionCost;
+    if (choice.power) s.player.power += choice.power;
+    if (choice.maxHp) s.player.maxHp += choice.maxHp;
+    var healed = choice.heal ? heal(s, choice.heal) : 0;
+    var gold = choice.gainGold ? coins(s, choice.gainGold) : 0;
+    ['potion', 'bomb', 'focus'].forEach(function (itemId) { if (choice[itemId]) addItem(s, itemId, choice[itemId]); });
+    if (choice.relic) addRelic(s, relicId);
+    if (choice.gift) {
+      s.relationship = Story.createProfile(s.relationship);
+      [choice.gift, choice.extraGift].filter(Boolean).forEach(function (gift) { s.relationship.gifts[gift] = Math.min(999, s.relationship.gifts[gift] + 1); });
+    }
+    var description = choice.description + (choice.heal ? ' 實際恢復 ' + healed + ' 點生命。' : '') + (gold ? ' 實際獲得 ' + gold + ' 金幣。' : '');
+    var message = room.name + ' · ' + choice.name + '：' + description;
+    s.eventRoom = null;
+    nextEncounter(s); event(s, 'event-choice', message);
+    return done(message);
+  }
   function getBossId(s, region) {
     var index = Number.isInteger(region) ? Math.max(0, Math.min(REGIONS.length - 1, region)) : Math.max(0, Math.min(REGIONS.length - 1, s && s.region || 0));
     var chosen = s && s.randomWorldVersion === 1 && Array.isArray(s.bossRoster) ? s.bossRoster[index] : null;
@@ -335,9 +407,10 @@
       elite: { name: '危險裂隙', icon: '♠', description: '更強的敵人、更多金幣，並保證出現遺物選項。', danger: '精英戰鬥' },
       treasure: { name: '遺落寶匣', icon: '▣', description: '找到金幣，並選擇一份寶藏。', danger: '安全' },
       camp: { name: '星燈營地', icon: '♨', description: '休息恢復生命，或磨練永久咒語威力。', danger: '安全' },
-      shop: { name: '流浪商人', icon: '◆', description: '花費本趟金幣，補給藥水、道具與遺物。', danger: '安全' }
+      shop: { name: '流浪商人', icon: '◆', description: '花費本趟金幣，補給藥水、道具與遺物。', danger: '安全' },
+      event: { name: '星痕奇遇', icon: '✧', description: '六種偶遇之一。走近標記選擇代價與禮物，也可以不領取並繼續旅途。', danger: '抉擇與獎勵' }
     };
-    var alternatives = shuffle(s, ['elite', 'treasure', 'camp', 'shop', 'npc']).slice(0, 2);
+    var alternatives = shuffle(s, ['elite', 'treasure', 'camp', 'shop', 'npc', 'event']).slice(0, 2);
     // A safe rest is always available directly before the second and third bosses.
     if (localNode === nodes - 2 && alternatives.indexOf('camp') < 0) alternatives[1] = 'camp';
     // Each expanded chapter offers a random un-recruited companion early on.
@@ -420,6 +493,8 @@
       var amount = coins(s, 24 + s.region * 9);
       var gift = awardGift(s, true);
       makeRewards(s, true); event(s, 'treasure', '寶匣裡有 ' + amount + ' 金幣。再選擇一份寶藏帶走。' + (gift ? '另找到' + Story.GIFTS[gift].name + '。' : ''), { gift: gift });
+    } else if (route.type === 'event') {
+      enterEvent(s);
     } else if (route.type === 'camp') {
       s.status = 'camp'; event(s, 'camp', '星燈下十分安全。休息回復生命，或磨練咒語威力。');
     } else if (route.type === 'npc' && NPCS[route.npcId] && route.npcId !== 'merchant') {
@@ -790,5 +865,6 @@
     giveGift: giveGift, talkNpc: talkNpc, beginBondQuest: beginBondQuest, confessBond: confessBond,
     getNodesPerRegion: getNodesPerRegion, getRegionCount: getRegionCount, getCampaignLength: getCampaignLength,
     getBossId: getBossId, getFloorPlan: getFloorPlan, BOSSES: BOSS, BOSS_POOLS: BOSS_POOLS, OMENS: OMENS,
+    getEncounterEvent: getEncounterEvent, chooseEvent: chooseEvent, EVENTS: EVENTS,
     ITEMS: ITEMS, RELICS: RELICS, REGIONS: REGIONS, NPCS: NPCS };
 });
