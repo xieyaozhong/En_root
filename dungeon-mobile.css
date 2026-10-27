@@ -1,4 +1,17 @@
 /* Thumb controls float over the complete world; the canvas keeps its aspect ratio. */
+.audio-settings>label{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:60px;padding:10px 0;border-bottom:1px solid #8898aa33}
+.audio-settings label span{display:flex;flex-direction:column;gap:5px}
+.audio-settings label small{font-size:.74rem;line-height:1.5;color:#adc2cb}
+.audio-settings input[type=checkbox]{width:26px;height:26px;flex:none;accent-color:#c6e0ba}
+.audio-settings input[type=range]{width:44%;min-width:100px;accent-color:#c6e0ba}
+.audio-settings button{min-height:46px}
+#audioState{padding:10px 12px;border-radius:8px;background:#294344;color:#d8ebc9}
+.event-notice{position:absolute;z-index:4;left:50%;top:52px;transform:translateX(-50%);width:min(380px,54%);padding:10px 13px;border:1px solid #d2b68677;border-radius:10px;background:#192839e8;box-shadow:0 6px 18px #0003;pointer-events:none;text-align:center}
+.event-notice b,.event-notice span{display:block}
+.event-notice b{font-size:.82rem;color:#f0d9a9;margin-bottom:5px}
+.event-notice span{font-size:.72rem;line-height:1.55;color:#d2dfe5}
+@media(orientation:landscape){.touch-layout #gameSurface.is-immersive .event-notice{top:calc(max(10px,env(safe-area-inset-top)) + 58px);width:min(360px,38vw);padding:7px 10px}.touch-layout #gameSurface.is-immersive .event-notice b{font-size:.72rem}.touch-layout #gameSurface.is-immersive .event-notice span{font-size:.66rem}}
+@media(orientation:portrait) and (max-width:780px){.event-notice{top:42px;width:65%;padding:5px 8px}.event-notice b{font-size:.65rem;margin-bottom:3px}.event-notice span{font-size:.61rem;line-height:1.4}}
 .expand-label{display:none}
 .joystick-base{display:none}
 .touch-layout #expandButton{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:auto;min-width:116px;min-height:44px;padding:6px 9px;font-size:.66rem;color:#e8d9b5;border-color:#ad997560;background:#364441}

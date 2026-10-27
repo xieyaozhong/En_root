@@ -7,7 +7,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (Engine) {
   'use strict';
   var VERSION = 1, WIDTH = 960, HEIGHT = 540, RANGE = 85;
-  var STATES = ['route', 'shop', 'npc', 'camp', 'reward'];
+  var STATES = ['route', 'shop', 'npc', 'camp', 'reward', 'event'];
   function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
   function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
   function fail(message) { return { ok: false, message: message }; }
@@ -58,6 +58,15 @@
       return run.rewards.map(function (reward, i) {
         return object('reward-' + reward.id, 'reward', reward.name, reward.description, rewardPositions[i], 215, {
           color: '#e8cc7b', icon: reward.icon, action: 'chooseReward', args: [reward.id], rewardKind: reward.kind
+        });
+      });
+    }
+    if (run.status === 'event') {
+      var encounterEvent = Engine.getEncounterEvent(run), eventPositions = slots(encounterEvent.choices.length);
+      return encounterEvent.choices.map(function (choice, index) {
+        return object('event-' + choice.id, choice.id === 'leave' ? 'exit' : 'event', choice.name, choice.description, eventPositions[index], choice.id === 'leave' ? 335 : 230, {
+          color: choice.id === 'leave' ? '#a5c9ff' : encounterEvent.color, icon: choice.icon,
+          eventId: encounterEvent.id, choiceId: choice.id, action: 'chooseEvent', args: [choice.id]
         });
       });
     }
@@ -228,6 +237,7 @@
     if (target.action === 'chooseRoute' && run.status === 'route') result = Engine.chooseRoute(run, target.args[0]);
     else if (target.action === 'chooseReward' && run.status === 'reward') result = Engine.chooseReward(run, target.args[0]);
     else if (target.action === 'chooseCamp' && run.status === 'camp') result = Engine.chooseCamp(run, target.args[0]);
+    else if (target.action === 'chooseEvent' && run.status === 'event') result = Engine.chooseEvent(run, target.args[0]);
     else if (target.action === 'leaveShop' && run.status === 'shop') result = Engine.leaveShop(run);
     else if (target.action === 'leaveNpc' && run.status === 'npc' && typeof Engine.leaveNpc === 'function') result = Engine.leaveNpc(run);
     else return fail('目前無法使用這個互動。');

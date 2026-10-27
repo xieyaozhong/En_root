@@ -200,6 +200,9 @@
   class DungeonAudio {
     constructor() {
       this._enabled = false;
+      this._musicEnabled = true;
+      this.onStatusChange = null;
+      this._statusKey = '';
       this._disposed = false;
       this._volume = 0.55;
       this._scene = { region: 0, combat: false, boss: false, bossId: '', phase: 1, paused: false, focus: false,
@@ -214,8 +217,8 @@
       this._nextTime = 0;
       this._toggleVersion = 0;
       this._lastSfx = Object.create(null);
-      this._visibility = () => this._reconcile();
-      this._stateChange = () => this._reconcile();
+      this._visibility = () => { this._reconcile(); this._emitStatus(); };
+      this._stateChange = () => { this._reconcile(); this._emitStatus(); };
       if (global.document) global.document.addEventListener('visibilitychange', this._visibility);
     }
 
@@ -234,31 +237,78 @@
         phase: scene.boss ? scene.phase : 1, bars: 32 });
     }
 
-    // Call directly from the sound toggle's click/tap handler. Construction,
-    // scene changes, and sound effects never create or resume an audio context.
-    async setEnabled(enabled) {
-      if (this._disposed) return false;
-      const version = ++this._toggleVersion;
-      if (!enabled) {
-        this._enabled = false;
-        this._halt();
-        return true;
+    // Desired sound state is independent of the browser's autoplay permission.
+    // Invoke from a real gesture, before any storage/fullscreen awaits.
+    setEnabled(enabled) {
+      if (this._disposed) return Promise.resolve(false);
+      this._toggleVersion++;
+      this._enabled = !!enabled;
+      if (!this._enabled) {
+        this._halt(true); this._emitStatus();
+        return Promise.resolve(true);
       }
+      return this.resumeFromGesture();
+    }
+
+    getStatus() {
+      const state = this._context ? this._context.state : 'uninitialized';
+      return { enabled: this._enabled, musicEnabled: this._musicEnabled, running: state === 'running',
+        needsGesture: this._enabled && state !== 'running', supported: this.supported, state: state,
+        paused: this._scene.paused || !!(global.document && global.document.hidden) };
+    }
+
+    _emitStatus() {
+      const status = this.getStatus(), key = JSON.stringify(status);
+      if (key === this._statusKey) return;
+      this._statusKey = key;
+      if (typeof this.onStatusChange === 'function') this.onStatusChange(status);
+    }
+
+    resumeFromGesture() {
+      if (!this._enabled || this._disposed) return Promise.resolve(false);
+      const version = this._toggleVersion;
       try {
-        if (!this._context) this._createContext();
-        if (this._context.state !== 'running') await this._context.resume();
-        if (version !== this._toggleVersion || this._disposed) return false;
-        if (this._context.state !== 'running') throw new Error('Audio context did not start');
-        this._enabled = true;
-        this._reconcile();
-        return true;
-      } catch (_) {
-        if (version === this._toggleVersion) {
-          this._enabled = false;
-          this._halt();
+        // Safari's playback category is requested only when sound was enabled.
+        // Older browsers simply use their default output routing.
+        try { if (global.navigator && global.navigator.audioSession) global.navigator.audioSession.type = 'playback'; } catch (_) {}
+        if (this._context && this._context.state === 'closed') {
+          this._halt(true);
+          this._context.removeEventListener?.('statechange', this._stateChange);
+          this._nodes.forEach(node => { try { node.disconnect(); } catch (_) {} });
+          this._nodes = []; this._context = null;
         }
-        return false;
+        if (!this._context) this._createContext();
+        const context = this._context;
+        const pending = context.state === 'running' ? Promise.resolve() : context.resume();
+        // Starting a tiny buffer in the gesture also primes legacy WebKit audio.
+        if (context.state !== 'running' && this._primedContext !== context) {
+          this._primedContext = context;
+          const prime = context.createBufferSource();
+          prime.buffer = context.createBuffer(1, 1, context.sampleRate);
+          prime.connect(context.destination); prime.onended = () => prime.disconnect(); prime.start(0);
+        }
+        this._reconcile(); this._emitStatus();
+        return new Promise(resolve => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return; settled = true; global.clearTimeout(timeout);
+            if (version !== this._toggleVersion || this._disposed || context !== this._context) { resolve(false); return; }
+            this._reconcile(); this._emitStatus(); resolve(context.state === 'running');
+          };
+          // Some mobile browsers leave resume pending until another gesture.
+          const timeout = global.setTimeout(finish, 1200);
+          Promise.resolve(pending).then(finish, finish);
+        });
+      } catch (_) {
+        this._reconcile(); this._emitStatus(); return Promise.resolve(false);
       }
+    }
+
+    setMusicEnabled(enabled) {
+      this._musicEnabled = !!enabled;
+      if (this._music) this._ramp(this._music.gain, this._musicEnabled ? (this._scene.focus ? 0.40 : 0.72) : 0, 0.06);
+      if (!this._musicEnabled) this._stopVoices('music', true);
+      this._reconcile(); this._emitStatus();
     }
 
     setScene(scene) {
@@ -276,7 +326,7 @@
       this._scene = next;
       // Focus means the player's limited chanting mode, not browser focus.
       // Keep the soundtrack playing while moving; soften it during typing.
-      if (previous.focus !== next.focus && this._music) this._ramp(this._music.gain, next.focus ? 0.40 : 0.72, 0.12);
+      if (previous.focus !== next.focus && this._music) this._ramp(this._music.gain, this._musicEnabled ? (next.focus ? 0.40 : 0.72) : 0, 0.12);
       if (scoreFor(previous) !== scoreFor(next) || (next.boss && previous.phase !== next.phase)) {
         this._step = 0;
         this._nextTime = this._context ? this._context.currentTime + 0.055 : 0;
@@ -285,6 +335,7 @@
         this._stopVoices('music', false, 0.16);
       }
       this._reconcile();
+      this._emitStatus();
     }
 
     setVolume(value) {
@@ -399,7 +450,7 @@
         this._gate = context.createGain();
         this._compressor = context.createDynamicsCompressor();
         this._nodes = [this._music, this._effects, this._master, this._gate, this._compressor];
-        this._music.gain.value = this._scene.focus ? 0.40 : 0.72;
+        this._music.gain.value = this._musicEnabled ? (this._scene.focus ? 0.40 : 0.72) : 0;
         this._effects.gain.value = 0.85;
         this._master.gain.value = this._volume;
         this._gate.gain.value = 0;
@@ -452,13 +503,16 @@
 
     _reconcile() {
       if (!this._canPlay()) { this._halt(); return; }
-      if (this._playing) return;
-      this._playing = true;
-      this._silenced = false;
-      this._nextTime = this._context.currentTime + 0.045;
-      this._ramp(this._gate.gain, 1, 0.05);
-      this._schedule();
-      this._timer = global.setInterval(() => this._schedule(), 25);
+      if (!this._playing) {
+        this._playing = true; this._silenced = false;
+        this._ramp(this._gate.gain, 1, 0.05);
+      }
+      if (this._musicEnabled && this._timer === null) {
+        this._nextTime = this._context.currentTime + 0.045;
+        this._schedule(); this._timer = global.setInterval(() => this._schedule(), 25);
+      } else if (!this._musicEnabled && this._timer !== null) {
+        global.clearInterval(this._timer); this._timer = null;
+      }
     }
 
     _halt(immediate) {
@@ -569,6 +623,7 @@
 
     _schedule() {
       if (!this._canPlay()) { this._halt(); return; }
+      if (!this._musicEnabled) return;
       const now = this._context.currentTime;
       // Returning from a suspended tab never generates a catch-up burst.
       if (this._nextTime < now - 0.2) this._nextTime = now + 0.035;
