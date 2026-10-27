@@ -22,7 +22,35 @@
     { id: 'bloom', type: 'bloom', name: '月花願庭', description: '三朵月花每八秒甦醒，走入花心可恢復 6 點生命；花外圓環稍後爆發，別停在花瓣邊緣。', mutator: '採集治癒月花' },
     { id: 'comet', type: 'comet', name: '彗光渡橋', description: '細線預告彗星航道，稍後真正的星核會從兩側掠過。避開飛行中的星核，善用它們之間的空隙。', mutator: '雙向彗星穿越' }
   ];
-  var ACTOR_NAMES = { chaser: '逐光獵影', ranged: '符箭侍從', charger: '重甲破陣者' };
+  var ACTOR_NAMES = { chaser: '逐光獵影', ranged: '符箭侍從', charger: '重甲破陣者', skirmisher: '裂步游獵者', hexer: '咒印織禁師', warden: '符甲鎮衛' };
+  var REGION_ROLES = [
+    ['chaser', 'hexer', 'skirmisher', 'ranged', 'warden', 'charger'],
+    ['warden', 'ranged', 'hexer', 'skirmisher', 'charger', 'chaser'],
+    ['skirmisher', 'warden', 'charger', 'hexer', 'ranged', 'chaser'],
+    ['hexer', 'skirmisher', 'warden', 'ranged', 'charger', 'chaser']
+  ];
+  // Every guardian has a distinct stage and a clearly telegraphed floor mechanic.
+  // The gaps are walkable at base speed; no arena requires a dash relic.
+  var BOSS_ARENAS = {
+    thorn: { name: '荊棘王冠庭', color: '#a8cd84', motif: 'bramble', mechanic: 'roots', interval: 7.2, cover: [[350,120,38,48],[570,400,38,48]] },
+    spore: { name: '菌絲夢宮', color: '#d3ba85', motif: 'mycelium', mechanic: 'spores', interval: 7.5, cover: [[460,105,44,40],[460,415,44,40]] },
+    witch: { name: '月蝕鏡湖', color: '#bda4f3', motif: 'moonmirror', mechanic: 'mirrors', interval: 7.6, cover: [[410,115,44,60],[410,385,44,60]] },
+    prism: { name: '千面水晶獵場', color: '#a8dfef', motif: 'crystal', mechanic: 'facets', interval: 8.2, cover: [[265,110,34,38],[680,410,34,38]] },
+    king: { name: '失名黑曜王座', color: '#efa68c', motif: 'throne', mechanic: 'throne', interval: 8.6, cover: [[760,100,48,56],[760,410,48,56]] },
+    hollow: { name: '第十三鐘廳', color: '#b9aed8', motif: 'belltower', mechanic: 'bell', interval: 8.1, cover: [[440,100,40,45],[440,415,40,45]] },
+    astral: { name: '忘誓星海', color: '#d8b6e9', motif: 'constellation', mechanic: 'stars', interval: 7.7, cover: [[285,115,32,35],[660,420,32,35]] },
+    cometqueen: { name: '雙尾天穹', color: '#f1b7aa', motif: 'comet', mechanic: 'comets', interval: 7.3, cover: [] },
+    constellation: { name: '未寄出的雙星庭', color: '#edb3d7', motif: 'vow', mechanic: 'vows', interval: 8, cover: [[450,100,36,38],[450,420,36,38]] },
+    merchant: { name: '永不清償的金庫', color: '#f3c26f', motif: 'vault', mechanic: 'coins', interval: 6.8, cover: [[340,115,52,50],[580,405,52,50]] },
+    healer: { name: '千露禁藥園', color: '#91dfb1', motif: 'conservatory', mechanic: 'garden', interval: 6.9, cover: [[470,115,44,46],[470,400,44,46]] },
+    smith: { name: '星鐵地心爐', color: '#ffa578', motif: 'forge', mechanic: 'forge', interval: 7.4, cover: [[765,240,50,55]] },
+    cartographer: { name: '被刪除的星圖', color: '#b8abff', motif: 'atlas', mechanic: 'atlas', interval: 6.8, cover: [] },
+    ferryman: { name: '逆流渡魂河', color: '#8ccce3', motif: 'river', mechanic: 'river', interval: 7.1, cover: [[385,105,80,30],[550,425,80,30]] },
+    lantern: { name: '不眠燈海', color: '#81ead8', motif: 'eclipse', mechanic: 'eclipse', interval: 7, cover: [[315,120,30,40],[625,400,30,40]] },
+    echo: { name: '無聲複音劇場', color: '#c8a4ff', motif: 'resonance', mechanic: 'echoes', interval: 7.1, cover: [] },
+    sentinel: { name: '千摺試劍庭', color: '#f5d48c', motif: 'origami', mechanic: 'paper', interval: 7.8, cover: [[450,105,32,42],[450,415,32,42]] },
+    lumina: { name: '露米娜的月花星台', color: '#efb2e3', motif: 'moonflower', mechanic: 'moonflowers', interval: 7.6, cover: [] }
+  };
   var FORMATIONS = {
     balanced: { name: '混合守軍', description: '追擊者、射手與衝撞者共同守衛房間', roles: ['chaser', 'ranged', 'charger'], spots: [[640, 280], [760, 135], [760, 435], [520, 110], [540, 450]] },
     pack: { name: '追獵群集', description: '多名追擊者結群逼近，從側面拉開距離', roles: ['chaser', 'chaser', 'chaser', 'ranged', 'charger'], spots: [[565, 245], [650, 180], [680, 350], [755, 255], [550, 415]] },
@@ -38,6 +66,8 @@
   };
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function has(run, id) { return (run.relics || []).some(function (r) { return r.id === id; }); }
+  function canDash(run) { return typeof Engine.canDash === 'function' ? Engine.canDash(run) : has(run, 'gale') || has(run, 'thunderstep'); }
+  function canSlowChant(run) { return typeof Engine.hasChantSlow === 'function' ? Engine.hasChantSlow(run) : has(run, 'chronolens'); }
   function hash(value) { var h = 2166136261, str = String(value); for (var i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619); return h >>> 0; }
   function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
   function unit(x, y) { var n = Math.hypot(x, y); return n ? { x: x / n, y: y / n } : { x: 1, y: 0 }; }
@@ -119,10 +149,23 @@
       drain: false, dodgeCounted: false }, extra || {});
     a.projectiles.push(b); if (a.projectiles.length > 160) a.projectiles.shift(); return b;
   }
+  function configureBossRoom(run, a) {
+    if (!run.enemy || run.enemy.kind !== 'boss') return;
+    var id = run.enemy.npcId || run.enemy.id, stage = BOSS_ARENAS[id];
+    if (!stage) return;
+    Object.assign(a.room, { bossId: id, name: stage.name, color: stage.color, motif: stage.motif, mechanic: stage.mechanic,
+      mutator: run.enemy.isNpcBoss ? '旅人超越試煉・專屬場域' : '雙階段首領・專屬場域' });
+    if (a.combatVersion === 2) return;
+    a.obstacles = stage.cover.map(function (box, index) { return rect('boss-cover-' + index, box[0], box[1], box[2], box[3], 'pillar'); });
+    a.bossStageClock = stage.interval;
+    [a.player].concat(a.enemies || []).forEach(function (body) { if (!validPosition(a, body, body.x, body.y)) place(a, body, body.x, body.y); });
+  }
   function ensure(run) {
     if (!run || run.status !== 'combat' || !run.enemy) return null;
     var key = String(run.seed) + ':' + run.encounter + ':' + run.enemy.id;
     if (run.arena && run.arena.version === 1 && run.arena.key === key) {
+      configureBossRoom(run, run.arena); run.arena.combatVersion = 2;
+      if (!canDash(run)) { run.arena.player.dashTime = 0; run.arena.player.dashBuffer = 0; }
       syncCompanions(run, run.arena);
       return run.arena;
     }
@@ -151,12 +194,12 @@
     var a = run.arena = {
       version: 1, key: key, width: WIDTH, height: HEIGHT, bounds: { left: 40, top: 58, right: 920, bottom: 500 },
       player: { x: 200, y: 280, r: 12, facingX: 1, facingY: 0, dashTime: 0, dashCooldown: 0, invulnerable: 0,
-        dashX: 1, dashY: 0, dashBuffer: 0, focusEnergy: 100 },
+        dashX: 1, dashY: 0, dashBuffer: 0, focusEnergy: 100, staggerTime: 0 },
       enemies: [], obstacles: [], hazards: [], projectiles: [], effects: [], room: room, time: 0, realTime: 0,
       casts: 0, dodges: 0, dashes: 0, hitsTaken: 0, nextId: 1, roomClock: 2.5, roomPulse: 0, springClock: 0,
       slowTime: 0, focusActive: false, targetId: null, castRange: RANGE, wavesReleased: 1,
       dashHeld: false, previousPhase: run.enemy.phase, lastPattern: null, patternCount: 0,
-      introRemaining: boss ? 1.2 : 0, companions: [], echoQueue: [], bossShots: [], sporeTrail: [],
+      introRemaining: boss ? 2.2 : 0, introDuration: 2.2, hitSerial: 0, castHitSerial: 0, companions: [], echoQueue: [], bossShots: [], sporeTrail: [],
       sporeTrailClock: 0, enemyMoveScale: plan && room.omen === 'haste' ? 1.15 : 1, ritual: null, counterHits: 0, interrupts: 0
     };
     if (room.id === 'pillars') a.obstacles = [rect('p1', 330, 130, 62, 66), rect('p2', 590, 130, 62, 66), rect('p3', 330, 355, 62, 66), rect('p4', 590, 355, 62, 66)];
@@ -177,11 +220,13 @@
     for (var i = 0; i < count; i++) {
       var maxHp = i === count - 1 ? original - maxUsed : Math.floor(original / count); maxUsed += maxHp;
       var hp = i === count - 1 ? remaining - hpUsed : Math.floor(remaining / count); hpUsed += hp;
-      var kind = boss ? 'boss' : formation.roles[i % formation.roles.length];
+      var rolePool = REGION_ROLES[Math.min(3, run.region)] || REGION_ROLES[0];
+      var kind = boss ? 'boss' : i === 0 ? formation.roles[i % formation.roles.length] : rolePool[(i + hash(run.seed + ':' + run.encounter)) % rolePool.length];
       var spawnAt = room.id === 'waves' ? i < 2 ? 0 : i < 4 ? 4.5 : 9 : 0;
       var enemy = { id: boss ? run.enemy.id : run.enemy.id + '-' + i, kind: kind, npcId: run.enemy.npcId || null,
-        sprite: boss ? run.enemy.sprite || run.enemy.id : run.region === 3 || run.bondQuest && run.bondQuest.active ? ['stardust', 'starling', 'astrolabe'][i % 3] : kind === 'ranged' ? 'eye' : kind === 'charger' ? 'knight' : run.enemy.id,
-        name: boss ? run.enemy.name : ACTOR_NAMES[kind], x: 0, y: 0, r: boss ? 30 : kind === 'charger' ? 20 : 16,
+        sprite: boss ? run.enemy.sprite || run.enemy.id : run.region === 3 || run.bondQuest && run.bondQuest.active ? ['stardust', 'starling', 'astrolabe'][i % 3] : kind === 'ranged' || kind === 'hexer' ? 'eye' : kind === 'charger' || kind === 'warden' ? 'knight' : kind === 'skirmisher' ? ['moth','wisp','raven','starling'][run.region] : run.enemy.id,
+        variant: kind, tint: kind === 'hexer' ? '#c7a3f3' : kind === 'warden' ? '#8edbca' : kind === 'skirmisher' ? '#ffd391' : null,
+        name: boss ? run.enemy.name : ACTOR_NAMES[kind], x: 0, y: 0, r: boss ? 30 : kind === 'charger' || kind === 'warden' ? 20 : 16,
         hp: hp, maxHp: maxHp, alive: hp > 0, active: spawnAt === 0, spawnAt: spawnAt, phase: run.enemy.phase,
         cooldown: 1.8 + i * 0.3, telegraph: 0, chargeX: 0, chargeY: 0, chargeTime: 0, volley: null, hurt: 0,
         facingX: -1, facingY: 0, action: null, counterWindow: 0, perfectWindow: 0, counterReady: false };
@@ -189,19 +234,21 @@
       if (plan) placeFormationActor(a, enemy, spawn.x, spawn.y); else place(a, enemy, spawn.x, spawn.y);
       a.enemies.push(enemy);
     }
+    configureBossRoom(run, a); a.combatVersion = 2;
     if (!run.difficulty) run.difficulty = 'standard';
     syncCompanions(run, a);
-    if (boss) effect(a, 'boss-intro', a.enemies[0].x, a.enemies[0].y, { name: run.enemy.name, text: '封印解除', r: 130, life: 1.2, color: '#ffb27c' });
+    if (boss) effect(a, 'boss-intro', a.enemies[0].x, a.enemies[0].y, { name: run.enemy.name, text: run.enemy.isNpcBoss ? '旅人真名・超越試煉' : '封印解除', r: 130, life: 2.2, color: a.room.color || '#ffb27c' });
     updateTarget(a); return a;
   }
   function syncCompanions(run, a) {
+    if (typeof Engine.normalizeCompanions === 'function') Engine.normalizeCompanions(run);
     var saved = Array.isArray(a.companions) ? a.companions : [];
     var opponent = run.enemy && run.enemy.isNpcBoss ? run.enemy.npcId : null;
     a.companions = (Array.isArray(run.companions) ? run.companions : []).filter(function (c, index, list) {
       // A recruited traveler can be met again. During their duel they appear
       // only as the opponent; the run roster remains intact for the next room.
       return c && c.id !== opponent && ['lantern', 'echo', 'sentinel', 'lumina'].indexOf(c.id) >= 0 && list.findIndex(function (other) { return other && other.id === c.id; }) === index;
-    }).slice(0, 4).map(function (c, i) {
+    }).slice(0, 1).map(function (c, i) {
       var existing = saved.find(function (body) { return body.npcId === c.id; });
       var body = Object.assign({ x: a.player.x - 36, y: a.player.y + (i - 1) * 26, r: 11, cooldown: c.id === 'echo' ? 0 : 2 + i, castFlash: 0 }, existing || {},
         { id: 'companion-' + c.id, npcId: c.id, name: c.name, sprite: c.sprite || c.id, color: c.color || '#b9deff', role: c.role });
@@ -209,7 +256,7 @@
       return body;
     });
     if (!Array.isArray(a.echoQueue)) a.echoQueue = [];
-    else if (opponent) a.echoQueue = a.echoQueue.filter(function (echo) { return (echo.npcId || 'echo') !== opponent; });
+    else a.echoQueue = a.echoQueue.filter(function (echo) { return a.companions.some(function (c) { return c.npcId === (echo.npcId || 'echo'); }); });
   }
   function companionCast(a, companion, target, spellType, spellWord) {
     companion.castFlash = 0.45;
@@ -218,7 +265,7 @@
   }
   function advanceCompanions(run, a, dt) {
     a.companions.forEach(function (c, index) {
-      var angle = Math.atan2(a.player.facingY, a.player.facingX) + Math.PI + (index - 1) * 0.7;
+      var angle = Math.atan2(a.player.facingY, a.player.facingX) + Math.PI;
       var destination = { x: a.player.x + Math.cos(angle) * 42, y: a.player.y + Math.sin(angle) * 42 };
       var direction = unit(destination.x - c.x, destination.y - c.y), distance = dist(c, destination);
       move(a, c, direction.x * Math.min(distance, 210 * dt), direction.y * Math.min(distance, 210 * dt));
@@ -267,9 +314,10 @@
   function updateTarget(a) { var list = targets(a); a.targetId = list.length && dist(list[0], a.player) <= RANGE + list[0].r ? list[0].id : null; }
   function hurtActor(a, actor, amount) {
     var actual = Math.min(actor.hp, amount); actor.hp -= actual; actor.hurt = 0.18;
+    if (actual > 0) { a.castHitSerial = (a.castHitSerial || 0) + 1; a.lastCastHit = { x: actor.x, y: actor.y, boss: actor.kind === 'boss' }; }
     if (actor.hp <= 0) { actor.hp = 0; actor.alive = false; actor.telegraph = 0; actor.volley = null;
-      effect(a, 'death', actor.x, actor.y, { r: actor.r + 18, life: actor.kind === 'boss' ? 1.6 : 0.95, color: actor.kind === 'boss' ? '#ffbe83' : '#a9e5d0', boss: actor.kind === 'boss',
-        actor: { id: actor.id, npcId: actor.npcId, sprite: actor.sprite, kind: actor.kind, name: actor.name, x: actor.x, y: actor.y, r: actor.r, phase: actor.phase,
+      effect(a, 'death', actor.x, actor.y, { r: actor.r + 18, life: actor.kind === 'boss' ? 2.6 : 0.95, color: actor.kind === 'boss' ? a.room.color || '#ffbe83' : '#a9e5d0', boss: actor.kind === 'boss',
+        actor: { id: actor.id, npcId: actor.npcId, bossId: actor.npcId || actor.id, sprite: actor.sprite, kind: actor.kind, name: actor.name, x: actor.x, y: actor.y, r: actor.r, phase: actor.phase,
           facingX: actor.facingX, facingY: actor.facingY, action: actor.action } });
       actor.action = null; actor.chargeTime = 0; actor.counterWindow = 0; actor.perfectWindow = 0; actor.counterReady = false;
       a.hazards = a.hazards.filter(function (h) { return h.ownerId !== actor.id; });
@@ -294,13 +342,22 @@
     var actual = Engine.damageEnemy(run, Math.min(actor.hp, amount), 1);
     hurtActor(a, actor, actual); return actual;
   }
+  function hitFeedback(a, result) {
+    if (!result || !(result.damage > 0 || result.blocked > 0)) return;
+    var p = a.player;
+    p.staggerTime = Math.max(p.staggerTime || 0, 0.28);
+    p.invulnerable = Math.max(p.invulnerable || 0, 0.8);
+    p.dashTime = 0; p.dashBuffer = 0; p.moving = false;
+    delete p.queuedDashX; delete p.queuedDashY;
+    a.hitSerial = (a.hitSerial || 0) + 1; a.hitsTaken += 1;
+    if (result.damage > 0) a.enemies.forEach(function (e) { e.counterReady = false; });
+  }
   function applyHit(run, a, amount, source) {
     var p = a.player;
     if (p.invulnerable > 0 || a.introRemaining > 0 || run.status !== 'combat') return false;
     var result = Engine.damagePlayer(run, Math.max(1, Math.round(amount * difficulty(run).damage)), { drain: source && source.drain, name: source && source.source === 'trap' ? '地面陷阱' : run.enemy.name });
     if (!result.ok) return false;
-    p.invulnerable = 0.75; a.hitsTaken += 1;
-    if (result.damage > 0) a.enemies.forEach(function (e) { e.counterReady = false; });
+    hitFeedback(a, result);
     effect(a, 'hit', p.x, p.y, { color: result.damage ? '#ff847a' : '#8ad6ff', life: 0.3, r: 22 });
     if (run.status === 'lost') effect(a, 'death', p.x, p.y, { r: 34, life: 1.3, color: '#b8d5ff', actor: { id: 'player', kind: 'player', sprite: 'player', x: p.x, y: p.y, r: p.r } });
     if (result.restored > 0) {
@@ -352,6 +409,12 @@
   }
   function meleeSequence(run, e, damage) {
     var phase = run.enemy.phase, turn = run.enemy.turn, boss = e.kind === 'boss';
+    if (!boss && e.kind === 'skirmisher') return [
+      { name: '裂步斜切', kind: 'melee', windup: 0.7, active: 0.22, recovery: 0.16, r: 92, spread: 1.5, lunge: 110, damage: damage, motion: 'claw' },
+      { name: '返身短斬', kind: 'melee', windup: 0.62, active: 0.24, recovery: 1, r: 105, spread: 1.9, lunge: 65, damage: damage, motion: 'sweep' }
+    ];
+    if (!boss && e.kind === 'warden') return [{ name: '鎮衛破盾槌', kind: 'melee', windup: 1.15, active: 0.3,
+      recovery: 1.1, r: 138, spread: 1.65, lunge: 35, damage: damage + 3, motion: 'overhead' }];
     if (!boss) return [{ name: e.kind === 'charger' ? '破陣衝撞' : '獵影揮擊', kind: e.kind === 'charger' ? 'charge' : 'melee',
       windup: e.kind === 'charger' ? 1.05 : 0.85, active: e.kind === 'charger' ? 0.6 : 0.26, recovery: e.kind === 'charger' ? 1.3 : 0.8,
       r: e.kind === 'charger' ? 230 : 83, spread: 2.05, lunge: e.kind === 'charger' ? 365 : 55, damage: damage,
@@ -483,6 +546,7 @@
   function submitInterrupt(run, text) {
     var ritual = getInterrupt(run), a = run && run.arena;
     if (!ritual) return { ok: false, reason: 'inactive', completed: false, message: '目前沒有需要打斷的禁式。' };
+    if (a.player.staggerTime > 0) return { ok: false, reason: 'stagger', completed: false, message: '受擊硬直中，站穩後才能繼續破咒。' };
     var word = ritual.groups[ritual.index], entered = String(text || '').trim().toLowerCase();
     if (entered !== word) {
       ritual.remaining = Math.max(0, ritual.remaining - 0.65);
@@ -519,7 +583,7 @@
     // The arena-wide forbidden spell is a typing challenge, so dash invulnerability
     // cannot replace its three seals. Ordinary shields and revival relics still work.
     var hit = Engine.damagePlayer(run, Math.round(ritual.damage * difficulty(run).damage), { name: ritual.name + '・禁式重創' });
-    ritual.damageDealt = hit.damage || 0; a.hitsTaken += 1; a.player.invulnerable = Math.max(a.player.invulnerable, 1.2);
+    ritual.damageDealt = hit.damage || 0; hitFeedback(a, hit); a.player.invulnerable = Math.max(a.player.invulnerable, 1.2);
     effect(a, 'hit', a.player.x, a.player.y, { color: '#e58aba', life: 0.6, r: 40 });
     effect(a, 'impact', boss.x, boss.y, { r: 220, color: '#ef9dd7', life: 0.85 });
     if (run.status === 'lost') effect(a, 'death', a.player.x, a.player.y, { r: 34, life: 1.3, color: '#b8d5ff',
@@ -847,6 +911,7 @@
   }
   function advanceRoom(run, a, dt) {
     a.roomClock -= dt;
+    if (a.room.bossId) advanceBossStage(run, a, dt);
     if (a.room.id === 'starlanes' && a.roomClock <= 0) {
       a.roomClock += 6; a.roomPulse += 1;
       var safeLane = (a.roomPulse + run.encounter) % 4;
@@ -938,6 +1003,67 @@
       }
     }
   }
+  function advanceBossStage(run, a, dt) {
+    var stage = BOSS_ARENAS[a.room.bossId], boss = living(a).find(function (e) { return e.kind === 'boss'; });
+    if (!stage || !boss || getInterrupt(run)) return;
+    a.bossStageClock = Math.max(0, (Number.isFinite(a.bossStageClock) ? a.bossStageClock : stage.interval) - dt);
+    if (a.bossStageClock > 0 || boss.action || boss.counterWindow > 0) return;
+    a.bossStageClock = stage.interval; a.roomPulse += 1;
+    var pulse = a.roomPulse, p = a.player, damage = 7 + run.region * 2 + (run.enemy.isNpcBoss ? 3 : 0);
+    function mark(spec) { return hazard(a, Object.assign({ source: 'boss', ownerId: boss.id, color: stage.color,
+      delay: 1.7, life: 0.42, damage: damage }, spec)); }
+    function beam(x, y, x2, y2, extra) { return mark(Object.assign({ kind: 'line', x: x, y: y, x2: x2, y2: y2, width: 30 }, extra || {})); }
+    var mechanic = stage.mechanic;
+    a.room.stagePulse = { motif: stage.motif, time: a.time, index: pulse };
+    if (mechanic === 'roots') {
+      [-110, 110].forEach(function (offset) { var x = clamp(p.x + offset, 95, 865); beam(x, 80, x, 480); });
+    } else if (mechanic === 'spores') {
+      mark({ x: p.x, y: p.y, r: 54, life: 0.8 });
+      mark({ x: 960 - p.x, y: 560 - p.y, r: 62, delay: 2.2, life: 0.8 });
+    } else if (mechanic === 'mirrors') {
+      var y = pulse % 2 ? 175 : 385; beam(65, y, 895, y, { width: 36 });
+    } else if (mechanic === 'facets') {
+      beam(130, pulse % 2 ? 115 : 445, 830, pulse % 2 ? 445 : 115, { width: 38 });
+    } else if (mechanic === 'throne') {
+      mark({ kind: 'rect', x: pulse % 2 ? 65 : 700, y: 75, w: 195, h: 405, delay: 1.9 });
+    } else if (mechanic === 'bell') {
+      mark({ kind: 'ring', x: 480, y: 280, r: pulse % 2 ? 170 : 255, innerR: pulse % 2 ? 140 : 225, delay: 1.8 });
+    } else if (mechanic === 'stars') {
+      [0, 1, 2].forEach(function (index) { var angle = pulse * 1.2 + index * Math.PI * 2 / 3;
+        mark({ x: 480 + Math.cos(angle) * 230, y: 280 + Math.sin(angle) * 140, r: 58, delay: 1.6 + index * 0.25 }); });
+    } else if (mechanic === 'comets') {
+      var flightY = pulse % 2 ? 170 : 390;
+      queueBossShot(a, boss, 65, flightY, 0, 1.7, damage, 210, stage.color, 11, 'star');
+      queueBossShot(a, boss, 895, 560 - flightY, Math.PI, 2.15, damage, 210, '#c9dcff', 11, 'star');
+    } else if (mechanic === 'vows') {
+      [310, 650].forEach(function (x, index) { mark({ kind: 'ring', x: x, y: 280, r: 100, innerR: 75, delay: 1.7 + index * 0.35 }); });
+    } else if (mechanic === 'coins') {
+      var column = 220 + (pulse % 3) * 240; beam(column, 85, column, 475, { width: 45 });
+    } else if (mechanic === 'garden') {
+      mark({ kind: 'ring', x: p.x, y: p.y, r: 100, innerR: 65, life: 0.7 });
+    } else if (mechanic === 'forge') {
+      mark({ kind: 'rect', x: 65, y: pulse % 2 ? 75 : 405, w: 830, h: 75, life: 1.1, delay: 1.9 });
+    } else if (mechanic === 'atlas') {
+      var mapX = pulse % 2 ? 325 : 635;
+      beam(mapX, 75, mapX, 485, { width: 32 });
+      beam(65, pulse % 2 ? 175 : 385, 895, pulse % 2 ? 175 : 385, { delay: 2.3, width: 28 });
+    } else if (mechanic === 'river') {
+      mark({ kind: 'rect', x: 65, y: pulse % 2 ? 170 : 325, w: 830, h: 60, life: 0.85, pushX: pulse % 2 ? 50 : -50 });
+    } else if (mechanic === 'eclipse') {
+      mark({ kind: 'ring', x: 480, y: 280, r: 155, innerR: 125 });
+      mark({ kind: 'ring', x: 480, y: 280, r: 250, innerR: 220, delay: 2.35 });
+    } else if (mechanic === 'echoes') {
+      beam(65, p.y, 895, p.y, { width: 27 });
+      beam(65, p.y, 895, p.y, { width: 27, delay: 2.8 });
+    } else if (mechanic === 'paper') {
+      var foldY = pulse % 2 ? 145 : 415;
+      beam(120, foldY, 840, foldY, { width: 35, delay: 1.85 });
+    } else if (mechanic === 'moonflowers') {
+      [260, 700].forEach(function (x, index) { mark({ kind: 'ring', x: x, y: 280, r: 90, innerR: 60, delay: 1.8 + index * 0.5 }); });
+    }
+    // A fresh floor tell always precedes the next committed boss attack.
+    run.enemy.intent.remaining = Math.max(run.enemy.intent.remaining, 1.1);
+  }
   function enemyAI(run, a, e, dt, motionScale) {
     if (!e.alive) return;
     if (!e.active) {
@@ -979,9 +1105,9 @@
       return;
     }
     if (e.telegraph > 0) { e.telegraph = Math.max(0, e.telegraph - dt); return; }
-    e.cooldown -= dt;
+    e.cooldown -= dt * 1.25;
     if (e.kind === 'chaser') {
-      if (d > 48) move(a, e, direction.x * (49 + run.region * 5) * dt * motionScale, direction.y * (49 + run.region * 5) * dt * motionScale);
+      if (d > 48) move(a, e, direction.x * (57 + run.region * 6) * dt * motionScale, direction.y * (57 + run.region * 6) * dt * motionScale);
       if (d < 105 && e.cooldown <= 0) { e.cooldown = 1.1; beginMelee(run, a, e, 7 + run.region * 2); }
     } else if (e.kind === 'ranged') {
       var sign = d > 320 ? 1 : d < 190 ? -1 : 0;
@@ -993,6 +1119,23 @@
         hazard(a, { kind: 'line', x: e.x, y: e.y, x2: p.x, y2: p.y, width: 4, delay: 0.85, life: 0.08, damage: 0,
           ownerId: e.id, cosmetic: true, color: '#e4bba2' });
       }
+    } else if (e.kind === 'skirmisher') {
+      var orbit = Math.sin(a.time * 1.6 + hash(e.id)) * 0.7;
+      if (d > 70) move(a, e, (direction.x - direction.y * orbit) * 83 * dt * motionScale, (direction.y + direction.x * orbit) * 83 * dt * motionScale);
+      if (d < 130 && e.cooldown <= 0) { e.cooldown = 0.95; beginMelee(run, a, e, 6 + run.region * 2); }
+    } else if (e.kind === 'hexer') {
+      var keepDistance = d > 340 ? 1 : d < 220 ? -1 : 0;
+      move(a, e, direction.x * 38 * keepDistance * dt * motionScale, direction.y * 38 * keepDistance * dt * motionScale);
+      if (e.cooldown <= 0) {
+        e.cooldown = 2.2;
+        setAction(a, e, { kind: 'spell', name: '封足咒印', duration: 1.15, active: 0.55, recovery: 0.7 });
+        hazard(a, { x: p.x, y: p.y, r: 47, delay: 1.15, life: 0.4, damage: 8 + run.region * 2, ownerId: e.id, color: '#c5a3ef' });
+        if (run.region >= 1) hazard(a, { x: clamp(p.x + p.facingX * 105, 90, 870), y: clamp(p.y + p.facingY * 105, 90, 470), r: 40,
+          delay: 1.7, life: 0.35, damage: 7 + run.region * 2, ownerId: e.id, color: '#ac8fe1' });
+      }
+    } else if (e.kind === 'warden') {
+      if (d > 95) move(a, e, direction.x * 47 * dt * motionScale, direction.y * 47 * dt * motionScale);
+      if (d < 170 && e.cooldown <= 0) { e.cooldown = 1.35; beginMelee(run, a, e, 10 + run.region * 2); }
     } else {
       if (e.cooldown <= 0) { e.cooldown = 1.65; beginMelee(run, a, e, 11 + run.region * 2); }
       else if (d > 200) move(a, e, direction.x * 36 * dt * motionScale, direction.y * 36 * dt * motionScale);
@@ -1053,30 +1196,33 @@
     var raw = Number(deltaSeconds), dt = Number.isFinite(raw) ? clamp(raw, 0, 0.1) : 0;
     if (!dt) return a;
     input = input || {}; var p = a.player;
-    var focusRequested = !!input.focus, mobileFocus = !!input.mobile && focusRequested;
+    var introActive = a.introRemaining > 0, staggered = (p.staggerTime || 0) > 0;
+    p.staggerTime = Math.max(0, (p.staggerTime || 0) - dt);
+    var focusRequested = !!input.focus, mobileFocus = !!input.mobile && focusRequested, dashUnlocked = canDash(run);
     var ix = Number(input.x) || 0, iy = Number(input.y) || 0, magnitude = Math.hypot(ix, iy);
     if (!Number.isFinite(magnitude)) { ix = 0; iy = 0; magnitude = 0; }
     if (magnitude > 1) { ix /= magnitude; iy /= magnitude; }
-    var canMove = !focusRequested || mobileFocus;
-    a.focusActive = focusRequested && p.focusEnergy > 0;
-    if (focusRequested) p.focusEnergy = Math.max(0, p.focusEnergy - dt * 12);
+    var canMove = (!focusRequested || mobileFocus) && !staggered;
+    a.focusActive = canSlowChant(run) && focusRequested && p.focusEnergy > 0 && !staggered && !introActive;
+    if (canSlowChant(run) && focusRequested && !staggered && !introActive) p.focusEnergy = Math.max(0, p.focusEnergy - dt * 12);
     else p.focusEnergy = Math.min(100, p.focusEnergy + dt * 25);
     var meleeEncounter = a.enemies.some(meleeBoss);
     // Mobile chanting allows slower walking. Moving keeps ordinary threats
     // active enough to require positioning; melee timing remains unchanged.
     var focusScale = meleeEncounter ? 0.72 : mobileFocus && magnitude > 0 ? 0.55 : 0.18;
     var worldDt = dt * (a.focusActive ? focusScale : 1);
-    a.realTime += dt; a.time += worldDt;
+    a.realTime += dt; if (!introActive) a.time += worldDt;
     a.introRemaining = Math.max(0, (a.introRemaining || 0) - dt);
     run.elapsed += dt; run.stats.elapsed = run.elapsed; run.spell.elapsed += dt;
     p.invulnerable = Math.max(0, p.invulnerable - dt); p.dashCooldown = Math.max(0, p.dashCooldown - dt);
     if (magnitude && canMove) { p.facingX = ix; p.facingY = iy; }
     p.dashBuffer = Math.max(0, (p.dashBuffer || 0) - dt);
-    if (input.dash && !a.dashHeld) {
+    if (!dashUnlocked || staggered) { p.dashBuffer = 0; p.dashTime = 0; }
+    if (dashUnlocked && !staggered && input.dash && !a.dashHeld) {
       var facing = unit(canMove && magnitude ? ix : p.facingX, canMove && magnitude ? iy : p.facingY);
       p.queuedDashX = facing.x; p.queuedDashY = facing.y; p.dashBuffer = 0.14;
     }
-    if (p.dashBuffer > 0 && p.dashCooldown <= 0 && p.dashTime <= 0) {
+    if (dashUnlocked && !staggered && p.dashBuffer > 0 && p.dashCooldown <= 0 && p.dashTime <= 0) {
       p.dashX = p.queuedDashX; p.dashY = p.queuedDashY; p.dashBuffer = 0;
       p.dashTime = 0.22; p.dashCooldown = has(run, 'gale') ? 1.15 : 1.4; p.invulnerable = 0.28;
       a.dashes += 1; effect(a, 'dash', p.x, p.y, { x2: p.x + p.dashX * 50, y2: p.y + p.dashY * 50, life: 0.25, color: '#9cdaff' });
@@ -1092,7 +1238,12 @@
       var speed = 180 * (has(run, 'gale') ? 1.22 : 1) * (mobileFocus ? 0.75 : 1);
       move(a, p, ix * speed * walkDt, iy * speed * walkDt);
     }
+    p.moving = !staggered && (dashDt > 0 || canMove && magnitude > 0);
     if (run.status !== 'combat') return a;
+    if (introActive) {
+      a.effects.forEach(function (e) { e.life -= dt; }); a.effects = a.effects.filter(function (e) { return e.life > 0; });
+      updateTarget(a); return a;
+    }
     a.slowTime = Math.max(0, a.slowTime - dt);
     var motionScale = a.slowTime > 0 ? 0.65 : 1;
     if (run.enemy.phase !== a.previousPhase) {
@@ -1130,6 +1281,8 @@
   function cast(run, text) {
     var a = ensure(run);
     if (!a) return { ok: false, message: '目前不在戰鬥中。' };
+    if (a.introRemaining > 0) return { ok: false, reason: 'intro', message: '首領正在登場，先移動到適合的位置。' };
+    if (a.player.staggerTime > 0) return { ok: false, reason: 'stagger', message: '受擊硬直中，站穩後才能施法。' };
     if (getInterrupt(run)) return submitInterrupt(run, text);
     var possible = targets(a), target = possible[0];
     if (!target) return { ok: false, message: '下一波敵人正在進場，利用空檔移動與恢復專注。' };
@@ -1140,11 +1293,17 @@
     // A guarded duelist still takes damage, but punishing its recovery is much
     // more effective than tapping spells from safety for the entire fight.
     if (guarded) limit = Math.min(limit, Math.max(4, Math.round(target.maxHp * (run.difficulty === 'story' ? 0.04 : run.difficulty === 'veteran' ? 0.02 : 0.026))));
+    var damageTakenBefore = run.stats.damageTaken || 0, shieldBefore = run.player.shield, enemyShieldBefore = run.enemy.shield || 0;
     var result = Engine.submit(run, text, { damageLimit: limit });
     if (!result.ok) {
+      hitFeedback(a, { damage: Math.max(0, (run.stats.damageTaken || 0) - damageTakenBefore), blocked: Math.max(0, shieldBefore - run.player.shield) });
       if (run.status === 'lost') effect(a, 'death', a.player.x, a.player.y, { r: 34, life: 1.3, color: '#b8d5ff',
         actor: { id: 'player', kind: 'player', sprite: 'player', x: a.player.x, y: a.player.y, r: a.player.r } });
       return result;
+    }
+    if (!(result.damage > 0) && enemyShieldBefore > run.enemy.shield) {
+      a.castHitSerial = (a.castHitSerial || 0) + 1;
+      a.lastCastHit = { x: target.x, y: target.y, boss: target.kind === 'boss', blocked: true };
     }
     a.casts += 1;
     var facing = unit(target.x - a.player.x, target.y - a.player.y); a.player.facingX = facing.x; a.player.facingY = facing.y;
@@ -1178,6 +1337,7 @@
   }
   function useItem(run, id) {
     var a = ensure(run), available = a ? targets(a) : [], target = available[0];
+    if (a && a.introRemaining > 0 && id === 'bomb') return { ok: false, message: '等待首領登場後才能投擲炸彈。' };
     if (a && id === 'bomb' && !target) return { ok: false, message: '下一波敵人尚未出現，先保留炸彈。' };
     var result = Engine.useItem(run, id, { damageLimit: a ? available.reduce(function (sum, e) { return sum + e.hp; }, 0) : Infinity });
     if (result.ok && a) {
@@ -1193,7 +1353,8 @@
     return a ? { room: a.room.name, mutator: a.room.mutator, layout: a.room.layout, formation: a.room.formation, omen: a.room.omen,
       enemiesAlive: living(a).length, activeEnemies: targets(a).length,
       wavesReleased: a.wavesReleased, casts: a.casts, dodges: a.dodges, dashes: a.dashes, hitsTaken: a.hitsTaken,
-      focusEnergy: Math.round(a.player.focusEnergy), focusActive: a.focusActive, dashReady: a.player.dashCooldown <= 0,
+      focusEnergy: Math.round(a.player.focusEnergy), focusActive: a.focusActive, dashReady: canDash(run) && a.player.dashCooldown <= 0 && !(a.player.staggerTime > 0),
+      dashUnlocked: canDash(run), chantSlowUnlocked: canSlowChant(run), staggerTime: a.player.staggerTime || 0, introRemaining: a.introRemaining || 0,
       time: a.realTime, pattern: a.lastPattern, counterHits: a.counterHits || 0, interrupts: a.interrupts || 0,
       ritual: getInterrupt(run), counterWindow: run.enemy && run.enemy.counterWindow || 0 } : null;
   }
@@ -1204,6 +1365,6 @@
     delete a.player.queuedDashX; delete a.player.queuedDashY;
   }
   return { ensure: ensure, update: update, cast: cast, useItem: useItem, getSummary: getSummary, clearInput: clearInput,
-    getInterrupt: getInterrupt, submitInterrupt: submitInterrupt, ROOMS: ROOMS,
+    getInterrupt: getInterrupt, submitInterrupt: submitInterrupt, ROOMS: ROOMS, BOSS_ARENAS: BOSS_ARENAS,
     WIDTH: WIDTH, HEIGHT: HEIGHT, CAST_RANGE: RANGE };
 });

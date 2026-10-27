@@ -13,6 +13,7 @@
   function fail(message) { return { ok: false, message: message }; }
   function done(message, extra) { return Object.assign({ ok: true, message: message }, extra || {}); }
   function has(run, id) { return (run.relics || []).some(function (relic) { return relic.id === id; }); }
+  function canDash(run) { return typeof Engine.canDash === 'function' ? Engine.canDash(run) : has(run, 'gale') || has(run, 'thunderstep'); }
   function object(id, kind, name, description, x, y, extra) {
     return Object.assign({ id: id, kind: kind, name: name, description: description || '', x: x, y: y,
       r: 26, interactionRadius: RANGE, color: '#a5d9c2', icon: '◆', action: '', args: [] }, extra || {});
@@ -57,7 +58,7 @@
       var rewardPositions = slots(run.rewards.length);
       return run.rewards.map(function (reward, i) {
         return object('reward-' + reward.id, 'reward', reward.name, reward.description, rewardPositions[i], 215, {
-          color: '#e8cc7b', icon: reward.icon, action: 'chooseReward', args: [reward.id], rewardKind: reward.kind
+          color: reward.cursed ? '#df8cc9' : '#e8cc7b', icon: reward.icon, action: 'chooseReward', args: [reward.id], rewardKind: reward.kind, cursed: !!reward.cursed
         });
       });
     }
@@ -70,10 +71,16 @@
         });
       });
     }
-    if (run.status === 'camp') return [
-      object('camp-rest', 'camp', '星燈休息', '恢復最大生命的 48%。', 315, 220, { icon: '♨', color: '#ffba81', action: 'chooseCamp', args: ['rest'] }),
-      object('camp-train', 'camp', '符文磨練', '咒語威力增加 3，並恢復 10 點生命。', 645, 220, { icon: '✦', color: '#b8a4ff', action: 'chooseCamp', args: ['train'] })
-    ];
+    if (run.status === 'camp') {
+      var campObjects = [
+        object('camp-rest', 'camp', '星燈休息', '恢復最大生命的 48%。', 315, 220, { icon: '♨', color: '#ffba81', action: 'chooseCamp', args: ['rest'] }),
+        object('camp-train', 'camp', '符文磨練', '咒語威力增加 3，並恢復 10 點生命。', 645, 220, { icon: '✦', color: '#b8a4ff', action: 'chooseCamp', args: ['train'] })
+      ];
+      var curse = (run.relics || []).find(function (relic) { return Engine.RELICS[relic.id] && Engine.RELICS[relic.id].cursed; });
+      if (curse) campObjects.push(object('camp-cleanse', 'camp', '月火淨化', '花費 35 金幣解除「' + curse.name + '」，隨後繼續旅程。', 480, 330,
+        { icon: '✧', color: '#e9b4dc', action: 'chooseCamp', args: ['cleanse'], cursed: true }));
+      return campObjects;
+    }
     var merchant = run.status === 'shop';
     var person = npc || { id: merchant ? 'merchant' : 'traveler', name: merchant ? '流浪商人' : '旅人', description: '靠近並交談。', color: '#e8c57b' };
     var people = [
@@ -103,10 +110,11 @@
     return best;
   }
   function syncCompanions(run, exploration) {
+    if (typeof Engine.normalizeCompanions === 'function') Engine.normalizeCompanions(run);
     var previous = Array.isArray(exploration.companions) ? exploration.companions : [];
     exploration.companions = (Array.isArray(run.companions) ? run.companions : []).filter(function (c, index, list) {
       return c && ['lantern', 'echo', 'sentinel', 'lumina'].indexOf(c.id) >= 0 && !(c.id === 'lumina' && run.status === 'npc' && run.npc && run.npc.id === 'lumina') && list.findIndex(function (other) { return other && other.id === c.id; }) === index;
-    }).slice(0, 4).map(function (c, index) {
+    }).slice(0, 1).map(function (c, index) {
       var old = previous.find(function (body) { return body.npcId === c.id; });
       return Object.assign({}, old || {}, { id: 'companion-' + c.id, npcId: c.id, name: c.name, role: c.role, sprite: c.sprite || c.id,
         color: c.color || '#b9deff', r: 11, x: clamp(finite(old && old.x, exploration.player.x - 35 + index * 28), 44, 916),
@@ -116,7 +124,7 @@
   function followCompanions(exploration, dt) {
     var player = exploration.player;
     exploration.companions.forEach(function (c, index) {
-      var angle = Math.atan2(player.facingY, player.facingX) + Math.PI + (index - 1) * 0.7;
+      var angle = Math.atan2(player.facingY, player.facingX) + Math.PI;
       var dx = player.x + Math.cos(angle) * 42 - c.x, dy = player.y + Math.sin(angle) * 42 - c.y, distance = Math.hypot(dx, dy);
       var step = Math.min(distance, 210 * dt);
       if (distance > 0) { c.x += dx / distance * step; c.y += dy / distance * step; }
@@ -146,6 +154,7 @@
     player.dashX = finite(player.dashX, player.facingX); player.dashY = finite(player.dashY, player.facingY);
     player.dashTime = clamp(finite(player.dashTime, 0), 0, 0.22);
     player.dashCooldown = clamp(finite(player.dashCooldown, 0), 0, 1.4);
+    if (!canDash(run)) { player.dashTime = 0; player.dashBuffer = 0; }
     exploration.time = Math.max(0, finite(exploration.time, 0));
     exploration.dashes = Math.max(0, finite(exploration.dashes, 0));
     if (!Array.isArray(exploration.obstacles)) exploration.obstacles = [];
@@ -187,13 +196,15 @@
     if (length > 1) { x /= length; y /= length; }
     player.dashCooldown = Math.max(0, player.dashCooldown - dt);
     player.dashBuffer = Math.max(0, (player.dashBuffer || 0) - dt);
-    if (input.dash && !exploration.dashHeld) {
+    var dashUnlocked = canDash(run);
+    if (!dashUnlocked) { player.dashTime = 0; player.dashBuffer = 0; }
+    if (dashUnlocked && input.dash && !exploration.dashHeld) {
       var facingLength = Math.hypot(player.facingX, player.facingY);
       player.queuedDashX = facingLength ? player.facingX / facingLength : 0;
       player.queuedDashY = facingLength ? player.facingY / facingLength : -1;
       player.dashBuffer = 0.14;
     }
-    if (player.dashBuffer > 0 && player.dashCooldown <= 0 && player.dashTime <= 0) {
+    if (dashUnlocked && player.dashBuffer > 0 && player.dashCooldown <= 0 && player.dashTime <= 0) {
       player.dashTime = 0.22; player.dashCooldown = has(run, 'gale') ? 1.15 : 1.4;
       player.dashX = player.queuedDashX; player.dashY = player.queuedDashY; player.dashBuffer = 0;
       exploration.dashes++;
@@ -251,6 +262,7 @@
     var merchant = target.kind === 'merchant' && run.status === 'shop', npc = target.kind === 'npc' && run.status === 'npc';
     var result;
     if (method === 'buy' && merchant) result = Engine.buy(run, value);
+    else if (method === 'dismissCompanion' && (merchant || npc) && typeof Engine.dismissCompanion === 'function') result = Engine.dismissCompanion(run);
     else if (method === 'helpNpc' && npc && typeof Engine.helpNpc === 'function') result = Engine.helpNpc(run);
     else if (method === 'challengeNpc' && (merchant || npc) && typeof Engine.challengeNpc === 'function') result = Engine.challengeNpc(run, value);
     else if (npc && target.npcId === 'lumina' && ['giveGift', 'talkNpc', 'beginBondQuest', 'confessBond'].indexOf(method) >= 0 && typeof Engine[method] === 'function') result = Engine[method](run, value);
