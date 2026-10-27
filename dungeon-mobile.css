@@ -292,3 +292,10 @@
   .touch-layout #gameSurface.is-immersive .meter i{transition:none;animation:none}
   .touch-layout #gameSurface.is-immersive .touch-action-buttons>button:active{transform:none}
 }
+
+/* Relic abilities and deliberate companion recruitment. */
+#touchDash[data-locked="true"] { opacity: .48; filter: saturate(.25); }
+.relic-tag.cursed { color: #ffb3cd; background: #431d36; border-color: #c46091; }
+.choice.cursed { border-color: #b95c91; background: linear-gradient(140deg,#302137,#482333); }
+.recruitment-rule { color: #e8c886; font-size: .86rem; line-height: 1.6; }
+.companion-release { display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 12px 0; flex-wrap: wrap; }

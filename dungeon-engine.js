@@ -45,8 +45,12 @@
   // Spatial boons also appear in the existing reward/shop pools. Old turn-based
   // saves retain their original behavior until the arena is lazily created.
   Object.assign(RELICS, {
-    gale: { id: 'gale', name: '迅風羽', icon: '➶', description: '移動速度增加 22%；衝刺冷卻縮短 0.25 秒。', price: 65 },
-    thunderstep: { id: 'thunderstep', name: '雷步印', icon: 'ϟ', description: '衝刺結束時，對 100 步內的敵人各造成 10 點穿透傷害。', price: 70 },
+    gale: { id: 'gale', name: '迅風羽', icon: '➶', description: '解鎖衝刺；移動速度增加 22%，衝刺冷卻縮短 0.25 秒。', price: 65 },
+    thunderstep: { id: 'thunderstep', name: '雷步印', icon: 'ϟ', description: '解鎖衝刺；衝刺結束時對 100 步內的敵人各造成 10 點穿透傷害。', price: 70 },
+    chronolens: { id: 'chronolens', name: '凝時透鏡', icon: '◷', description: '解鎖詠唱慢時：詠唱時消耗專注，放慢敵人與飛彈；停止詠唱恢復專注。三重封咒倒數不受影響。', price: 70 },
+    bloodsigil: { id: 'bloodsigil', name: '詛咒・咒血棘冠', icon: '♜', cursed: true, description: '所有咒語基礎傷害 +10，但治癒、藥水與休息恢復量減半（復活除外）。營火可付費解除。', price: 45 },
+    hollowcoin: { id: 'hollowcoin', name: '詛咒・空鐘契幣', icon: '◉', cursed: true, description: '獲得金幣 +70%，但受到的傷害 +25%（護盾也承受加成）。營火可付費解除。', price: 35 },
+    fracture: { id: 'fracture', name: '詛咒・裂魂星核', icon: '✷', cursed: true, description: '本命咒語基礎傷害 +26，取得時生命上限 -24。營火解除時恢復上限，不補回生命。', price: 45 },
     starlace: { id: 'starlace', name: '連星線', icon: '✧', description: '施法命中後，對目標 180 步內的另一名敵人追加 8 點穿透傷害。', price: 70 },
     frostglass: { id: 'frostglass', name: '霜時石', icon: '❄', description: '每次正確施法後，敵人與飛彈減速 35%，持續 2 秒。', price: 70 }
   });
@@ -72,7 +76,7 @@
       patterns: ['藥園禁足', '千露根環'] },
     smith: { id: 'smith', name: '星鐵鍛師・布洛', title: '星鐵鍛師', sprite: 'smith', color: '#ffa578', icon: '⚒',
       description: '他的巨錘能替咒語鍛出鋒芒，也能把整座庭院當作鐵砧。', helpDescription: '本趟所有咒語威力永久增加 4 點。',
-      challengeWord: 'forge', challengeDescription: '輸入 forge 提出試煉；巨錘會延遲落下並接續橫掃，抓準出手衝刺，等完整收招再反擊。', lootId: 'forgecore', lootName: '不滅爐心', hp: 280,
+      challengeWord: 'forge', challengeDescription: '輸入 forge 提出試煉；巨錘會延遲落下並接續橫掃，以走位離開錘擊範圍，等完整收招再反擊。', lootId: 'forgecore', lootName: '不滅爐心', hp: 280,
       patterns: ['星鐵墜錘', '熔爐掃刃'] },
     cartographer: { id: 'cartographer', name: '迷途繪師・墨里', title: '迷途繪師', sprite: 'cartographer', color: '#b8abff', icon: '✥',
       description: '他不停重畫不存在的道路，據說每張星圖都有自己的意志。', helpDescription: '獲得一件未持有的探索遺物；已全數擁有時改贈 40 金幣。',
@@ -135,8 +139,8 @@
     thorn: { id: 'thorn', name: '棘冠典獄長', description: '交替編織荊棘護盾與重擊；本命咒語可穿透部分護盾。', hp: 205 },
     spore: { id: 'spore', name: '孢冠菌后', description: '孢雨記住你的位置，菌環接著封住落腳處。第二階段孢子增生，離開第一道預警後還要保留退路。', hp: 215, patterns: ['孢雨追跡', '菌環封場'] },
     witch: { id: 'witch', name: '鏡月女巫', description: '月蝕會吸取生命；護盾能阻止她吸血。出現三重禁咒時，連續完成三組提示短咒語，打斷施法並創造反擊空檔。', hp: 280 },
-    prism: { id: 'prism', name: '千面鏡獸', description: '鏡爪蓄勢後迅速追擊，別在抬爪時過早衝刺。留意連段與鎖定方向，閃過最後一擊再趁收招施法。', hp: 290, patterns: ['折射囚籠', '碎鏡扇陣'] },
-    king: { id: 'king', name: '失名之王', description: '王劍會延遲落下，再接續橫斬。詠唱只能稍微放慢他的攻勢；抓準劍刃出手時衝刺，完整收招後反擊。', hp: 365 },
+    prism: { id: 'prism', name: '千面鏡獸', description: '鏡爪蓄勢後迅速追擊，留出退路，別在抬爪時過早折返。留意連段與鎖定方向，閃過最後一擊再趁收招施法。', hp: 290, patterns: ['折射囚籠', '碎鏡扇陣'] },
+    king: { id: 'king', name: '失名之王', description: '王劍會延遲落下，再接續橫斬。預設詠唱不會放慢攻勢；看準劍刃方向移動，完整收招後反擊。', hp: 365 },
     hollow: { id: 'hollow', name: '空鐘司祭', description: '三聲空鐘依序震開地面，默禱將空間切成斷層。第二階段鐘聲更密集，在震波間隙移動。', hp: 375, patterns: ['空鐘三響', '默禱斷層'] },
     astral: { id: 'astral', name: '忘誓星龍', description: '龍翼刻出星軌，接著落下延遲星雨；第二階段月環與交錯光線接連爆發。', hp: 440 },
     cometqueen: { id: 'cometqueen', name: '彗尾女皇', description: '兩道彗尾交錯掠過，接著召來天穹墜星。第二階段星雨追蹤最後的落腳處，持續換位迎接終幕。', hp: 450, patterns: ['彗尾雙襲', '天穹墜星'] },
@@ -194,7 +198,7 @@
   function enterEvent(s) {
     var stream = { rng: hash(String(s.seed) + ':wayfarer:' + s.encounter) };
     var id = pick(stream, Object.keys(EVENTS));
-    var available = Object.keys(RELICS).filter(function (key) { return !RELICS[key].special && !has(s, key); });
+    var available = Object.keys(RELICS).filter(function (key) { return !RELICS[key].special && !RELICS[key].cursed && !has(s, key); });
     s.status = 'event'; s.eventRoom = { id: id, encounter: s.encounter, relicId: id === 'inscription' && available.length ? pick(stream, available) : null };
     s.arena = null; s.exploration = null;
     event(s, 'event', EVENTS[id].name + '：' + EVENTS[id].description);
@@ -280,6 +284,41 @@
     return result;
   }
   function has(s, id) { return s.relics.some(function (r) { return r.id === id; }); }
+  function canDash(s) { return !!s && (has(s, 'gale') || has(s, 'thunderstep')); }
+  function hasChantSlow(s) { return !!s && has(s, 'chronolens'); }
+  function normalizeCompanions(s) {
+    if (!Array.isArray(s.companions)) s.companions = [];
+    if (!Array.isArray(s.reserveCompanions)) s.reserveCompanions = [];
+    var seen = Object.create(null);
+    s.companions = s.companions.filter(function (c) {
+      if (!c || !NPCS[c.id] || !NPCS[c.id].companionRole || seen[c.id]) return false;
+      seen[c.id] = true; return true;
+    });
+    s.companions.splice(1).forEach(function (c) {
+      if (!s.reserveCompanions.some(function (old) { return old.id === c.id; })) s.reserveCompanions.push(c);
+    });
+    return s.companions;
+  }
+  function getRecruitment(s, id) {
+    var npc = NPCS[id];
+    if (!npc || !npc.companionRole) return { ok: true, requirement: '' };
+    var requirements = { lantern: '交付 1 瓶苔露藥水', echo: '本趟成功施法至少 10 次', sentinel: '持有古龍鱗片，或本趟擊敗過 1 位首領', lumina: '與露米娜的好感度達到 20' };
+    var requirement = requirements[id], active = normalizeCompanions(s)[0];
+    if (active) return { ok: false, requirement: requirement, reason: active.id === id ? '已經與你同行。' : '目前有 ' + active.name + ' 同行；先讓現任旅伴返回營地。' };
+    var eligible = id === 'lantern' ? s.inventory.some(function (i) { return i.id === 'potion' && i.count > 0; })
+      : id === 'echo' ? s.stats.correct >= 10 : id === 'sentinel' ? has(s, 'shell') || s.stats.bossesDefeated + (s.stats.npcBossesDefeated || 0) >= 1
+      : (s.relationship && s.relationship.affection || 0) >= 20;
+    return { ok: eligible, requirement: requirement, reason: eligible ? '條件已滿足，可以邀請同行。' : '招募條件：' + requirement + '。' };
+  }
+  function dismissCompanion(s) {
+    if (!getNpc(s)) return fail('請在與旅人交談時調整同行夥伴。');
+    var companion = normalizeCompanions(s)[0];
+    if (!companion) return fail('目前沒有同行夥伴。');
+    s.companions = [];
+    if (!s.reserveCompanions.some(function (c) { return c.id === companion.id; })) s.reserveCompanions.push(companion);
+    var message = companion.name + ' 返回營地休息；本趟再次相遇時仍需符合招募條件。';
+    event(s, 'companion-dismiss', message); return done(message);
+  }
   function event(s, type, message, extra) {
     s.eventId += 1;
     s.lastEvent = Object.assign({ id: s.eventId, type: type, message: message }, extra || {});
@@ -290,11 +329,11 @@
   function fail(message) { return { ok: false, message: message }; }
   function done(message, extra) { return Object.assign({ ok: true, message: message }, extra || {}); }
   function heal(s, amount) {
-    var actual = Math.min(Math.max(0, amount), s.player.maxHp - s.player.hp);
+    var actual = Math.min(Math.max(0, Math.floor(amount * (has(s, 'bloodsigil') ? 0.5 : 1))), s.player.maxHp - s.player.hp);
     s.player.hp += actual; s.stats.healing += actual; return actual;
   }
   function coins(s, amount) {
-    var value = Math.round(amount * (1 + (has(s, 'purse') ? 0.35 : 0) + (has(s, 'goldseal') ? 0.25 : 0)));
+    var value = Math.round(amount * (1 + (has(s, 'purse') ? 0.35 : 0) + (has(s, 'goldseal') ? 0.25 : 0) + (has(s, 'hollowcoin') ? 0.7 : 0)));
     s.player.gold += value; s.stats.goldEarned += value; return value;
   }
   function addItem(s, id, count) {
@@ -306,9 +345,11 @@
     if (!RELICS[id] || has(s, id)) return false;
     s.relics.push(copy(RELICS[id]));
     if (id === 'purse') { s.player.gold += 20; s.stats.goldEarned += 20; }
+    if (id === 'fracture') { var loss = Math.min(24, s.player.maxHp - 1); s.fractureHpCost = loss; s.player.maxHp -= loss; s.player.hp = Math.min(s.player.hp, s.player.maxHp); }
     return true;
   }
   function hitPlayer(s, damage) {
+    damage = Math.round(damage * (has(s, 'hollowcoin') ? 1.25 : 1));
     var blocked = Math.min(s.player.shield, damage);
     s.player.shield -= blocked;
     var actual = Math.min(s.player.hp, Math.max(0, damage - blocked));
@@ -468,6 +509,8 @@
       name = '魔力護殼'; kind = 'guard'; shield = 10 + s.region * 3; damage = Math.max(3, damage - 4);
       description = '獲得護盾並造成小量傷害。';
     }
+    duration *= e.isNpcBoss ? 0.60 : e.kind === 'boss' ? 0.76 : 0.82;
+    if (e.isNpcBoss) damage = Math.round(damage * 1.2);
     if (has(s, 'clock')) duration += 2;
     if (s.spell && s.spell.word.length > 9) duration = Math.max(duration, 3 + s.spell.word.length * 0.6);
     e.intent = { name: name, kind: kind, damage: damage, shield: shield, duration: duration, remaining: duration, description: description };
@@ -596,7 +639,8 @@
     var multiplier = 1 + Math.min(8, p.combo - 1) * 0.055 + (fast ? 0.16 : 0);
     var base = spell.type === 'heal' || spell.type === 'shield' ? 8 : spell.power;
     var rawDamage = base + p.power + (has(s, 'ember') ? 4 : 0) + (has(s, 'forgecore') ? 7 : 0) + (has(s, 'paperedge') ? 3 : 0) + (has(s, 'fang') && p.combo >= 3 ? 6 : 0)
-      + (spell.type === 'signature' && has(s, 'prism') ? 14 : 0) + (spell.type === 'signature' && has(s, 'echoquill') ? 8 : 0) + (spell.type === 'signature' && has(s, 'starpromise') ? 10 : 0) + (p.focus > 0 ? 12 : 0);
+      + (spell.type === 'signature' && has(s, 'prism') ? 14 : 0) + (spell.type === 'signature' && has(s, 'echoquill') ? 8 : 0) + (spell.type === 'signature' && has(s, 'starpromise') ? 10 : 0) + (p.focus > 0 ? 12 : 0)
+      + (has(s, 'bloodsigil') ? 10 : 0) + (spell.type === 'signature' && has(s, 'fracture') ? 26 : 0);
     var damage = hitEnemy(s, Math.round(rawDamage * multiplier), spell.type === 'signature' ? 0.5 : 0, options && options.damageLimit);
     var healing = spell.type === 'heal' ? heal(s, spell.power + p.power) : 0, shield = 0;
     if (has(s, 'moss')) healing += heal(s, 2);
@@ -661,9 +705,16 @@
   }
   function chooseCamp(s, choice) {
     if (s.status !== 'camp') return fail('目前不在營地。');
-    if (choice !== 'rest' && choice !== 'train') return fail('請選擇休息或磨練。');
+    if (choice !== 'rest' && choice !== 'train' && choice !== 'cleanse') return fail('請選擇休息、磨練或淨化。');
     var message;
-    if (choice === 'rest') { var amount = heal(s, Math.round(s.player.maxHp * 0.48)); message = '星燈照亮傷口，恢復 ' + amount + ' 點生命。'; }
+    if (choice === 'cleanse') {
+      var curse = s.relics.find(function (r) { return RELICS[r.id] && RELICS[r.id].cursed; });
+      if (!curse) return fail('目前沒有需要解除的詛咒。');
+      if (s.player.gold < 35) return fail('淨化需要 35 金幣。');
+      s.player.gold -= 35; s.relics = s.relics.filter(function (r) { return r.id !== curse.id; });
+      if (curse.id === 'fracture') { s.player.maxHp += s.fractureHpCost || 24; s.fractureHpCost = 0; }
+      message = '付出 35 金幣，解除「' + curse.name + '」。';
+    } else if (choice === 'rest') { var amount = heal(s, Math.round(s.player.maxHp * 0.48)); message = '星燈照亮傷口，恢復 ' + amount + ' 點生命。'; }
     else { s.player.power += 3; heal(s, 10); message = '磨練完成：咒語威力永久增加 3，並恢復 10 點生命。'; }
     nextEncounter(s); event(s, 'camp', message); return done(message);
   }
@@ -755,22 +806,22 @@
     var npc = getNpc(s);
     if (!npc || s.status !== 'npc') return fail('請與旅途中的夥伴交談；商人的補給需要交易。');
     if (s.npc.helped || s.npc.challenged) return fail('這次邂逅已經做出選擇，無法再次取得幫助或挑戰。');
-    s.npc.helped = true;
     var message;
     if (npc.companionRole) {
-      if (!Array.isArray(s.companions)) s.companions = [];
-      if (!s.companions.some(function (c) { return c.id === npc.id; }) && (s.companions.length < 3 || npc.id === 'lumina' || s.companions.some(function (c) { return c.id === 'lumina'; }) && s.companions.length < 4)) {
-        s.companions.push({ id: npc.id, npcId: npc.id, name: npc.name, sprite: npc.sprite, color: npc.color, role: npc.companionRole });
-        message = npc.name + ' 加入隊伍，將陪伴你走完本趟遠征。';
-      } else { addItem(s, 'potion'); message = npc.name + ' 已與你同行，送你一瓶苔露藥水。'; }
+      var recruitment = getRecruitment(s, npc.id);
+      if (!recruitment.ok) return fail(recruitment.reason);
+      if (npc.id === 'lantern') s.inventory.find(function (i) { return i.id === 'potion'; }).count -= 1;
+      s.companions = [{ id: npc.id, npcId: npc.id, name: npc.name, sprite: npc.sprite, color: npc.color, role: npc.companionRole }];
+      s.reserveCompanions = s.reserveCompanions.filter(function (c) { return c.id !== npc.id; });
+      message = npc.name + ' 成為你的唯一同行夥伴。';
     } else if (npc.id === 'healer') { var healed = heal(s, 45); addItem(s, 'potion'); message = '芙苓包紮了傷口，恢復 ' + healed + ' 點生命，並送你 1 瓶苔露藥水。'; }
     else if (npc.id === 'smith') { s.player.power += 4; message = '布洛替咒語淬上星鐵：本趟咒語威力永久增加 4。'; }
     else if (npc.id === 'cartographer') {
-      var options = ['gale', 'clock', 'starlace', 'frostglass'].filter(function (id) { return !has(s, id); });
+      var options = ['gale', 'chronolens', 'clock', 'starlace', 'frostglass'].filter(function (id) { return !has(s, id); });
       if (options.length) { var relic = pick(s, options); addRelic(s, relic); message = '墨里從星圖取出「' + RELICS[relic].name + '」，交到你手中。'; }
       else message = '你已集齊探索遺物，墨里改贈 ' + coins(s, 40) + ' 金幣作為盤纏。';
     } else { s.player.maxHp += 10; var recovery = heal(s, 20); message = '赫渡點亮歸航燈：生命上限增加 10，恢復 ' + recovery + ' 點生命，獲得 ' + coins(s, 20) + ' 金幣。'; }
-    s.npc.helpMessage = message;
+    s.npc.helped = true; s.npc.helpMessage = message;
     event(s, 'npc-help', message + ' 接受善意後，本次邂逅不再能提出挑戰。');
     return done(message);
   }
@@ -782,7 +833,9 @@
     if (normalized !== npc.challengeWord) return fail('只有完整輸入「' + npc.challengeWord + '」才會展開首領戰；一般交談不會觸發戰鬥。');
     s.npc.challenged = true; s.status = 'combat'; s.player.combo = 0;
     s.player.shield = startingShield(s); s.shop = []; s.arena = null;
-    var hp = npc.hp + s.region * 60;
+    normalizeCompanions(s);
+    s.companions = s.companions.filter(function (c) { return c.id !== npc.id; });
+    var hp = Math.round((npc.hp + s.region * 60) * 1.35);
     s.enemy = { id: 'npc-' + npc.id, npcId: npc.id, isNpcBoss: true, sprite: npc.sprite,
       name: npc.name, description: npc.challengeDescription, kind: 'boss', hp: hp, maxHp: hp, shield: 0, phase: 1, turn: 0 };
     s.spell.elapsed = 0; makeIntent(s);
@@ -862,6 +915,7 @@
     chooseCamp: chooseCamp, useItem: useItem, buy: buy, leaveShop: leaveShop, damagePlayer: damagePlayer,
     damageEnemy: damageEnemy, healPlayer: healPlayer, resolveArenaIntent: resolveArenaIntent,
     getNpc: getNpc, helpNpc: helpNpc, challengeNpc: challengeNpc, leaveNpc: leaveNpc,
+    canDash: canDash, hasChantSlow: hasChantSlow, normalizeCompanions: normalizeCompanions, getRecruitment: getRecruitment, dismissCompanion: dismissCompanion,
     giveGift: giveGift, talkNpc: talkNpc, beginBondQuest: beginBondQuest, confessBond: confessBond,
     getNodesPerRegion: getNodesPerRegion, getRegionCount: getRegionCount, getCampaignLength: getCampaignLength,
     getBossId: getBossId, getFloorPlan: getFloorPlan, BOSSES: BOSS, BOSS_POOLS: BOSS_POOLS, OMENS: OMENS,
