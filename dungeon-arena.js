@@ -11,6 +11,7 @@
   var CombatArts = typeof module === 'object' && module.exports ? require('./dungeon-combat-arts.js') : (typeof window !== 'undefined' ? window.DungeonCombatArts : null);
   var BossDisruption = typeof module === 'object' && module.exports ? require('./dungeon-boss-disruption.js') : (typeof window !== 'undefined' ? window.DungeonBossDisruption : null);
   var BossEvolution = typeof module === 'object' && module.exports ? require('./dungeon-boss-evolution.js') : (typeof window !== 'undefined' ? window.DungeonBossEvolution : null);
+  var BossIdentity = typeof module === 'object' && module.exports ? require('./dungeon-boss-identity.js') : (typeof window !== 'undefined' ? window.DungeonBossIdentity : null);
   var ROOMS = [
     { id: 'pillars', type: 'cover', name: '古柱迴廊', description: '石柱能擋住敵人的飛彈，也會阻擋移動。利用掩體靠近施法。', mutator: '四柱掩體' },
     { id: 'lanes', type: 'traps', name: '碎光十字', description: '地面每隔五秒亮起交錯光帶；預警結束前離開紅色區域。', mutator: '交替陷阱' },
@@ -157,6 +158,8 @@
     if (!run.enemy || run.enemy.kind !== 'boss') return;
     var id = run.enemy.npcId || run.enemy.id, stage = BOSS_ARENAS[id];
     if (!stage) return;
+    var identity=BossIdentity&&BossIdentity.profile(run);
+    if(identity){a.room.identityTitle=identity.title;a.room.identitySpecial=identity.special;a.room.identityCounter=identity.counter;}
     Object.assign(a.room, { bossId: id, name: stage.name, color: stage.color, motif: stage.motif, mechanic: stage.mechanic,
       mutator: run.enemy.isNpcBoss ? '旅人超越試煉・專屬場域' : '雙階段首領・專屬場域' });
     if (a.combatVersion === 2) return;
@@ -169,6 +172,7 @@
     var key = String(run.seed) + ':' + run.encounter + ':' + run.enemy.id;
     if (run.arena && run.arena.version === 1 && run.arena.key === key) {
       configureBossRoom(run, run.arena); run.arena.combatVersion = 2;
+      if(BossIdentity)BossIdentity.ensure(run,run.arena);
       if (!canDash(run)) { run.arena.player.dashTime = 0; run.arena.player.dashBuffer = 0; }
       syncCompanions(run, run.arena);
       return run.arena;
@@ -239,6 +243,7 @@
       a.enemies.push(enemy);
     }
     configureBossRoom(run, a); a.combatVersion = 2;
+    if(BossIdentity)BossIdentity.ensure(run,a);
     if (!run.difficulty) run.difficulty = 'standard';
     syncCompanions(run, a);
     if (boss) effect(a, 'boss-intro', a.enemies[0].x, a.enemies[0].y, { name: run.enemy.name, text: run.enemy.isNpcBoss ? '旅人真名・超越試煉' : '封印解除', r: 130, life: 2.2, color: a.room.color || '#ffb27c' });
@@ -930,7 +935,10 @@
   }
   function advanceRoom(run, a, dt) {
     a.roomClock -= dt;
-    if (a.room.bossId) advanceBossStage(run, a, dt);
+    if (a.room.bossId) {
+      advanceBossStage(run,a,dt);
+      if(BossIdentity)BossIdentity.tick(run,a,dt,{hazard:hazard,place:place,effect:effect,heal:Engine.healPlayer});
+    }
     if (a.room.id === 'starlanes' && a.roomClock <= 0) {
       a.roomClock += 6; a.roomPulse += 1;
       var safeLane = (a.roomPulse + run.encounter) % 4;
@@ -1081,6 +1089,7 @@
       [260, 700].forEach(function (x, index) { mark({ kind: 'ring', x: x, y: 280, r: 90, innerR: 60, delay: 1.8 + index * 0.5 }); });
     }
     if (BossDisruption) BossDisruption.schedule(run,a,boss,hazard,effect);
+    if(BossIdentity)BossIdentity.pulse(run,a,boss,{hazard:hazard,effect:effect});
     // A fresh floor tell always precedes the next committed boss attack.
     run.enemy.intent.remaining = Math.max(run.enemy.intent.remaining, 1.1);
   }
@@ -1395,6 +1404,7 @@
         effect(a, 'chain', target.x, target.y, { x2: chained.x, y2: chained.y, color: '#bcecff', life: 0.4 }); }
     }
     if (has(run, 'frostglass') || word === 'frost') a.slowTime = Math.max(a.slowTime, 2);
+    if(BossIdentity&&run.status==='combat')BossIdentity.afterCast(run,a,{effect:effect});
     updateTarget(a); return result;
   }
   function useItem(run, id) {
@@ -1421,7 +1431,8 @@
       focusEnergy: Math.round(a.player.focusEnergy), focusActive: a.focusActive, dashReady: canDash(run) && a.player.dashCooldown <= 0 && !(a.player.staggerTime > 0),
       dashUnlocked: canDash(run), chantSlowUnlocked: canSlowChant(run), staggerTime: a.player.staggerTime || 0, introRemaining: a.introRemaining || 0,
       time: a.realTime, pattern: a.lastPattern, counterHits: a.counterHits || 0, interrupts: a.interrupts || 0,
-      ritual: getInterrupt(run), counterWindow: run.enemy && run.enemy.counterWindow || 0 } : null;
+      ritual: getInterrupt(run), counterWindow: run.enemy && run.enemy.counterWindow || 0,
+      identity: a.room.identityTitle||null,identityCounter:a.room.identityCounter||null } : null;
   }
   function clearInput(run) {
     var a = run && run.arena;
