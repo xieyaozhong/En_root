@@ -64,12 +64,15 @@
         var cx=130+((n*113+i*163)%680),cy=109+((n*91+i*119)%345);
         // Predictable vines grow from the far edge of the player's current route.
         if(i===0){cx=clamp(p.x+Math.cos(n*1.7)*115,90,865);cy=clamp(p.y+Math.sin(n*1.7)*100,95,465);}
-        var vine={id:'vine-'+n+'-'+i,x:cx,y:cy,r:phase===2?36:29,life:phase===2?17:13,grow:1.5};
+        var vine={id:'vine-'+n+'-'+i,x:cx,y:cy,r:phase===2?37:31,life:phase===2?34:28,grow:1.5};
         state.vines.push(vine);
         vine.hazardId=mark({x:cx,y:cy,r:vine.r,delay:1.45,life:vine.life-1.45,
           damage:phase===2?8:6,repeat:true,hexEffect:'snare',color:'#77c989',terrain:'vine'}).id;
       }
-      if(state.vines.length>16)state.vines.splice(0,state.vines.length-16);
+      if(state.vines.length>24){
+        var trimmed=state.vines.splice(0,state.vines.length-24).map(function(v){return v.hazardId;});
+        area.hazards=(area.hazards||[]).filter(function(h){return trimmed.indexOf(h.id)<0;});
+      }
     }else if(id==='spore'){
       for(var s=0;s<(phase===2?3:2);s++){var q=point(Math.sin(n*2+s*2)*110,Math.cos(n+s*2.1)*94);
         mark({x:q.x,y:q.y,r:52+s*9,delay:1.4+s*.25,life:5.5,repeat:true,damage:5,color:'#c5ba81',terrain:'mycelium'});
@@ -154,6 +157,10 @@
     var p=area.player;
     function expire(items){for(var i=items.length-1;i>=0;i--){items[i].life-=dt;items[i].ready=Math.max(0,(items[i].ready||0)-dt);if(items[i].life<=0)items.splice(i,1);}}
     expire(state.vines);expire(state.decoys);expire(state.flowers);expire(state.coins);
+    if(state.id==='thorn'){
+      var aliveIds=state.vines.map(function(v){return v.hazardId;});
+      area.hazards=area.hazards.filter(function(h){return h.terrain!=='vine'||aliveIds.indexOf(h.id)>=0;});
+    }
     state.vines.forEach(function(v){v.grow=Math.max(0,(v.grow||0)-dt);});
     state.traceClock-=dt;
     if(state.traceClock<=0){
