@@ -1186,11 +1186,13 @@
       if (h.pushX && contains(h, a.player) && a.player.dashTime <= 0) move(a, a.player, h.pushX * dt, 0);
       if (!h.impactShown && !h.cosmetic) { h.impactShown = true; effect(a, 'impact', h.x, h.y, { r: h.r || 26, color: h.color, life: 0.4 }); }
       if (!h.cosmetic && (!h.hit || h.repeat) && contains(h, a.player)) {
-        if (a.player.invulnerable > 0) countDodge(a, h);
-        else if (h.disruption) {
-          if (BossDisruption) BossDisruption.apply(run,a,h.disruption,effect,hazard);
+        if (h.disruption) {
+          // An intentional dash evades interference. A different hit earlier in
+          // this same frame must not silently cancel the boss's telegraphed spell.
+          if (a.player.dashTime > 0) countDodge(a, h);
+          else if (BossDisruption) BossDisruption.apply(run,a,h.disruption,effect,hazard);
           h.hit = true;
-        }
+        } else if (a.player.invulnerable > 0) countDodge(a, h);
         else if (applyHit(run, a, h.damage, h) && !h.repeat) h.hit = true;
       }
     });
