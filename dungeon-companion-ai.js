@@ -80,7 +80,9 @@
     run.companions = (run.companions || []).filter(function (c) { return c.id !== actor.npcId; });
     run.reserveCompanions = (run.reserveCompanions || []).filter(function (c) { return c.id !== actor.npcId; });
     if (area.echoQueue) area.echoQueue = area.echoQueue.filter(function (q) { return q.npcId !== actor.npcId; });
-    if (effect) effect(area, 'death', actor.x, actor.y, { life: 1.25, r: 32, color: actor.color || '#b6d8ee', text: '隊友陣亡' });
+    if (effect) effect(area, 'death', actor.x, actor.y, { life: 1.5, r: 32, color: actor.color || '#b6d8ee', text: '隊友陣亡',
+      actor: { id: actor.id, npcId: actor.npcId, sprite: actor.sprite, kind: 'npc', name: actor.name,
+        x: actor.x, y: actor.y, r: actor.r, facingX: actor.facingX, facingY: actor.facingY } });
     report(run, 'companion-death', actor.name + ' 在本趟遠征中陣亡。這次無法再招募。');
     return true;
   }
