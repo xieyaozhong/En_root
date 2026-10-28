@@ -100,6 +100,7 @@
     var dmg=Math.max(5,Math.round(6+run.region*2+(phase-1)*3));
     var delay=run.difficulty==='story'?2.0:1.65;
     var color=arena.room.color||'#bcabe8';
+    var effect=spec(run).effect;
     var mode=turn%4;
     var safe=90+((turn*173+(run.region||0)*67)%4)*112;
     if(mode===0){
@@ -115,9 +116,13 @@
       add({kind:'rect',x:side,y:64,w:285,h:430,delay:delay,life:.7,damage:dmg,color:color});
       add({kind:'line',x:52,y:245,x2:908,y2:245,width:62,delay:delay+.5,life:.5,damage:dmg,color:color});
     }
-    var effect=spec(run).effect;
-    if(effect==='heal'){var shield=Math.min(30,(run.enemy.shield||0)+8);run.enemy.shield=shield;}
+    if(effect==='heal'||effect==='shield'){run.enemy.shield=Math.min(45,(run.enemy.shield||0)+(effect==='heal'?8:12));}
     if(effect==='flood'){add({kind:'rect',x:55,y:402,w:850,h:86,delay:delay+.3,life:.7,damage:4,pushX:90,color:'#8ccce3'});}
+    if(effect==='roots'){add({kind:'ring',x:arena.player.x,y:arena.player.y,r:125,innerR:77,delay:delay+.25,life:.55,damage:4,hexEffect:'snare',color:'#88b583'});}
+    if(effect==='pulse'){[145,265].forEach(function(r,index){add({kind:'ring',x:480,y:280,r:r,innerR:r-36,delay:delay+.3+index*.35,life:.5,damage:6,color:'#c9a8df'});});}
+    if(effect==='meteor'){[120,470,810].forEach(function(x,index){add({kind:'circle',x:x,y:100+index*153,r:95,delay:delay+.2+index*.2,life:.5,damage:9,color:'#ffb7a0'});});}
+    if(effect==='lattice'){add({kind:'line',x:62,y:65,x2:900,y2:480,width:66,delay:delay+.4,life:.6,damage:8,hexEffect:'snare',color:'#b7aaff'});}
+    if(effect==='seal'||effect==='veil'){add({kind:'ring',x:arena.player.x,y:arena.player.y,r:140,innerR:80,delay:delay+.45,life:.4,damage:0,disruption:'veil',color:'#d1adf6'});}
   }
   function summon(run,arena,boss,api){
     if(!run||!arena||!boss||!boss.alive||!SUMMONERS[id(run)])return 0;
