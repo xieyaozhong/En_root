@@ -101,6 +101,34 @@
       run.status === 'route' ? (run.routes || []).map(function (r) { return r.id; }).join(',') : '',
       run.status === 'reward' ? (run.rewards || []).map(function (r) { return r.id; }).join(',') : ''].join(':');
   }
+  function animateVisitor(exploration,dt){
+    var person=(exploration.objects||[]).find(function(o){return o.kind==='npc'||o.kind==='merchant';});
+    if(!person||exploration.dialogId)return;
+    var id=person.npcId||'merchant';
+    var stride={merchant:45,healer:19,smith:35,cartographer:55,ferryman:65,
+      lantern:16,echo:67,sentinel:72,lumina:35}[id]||25;
+    var tempo={merchant:.9,healer:.5,smith:.65,cartographer:.53,ferryman:.75,
+      lantern:.4,echo:1.3,sentinel:1.1,lumina:.65}[id]||.6;
+    var phase=(exploration.time||0)*tempo+(id.length*.65);
+    var behavior=exploration.npcActivity;
+    if(!behavior||behavior.id!==id)behavior=exploration.npcActivity={id:id,anchorX:person.x,anchorY:person.y,x:person.x,y:person.y};
+    var targetX=behavior.anchorX+Math.sin(phase)*stride,targetY=behavior.anchorY;
+    if(id==='cartographer')targetY+=Math.cos(phase*.7)*25;
+    else if(id==='ferryman')targetY+=Math.cos(phase)*34;
+    else if(id==='echo')targetY+=Math.cos(phase*1.15)*42;
+    else if(id==='lumina')targetY+=Math.cos(phase)*25;
+    else if(id==='sentinel')targetY+=Math.sin(phase*1.3)*12;
+    else if(id==='healer')targetY+=Math.cos(phase)*10;
+    behavior.x+=Math.max(-dt*85,Math.min(dt*85,targetX-behavior.x));
+    behavior.y+=Math.max(-dt*60,Math.min(dt*60,targetY-behavior.y));
+    person.x=clamp(behavior.x,80,875);
+    person.y=clamp(behavior.y,100,445);
+    // Changes affect the actual interactable actor and persist through reload.
+    person.facingX=Math.sign(Math.cos(phase))||1;
+    person.behavior=id==='healer'?'觀察傷者':id==='cartographer'?'勘察地形':
+      id==='ferryman'?'河岸巡行':id==='merchant'?'巡視貨物':id==='smith'?'巡查爐火':
+      id==='sentinel'?'警戒巡邏':id==='echo'?'好奇閒晃':id==='lumina'?'觀測星圖':'守護營地';
+  }
   function nearObject(exploration) {
     var best = null, closest = RANGE + 0.001;
     exploration.objects.forEach(function (target) {
@@ -164,6 +192,8 @@
     if (!Array.isArray(exploration.obstacles)) exploration.obstacles = [];
     // Build actions from current engine state instead of trusting serialized UI data.
     exploration.objects = scatterObjects(run,buildObjects(run, npc, exploration));
+    var visitor=exploration.objects.find(function(o){return o.kind==='npc'||o.kind==='merchant';});
+    if(visitor && exploration.npcActivity && exploration.npcActivity.id===visitor.npcId){visitor.x=exploration.npcActivity.x;visitor.y=exploration.npcActivity.y;}
     syncCompanions(run, exploration);
     if (!exploration.objects.some(function (target) { return target.id === exploration.dialogId && (target.kind === 'merchant' || target.kind === 'npc'); })) exploration.dialogId = null;
     nearObject(exploration);
@@ -224,6 +254,7 @@
     player.dashTime = Math.max(0, player.dashTime - dt);
     player.moving = player.x !== beforeX || player.y !== beforeY;
     exploration.time += dt;
+    animateVisitor(exploration,dt);
     followCompanions(run, exploration, dt);
     nearObject(exploration);
     return exploration;
