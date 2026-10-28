@@ -1,7 +1,7 @@
 /* Next-generation party, style and combat readability pass. */
 .school-bar:not([hidden]){display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 12px;background:linear-gradient(110deg,#151f2d,#1b2835 62%,#17242b);border:1px solid #3c4c60;border-top:0}
 .school-bar .school-title{font-size:.66rem;letter-spacing:.08em;color:#c3c6d2;margin-right:5px}
-.school-bar .school-choice{min-height:36px;display:inline-flex;align-items:center;gap:7px;position:relative;border:1px solid #495269;border-radius:7px;padding:5px 10px;color:#c6ccd6;background:#242b3a;cursor:pointer;touch-action:manipulation;font:600 .71rem/1.25 inherit;transition:background .16s,border-color .16s,transform .12s}
+.school-bar .school-choice{min-height:36px;display:inline-flex;align-items:center;gap:7px;position:relative;border:1px solid #495269;border-radius:7px;padding:5px 10px;color:#c6ccd6;background:#242b3a;cursor:pointer;touch-action:manipulation;font-family:inherit;font-weight:600;font-size:.71rem;line-height:1.25;transition:background .16s,border-color .16s,transform .12s}
 .school-bar .school-choice:hover{background:#30384a;border-color:#8b8dad}
 .school-bar .school-choice:active{transform:scale(.97)}
 .school-bar .school-choice[aria-pressed="true"]{border-color:var(--school-color,#c8b7fb);color:#fff2dd;background:color-mix(in srgb,var(--school-color,#b0ccff) 18%,#242738);box-shadow:inset 0 0 0 1px #ffffff0e,0 0 16px color-mix(in srgb,var(--school-color,#c5dcff) 18%,transparent)}
