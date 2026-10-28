@@ -115,6 +115,18 @@
       actor.walkTimer = 2.3 + random(run) * 3.5;
       actor.goalX = 90 + random(run) * 775;
       actor.goalY = 105 + random(run) * 340;
+      actor.investigateId = null;
+      // Explorers investigate real map objects, but never activate doors or
+      // spend the player's currency on behalf of the player.
+      if (!combat && actor.behavior === 'explore') {
+        var landmarks = (area.objects || []).filter(function (o) { return o.kind !== 'door' && o.kind !== 'exit'; });
+        if (landmarks.length) {
+          var landmark = landmarks[Math.floor(random(run) * landmarks.length)];
+          actor.goalX = landmark.x + (random(run) * 2 - 1) * 22;
+          actor.goalY = landmark.y + 38;
+          actor.investigateId = landmark.id;
+        }
+      }
     }
   }
   function steer(run, area, actor, dt, combat, move) {
@@ -157,6 +169,19 @@
       var vx = (x - actor.x) / length, vy = (y - actor.y) / length;
       move(actor, vx * step, vy * step);
       actor.facingX = vx; actor.facingY = vy;
+    }
+    if (!combat && actor.behavior === 'explore' && actor.investigateId && length < 46) {
+      var landmark = (area.objects || []).find(function (o) { return o.id === actor.investigateId; });
+      if (landmark) {
+        var intelKey = String(area.key) + ':' + actor.npcId + ':' + landmark.id;
+        if (!Array.isArray(run.companionIntel)) run.companionIntel = [];
+        if (run.companionIntel.indexOf(intelKey) < 0) {
+          run.companionIntel.push(intelKey);
+          if (run.companionIntel.length > 100) run.companionIntel.shift();
+          actor.morale = Math.min(100, actor.morale + 4);
+          report(run, 'companion-scout', actor.name + ' 獨自探查了「' + landmark.name + '」，確認附近的道路與危險。');
+        }
+      }
     }
     if (!combat && actor.behavior === 'protect' && near < 72) actor.morale = Math.min(100, actor.morale + dt * .15);
     if (combat && actor.behavior === 'flank' && near < 150) actor.morale = Math.min(100, actor.morale + dt * .13);
