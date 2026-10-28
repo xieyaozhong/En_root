@@ -901,6 +901,7 @@
         }
       }
     }
+    if (BossEvolution) BossEvolution.wideMagic(run,a,boss,function(spec){ return hazard(a,Object.assign({source:'boss',ownerId:boss.id},spec)); });
     // The pose follows the actual first release and last active danger in this
     // pattern. The boss cannot begin another attack until its recovery ends.
     var created = a.hazards.filter(function (h) { return h.ownerId === boss.id && Number(h.id.split('-')[1]) >= previousHazards; });
@@ -910,7 +911,6 @@
     setAction(a, boss, { kind: 'spell', name: a.lastPattern, duration: first, active: Math.max(0.35, last - first), recovery: 1.5 });
     if (BossEvolution) {
       BossEvolution.start(run,a,boss);
-      BossEvolution.wideMagic(run,a,boss,function(spec){ return hazard(a,Object.assign({source:'boss',ownerId:boss.id},spec)); });
       if (a.patternCount % 3 === 2) BossEvolution.summon(run,a,boss,{place:place,effect:effect});
     }
   }
