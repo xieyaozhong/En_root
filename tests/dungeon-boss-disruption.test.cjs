@@ -30,7 +30,7 @@ for(let i=0;i<120;i++) if(r.status==='combat')A.update(r,.05,{});
 assert.equal(D.active(r),null,'status expires without consuming the underlying spell');
 
 const thief=run(18),t=thief.arena;
-thief.enemy.id='witch';thief.enemy.name='鏡月女巫';
+// Keep the original arena key stable while exercising the theft status directly.
 const originalWord=thief.spell.word;
 assert.equal(D.apply(thief,t,'steal',()=>{},()=>{}),true);
 assert.equal(D.blocksCast(thief),true);
