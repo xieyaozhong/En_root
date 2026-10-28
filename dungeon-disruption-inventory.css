@@ -1,0 +1,64 @@
+/* Boss interference and responsive, readable adventure bag. */
+.inventory-trigger{display:inline-flex;align-items:center;gap:5px;min-width:71px;padding:5px 9px;white-space:nowrap}
+.inventory-trigger>span:last-child{font-size:.7rem;color:#e1d1a4}
+.inventory-trigger .dungeon-icon{width:17px;height:17px;color:#e5c78c}
+.inventory-dialog{width:min(760px,calc(100vw - 22px));max-width:760px;max-height:min(88dvh,780px);padding:0;overflow:auto;overscroll-behavior:contain;background:#15232d;color:#e5e0d4;border:1px solid #927d67;border-radius:12px;box-shadow:0 16px 85px #000c}
+.inventory-dialog::backdrop{background:#030a11c7;backdrop-filter:blur(5px)}
+.inventory-dialog .dialog-top{position:sticky;top:0;z-index:2;background:#1f2c37;padding:12px 17px;border-bottom:1px solid #66737b;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.inventory-dialog #inventoryContents{padding:15px 17px 23px}
+.bag-overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:1px 0 18px}
+.bag-stat{border:1px solid #51616d;background:#1d303a;border-radius:9px;padding:11px}
+.bag-stat b{font-size:1.15rem;color:#f0d59e}.bag-stat small{display:block;font-size:.65rem;color:#b9c7cb;margin-top:4px}
+.bag-head{display:flex;align-items:center;gap:8px;margin:19px 0 10px;color:#edddba;font-size:.91rem;letter-spacing:.03em}.bag-head small{margin-left:auto;color:#b6bcc8;font-size:.67rem;font-weight:400}
+.bag-loadout{background:#293645;border:1px solid #63758a;border-radius:9px;padding:12px;display:flex;gap:11px;align-items:center}
+.bag-loadout .dungeon-icon{width:36px;height:36px;color:#d7b5ed}
+.bag-loadout b,.bag-grid b{display:block;color:#f5e9ca;font-size:.83rem}
+.bag-loadout small,.bag-grid small{display:block;color:#bbc7c9;font-size:.67rem;line-height:1.5;margin-top:5px}
+.bag-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.bag-entry{position:relative;display:flex;align-items:flex-start;gap:9px;border:1px solid #4c5e69;border-radius:9px;padding:11px;background:linear-gradient(120deg,#253541,#1e303a);min-height:83px}
+.bag-entry .bag-symbol{display:grid;place-items:center;min-width:36px;height:36px;border-radius:9px;border:1px solid #7f8d91;background:#34444c;color:#ebda9b;font-size:1.26rem}
+.bag-entry .bag-symbol .dungeon-icon{width:22px;height:22px}
+.bag-entry .bag-info{min-width:0;padding-right:22px}
+.bag-entry .bag-count{position:absolute;right:10px;top:9px;font:700 .72rem ui-monospace,monospace;color:#e7d9a5}
+.bag-entry.cursed{border-color:#bd6384;background:#362938}
+.bag-entry.cursed .bag-symbol{border-color:#c46a93;color:#ffbfd5}
+.bag-empty{color:#aebec6;border:1px dashed #4e6672;border-radius:8px;padding:14px;font-size:.77rem}
+.bag-footnote{font-size:.68rem;line-height:1.5;color:#a3b5ba;margin:11px 0 0}
+.spell-interference:not([hidden]){position:absolute;z-index:18;left:50%;top:17%;transform:translateX(-50%);max-width:88%;padding:8px 14px;pointer-events:none;text-align:center;background:#1a2137e8;border:1px solid #d09bde;color:#f4d5f5;border-radius:6px;box-shadow:0 0 20px #c7a2df33;font-size:.8rem;font-weight:700;letter-spacing:.05em}
+.spell-interference[data-kind="sever"]{border-color:#eeba85;color:#ffdfb5}
+.spell-interference[data-kind="scatter"]{border-color:#98dbe6;color:#b7f3f8}
+.spell-interference[data-kind="steal"]{border-color:#f1a3da;color:#ffd4ed}
+#gameSurface[data-spell-disruption="veil"] .spell-word span.pending,
+#gameSurface[data-spell-disruption="veil"] #touchSpellName span.pending{filter:blur(4px);opacity:.33}
+#gameSurface[data-spell-disruption="scatter"] .spell-word,
+#gameSurface[data-spell-disruption="scatter"] .qte-letters,
+#gameSurface[data-spell-disruption="scatter"] #touchSpellName{overflow:visible!important}
+#gameSurface[data-spell-disruption="scatter"] .spell-word span,
+#gameSurface[data-spell-disruption="scatter"] #touchSpellName span,
+#gameSurface[data-spell-disruption="scatter"] .qte-letter{display:inline-block;will-change:transform;animation:word-gust .65s ease-out both}
+#gameSurface[data-spell-disruption="scatter"] .spell-word span:nth-child(4n+1),
+#gameSurface[data-spell-disruption="scatter"] #touchSpellName span:nth-child(4n+1),
+#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(4n+1){--gust-x:-23px;--gust-y:-21px;--gust-r:-18deg}
+#gameSurface[data-spell-disruption="scatter"] .spell-word span:nth-child(4n+2),
+#gameSurface[data-spell-disruption="scatter"] #touchSpellName span:nth-child(4n+2),
+#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(4n+2){--gust-x:25px;--gust-y:-27px;--gust-r:20deg}
+#gameSurface[data-spell-disruption="scatter"] .spell-word span:nth-child(4n+3),
+#gameSurface[data-spell-disruption="scatter"] #touchSpellName span:nth-child(4n+3),
+#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(4n+3){--gust-x:32px;--gust-y:22px;--gust-r:25deg}
+#gameSurface[data-spell-disruption="scatter"] .spell-word span:nth-child(4n),
+#gameSurface[data-spell-disruption="scatter"] #touchSpellName span:nth-child(4n),
+#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(4n){--gust-x:-30px;--gust-y:16px;--gust-r:-28deg}
+@keyframes word-gust{0%{transform:translate(0,0) rotate(0);opacity:1}65%{transform:translate(var(--gust-x),var(--gust-y)) rotate(var(--gust-r));opacity:.75}100%{transform:translate(var(--gust-x),var(--gust-y)) rotate(var(--gust-r));opacity:1}}
+#gameSurface[data-spell-disruption="steal"] .spell-word,#gameSurface[data-spell-disruption="steal"] #touchSpellName{opacity:.42;filter:grayscale(.5)}
+#gameSurface[data-spell-disruption="steal"] .touch-cast{border-color:#b56f97;opacity:.8}
+@media(max-width:600px){.inventory-trigger{padding:4px 6px;min-width:0}.inventory-trigger>span:last-child{display:none}.inventory-dialog #inventoryContents{padding:12px}.bag-grid{grid-template-columns:1fr}.bag-overview{gap:5px}.bag-stat{padding:8px}.bag-stat b{font-size:.97rem}.bag-entry{min-height:68px}.spell-interference:not([hidden]){top:8%;font-size:.66rem}}
+@media(orientation:landscape) and (max-height:550px){
+ .inventory-dialog{max-height:92dvh;width:min(680px,90vw)}
+ .inventory-dialog #inventoryContents{padding:9px 12px}
+ .bag-overview{margin-bottom:5px}
+ .bag-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+ .bag-entry{min-height:67px;padding:7px}
+ .bag-head{margin:9px 0 6px}
+ .touch-layout #gameSurface.is-immersive #immersiveInventory{display:inline-flex}
+}
+@media(prefers-reduced-motion:reduce){#gameSurface[data-spell-disruption="scatter"] .spell-word span,#gameSurface[data-spell-disruption="scatter"] .qte-letter,#gameSurface[data-spell-disruption="scatter"] #touchSpellName span{animation:none;transform:translate(var(--gust-x),var(--gust-y))}}
