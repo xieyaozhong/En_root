@@ -316,6 +316,51 @@
     button.onpointerdown=event=>{if(button.disabled || (event.button!=null && event.button!==0))return;event.preventDefault();action();};
     button.onclick=event=>{if(!button.disabled && event.detail===0)action();};
   }
+  function syncBossDisruption() {
+    const area=run?.status==='combat'?run.arena:null;
+    if(disruptArea!==area){disruptArea=area;disruptSeen=0;disruptVisual='';}
+    const attack=window.DungeonBossDisruption, event=area?.lastDisruption, input=$('spellInput');
+    if(event && event.serial && event.serial!==disruptSeen){
+      disruptSeen=event.serial;
+      if(input && !activeInterrupt()){
+        if(event.kind==='sever'){
+          const cut=text=>Array.from(text||'').slice(0,Math.ceil(Array.from(text||'').length/2)).join('');
+          input.value=cut(input.value);
+          if(suspendedChantDraft)suspendedChantDraft.text=cut(suspendedChantDraft.text);
+        }else if(event.kind==='steal'){
+          input.value='';
+          if(suspendedChantDraft)suspendedChantDraft.text='';
+          if(chanting)setChant(false);
+        }
+        previousTyped=input.value;
+      }
+      $('castFeedback').textContent='✦ '+event.name+'！';castFeedbackUntil=performance.now()+1100;
+      tone('hit');
+      if(input)paintLetters();
+    }
+    const effect=attack?.active(run),warning=area?.disruptionWarning;
+    const kind=effect?.kind || '';
+    if(kind!==disruptVisual){
+      disruptVisual=kind;
+      $('gameSurface').dataset.spellDisruption=kind;
+      touchLettersKey='';touchButtonsKey='';
+      if(input)paintLetters();
+    }
+    const status=$('spellInterference');
+    status.hidden=!effect&&!warning;
+    if(effect){
+      const spec=attack.ATTACKS[effect.kind],remaining=Math.ceil(effect.remaining);
+      status.dataset.kind=effect.kind;
+      const caption=spec.name+' · '+(effect.kind==='sever'?'已輸入字符減半':
+        effect.kind==='veil'?'字符遮蔽中':effect.kind==='scatter'?'字符被吹散':
+        '咒語被竊取，請先閃避')+' · '+remaining+' 秒';
+      if(status.textContent!==caption)status.textContent=caption;
+    }else if(warning){
+      status.dataset.kind=warning.kind;
+      const caption='⚠ '+warning.name+' 即將發動 · 走出預警範圍';
+      if(status.textContent!==caption)status.textContent=caption;
+    }else {status.dataset.kind='';status.textContent='';}
+  }
   function paintTouchSpell() {
     const combat=run?.status==='combat',spell=syncChantTarget();
     $('touchSpellPreview').hidden=!combat;$('touchRuneKeys').hidden=!combat;$('touchCast').hidden=!combat;
@@ -1034,11 +1079,12 @@
       const previousTarget=chantTargetKey;syncChantTarget();if(previousTarget!==chantTargetKey)paintLetters();
       dashQueued=false;saveClock+=delta;
       impactFeedback();
+      syncBossDisruption();
       if((world()?.dashes || 0)>dashesBefore){renderer.burst('dash');tone('dash');}
       if(before!==run.status){setChant(false);actionSignature='';render();persist();tone(run.status==='won'?'win':run.status==='reward'?'loot':'hit');}
       if(saveClock>1.5){saveClock=0;persist();}
     }
-    if(time-lastPaint>80){lastPaint=time;if(run){renderVitals();if(explorationStatuses.includes(run.status))renderAction();liveCombat();updateArenaHUD();renderLog();renderParty();}}
+    if(time-lastPaint>80){lastPaint=time;syncBossDisruption();if(run){renderVitals();if(explorationStatuses.includes(run.status))renderAction();liveCombat();updateArenaHUD();renderLog();renderParty();}}
     if(!paused)presentation();
     renderer.draw({run,focus:chanting,paused,reducedMotion},time);
     requestAnimationFrame(frame);
