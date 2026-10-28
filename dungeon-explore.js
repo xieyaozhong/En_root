@@ -7,6 +7,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (Engine) {
   'use strict';
   var VERSION = 1, WIDTH = 960, HEIGHT = 540, RANGE = 85;
+  var CompanionAI = typeof module === 'object' && module.exports ? require('./dungeon-companion-ai.js') : (typeof window !== 'undefined' ? window.DungeonCompanionAI : null);
   var STATES = ['route', 'shop', 'npc', 'camp', 'reward', 'event'];
   function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
   function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
@@ -114,14 +115,17 @@
     var previous = Array.isArray(exploration.companions) ? exploration.companions : [];
     exploration.companions = (Array.isArray(run.companions) ? run.companions : []).filter(function (c, index, list) {
       return c && ['lantern', 'echo', 'sentinel', 'lumina'].indexOf(c.id) >= 0 && !(c.id === 'lumina' && run.status === 'npc' && run.npc && run.npc.id === 'lumina') && list.findIndex(function (other) { return other && other.id === c.id; }) === index;
-    }).slice(0, 1).map(function (c, index) {
+    }).slice(0, 3).map(function (c, index) {
       var old = previous.find(function (body) { return body.npcId === c.id; });
-      return Object.assign({}, old || {}, { id: 'companion-' + c.id, npcId: c.id, name: c.name, role: c.role, sprite: c.sprite || c.id,
+      var actor = Object.assign({}, old || {}, { id: 'companion-' + c.id, npcId: c.id, name: c.name, role: c.role, sprite: c.sprite || c.id,
         color: c.color || '#b9deff', r: 11, x: clamp(finite(old && old.x, exploration.player.x - 35 + index * 28), 44, 916),
         y: clamp(finite(old && old.y, exploration.player.y + 35), 72, 498) });
+      if (CompanionAI) Object.assign(actor, CompanionAI.body(run, c, old));
+      return actor;
     });
   }
-  function followCompanions(exploration, dt) {
+  function followCompanions(run, exploration, dt) {
+    if (CompanionAI) { CompanionAI.advanceExplore(run, exploration, dt); return; }
     var player = exploration.player;
     exploration.companions.forEach(function (c, index) {
       var angle = Math.atan2(player.facingY, player.facingX) + Math.PI;
@@ -220,7 +224,7 @@
     player.dashTime = Math.max(0, player.dashTime - dt);
     player.moving = player.x !== beforeX || player.y !== beforeY;
     exploration.time += dt;
-    followCompanions(exploration, dt);
+    followCompanions(run, exploration, dt);
     nearObject(exploration);
     return exploration;
   }
