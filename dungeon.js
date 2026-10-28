@@ -569,7 +569,9 @@
     if(immersive)void exitImmersive();
     autoScreenOptOut=false;
     if(releaseSession){releaseSession();releaseSession=null;sessionHeld=false;}
+    closeInventory();inventoryResume=false;
     run = null; receipt = null; paused = false; finished = false; persistenceBroken = false; settlementPromise = null;
+    $('inventoryButton').hidden=true;
     suspendedChantDraft=null;chantTargetRun=null;chantTargetArena=null;chantTargetEncounter=null;chantTargetSpell=null;chantTargetKey='';duelCounter=null;
     chanting=false;clearMovement();document.body.classList.remove('in-run');$('actionPanel').classList.remove('combat-panel','is-chanting');$('actionPanel').inert=false;
     actionSignature = sidebarSignature = logSignature = '';
@@ -850,6 +852,7 @@
     $('floorLabel').textContent=String(Math.min(Engine.getCampaignLength(run),run.encounter+1)).padStart(2,'0')+' / '+Engine.getCampaignLength(run);
     $('arenaCaption').hidden=false;
     if(run.status!=='combat') {$('bossBanner').hidden=true;$('arenaCaption').textContent={route:'命運的岔路，在你眼前展開。',reward:'那些微光，是留給旅人的禮物。',camp:'在火焰熄滅以前，歇息片刻。',shop:'走近商人交談，或前往出口繼續。',npc:'善意與挑戰，都從一句話開始。',event:'每一道星痕，都藏著一份抉擇。',won:'文字的力量，讓世界再次甦醒。',lost:'下一次，你會帶著更多知識回來。'}[run.status] || '';}
+    $('inventoryButton').hidden=false;
     renderVitals();renderAction();renderSidebar();renderLog();renderParty();renderStory();journey();syncPause();updateArenaHUD();syncAudio();presentation();
   }
   async function settleRun() {
@@ -871,6 +874,48 @@
       saved=await Storage.load();lobby();notify('');
     }finally{busy=false;}
   }
+  function inventoryMarkup() {
+    const items=(run.inventory||[]).filter(item=>item.count>0);
+    const relics=run.relics||[],companions=run.companions||[],fallen=run.fallenCompanions||[];
+    const school=window.DungeonCombatArts?.get(run),card=run.card||{};
+    const relicEntries=relics.map(item=>{
+      const detail=Engine.RELICS[item.id]||item,curse=!!detail.cursed;
+      return '<article class="bag-entry'+(curse?' cursed':'')+'"><span class="bag-symbol">'+esc(item.icon||detail.icon||'✧')+'</span><div class="bag-info"><b>'+esc(detail.name||item.id)+'</b><small>'+esc(detail.description||'自動生效的遺物')+'</small></div>'+(curse?'<span class="bag-count">詛咒</span>':'')+'</article>';
+    }).join('');
+    const itemEntries=items.map(item=>'<article class="bag-entry"><span class="bag-symbol">'+icon(itemIcons[item.id]||'bag')+'</span><div class="bag-info"><b>'+esc(item.name||item.id)+'</b><small>'+esc(item.description||'冒險消耗品')+'</small></div><span class="bag-count">×'+Math.max(0,Number(item.count)||0)+'</span></article>').join('');
+    const partyEntries=companions.map(c=>'<article class="bag-entry"><span class="bag-symbol">'+icon(npcIcons[c.id]||'companion')+'</span><div class="bag-info"><b>'+esc(c.name||c.id)+'</b><small>'+esc(c.trait||'同行旅伴')+' · '+esc(window.DungeonCompanionAI?.LABELS[c.behavior]||'護衛')+' · HP '+Math.round(c.hp??c.maxHp??0)+'/'+Math.round(c.maxHp||0)+'</small></div></article>').join('');
+    const cardTitle=esc(card.word||'未選擇'),zh=esc(card.zh||''),rarity=esc(card.rarity||'N');
+    const stats='<div class="bag-overview"><div class="bag-stat"><b>'+relics.length+'</b><small>已裝備遺物</small></div><div class="bag-stat"><b>'+items.reduce((sum,item)=>sum+(Number(item.count)||0),0)+'</b><small>消耗品數量</small></div><div class="bag-stat"><b>'+Math.round(run.player?.gold||0)+'</b><small>持有金幣</small></div></div>';
+    return stats+'<h3 class="bag-head">'+icon('spell')+' 本命卡片與戰鬥流派</h3>'+
+      '<div class="bag-loadout">'+icon('signature')+'<div><b>'+cardTitle+' · '+rarity+(school?' / '+esc(school.name):'')+'</b><small>'+zh+(school?' · '+esc(school.detail):'')+'</small></div></div>'+
+      '<h3 class="bag-head">'+icon('relic')+' 已裝備遺物 <small>自動生效 · '+relics.length+' 件</small></h3>'+
+      (relics.length?'<div class="bag-grid">'+relicEntries+'</div>':'<div class="bag-empty">尚未取得遺物。戰勝首領或探索寶箱即可收集。</div>')+
+      '<h3 class="bag-head">'+icon('bag')+' 消耗道具 <small>'+items.length+' 類</small></h3>'+
+      (items.length?'<div class="bag-grid">'+itemEntries+'</div>':'<div class="bag-empty">目前沒有可用的道具。</div>')+
+      '<h3 class="bag-head">'+icon('companion')+' 同行角色 <small>'+companions.length+' / 4 · 陣亡 '+fallen.length+'</small></h3>'+
+      (companions.length?'<div class="bag-grid">'+partyEntries+'</div>':'<div class="bag-empty">尚未招募同行夥伴。</div>')+
+      '<p class="bag-footnote">遺物與戰鬥流派會自動生效；使用藥水、炸彈等道具請回到戰場側欄或快捷欄。打開背包時冒險時間會暫停。</p>';
+  }
+  function openInventory(){
+    const dialog=$('inventoryDialog');
+    if(!run||!dialog||dialog.open||$('infoDialog').open)return;
+    inventoryResume=!!navigable()&&!paused;
+    if(chanting)setChant(false);
+    paused=true;syncPause();if(run)renderSidebar();
+    $('inventoryContents').innerHTML=inventoryMarkup();
+    dialog.showModal();
+  }
+  function closeInventory(){if($('inventoryDialog')?.open)$('inventoryDialog').close();}
+  $('inventoryButton').onclick=openInventory;
+  $('immersiveInventory').onclick=openInventory;
+  $('closeInventory').onclick=closeInventory;
+  $('inventoryDialog').addEventListener('close',()=>{
+    if(inventoryResume&&navigable()&&!persistenceBroken){
+      paused=false;syncPause();renderSidebar();
+      $('arena').focus({preventScroll:true});
+    }
+    inventoryResume=false;
+  });
   function openDialog(html) {$('dialogContent').innerHTML=html;$('infoDialog').showModal();}
   function confirmAbandon(fromLobby) {
     if(run && !['won','lost'].includes(run.status)){paused=true;syncPause();}
@@ -1018,6 +1063,8 @@
   if($('immersivePause'))$('immersivePause').onclick=togglePause;
   document.addEventListener('keydown',event=>{
     if(event.isComposing || $('infoDialog').open)return;
+    if($('inventoryDialog').open){if(event.code==='KeyB'){event.preventDefault();closeInventory();}return;}
+    if(event.code==='KeyB' && run && !(event.target instanceof HTMLElement && event.target.closest('input,textarea,select'))){event.preventDefault();openInventory();return;}
     if(event.key==='Escape' && immersive && !chanting && !inConversation()){
       event.preventDefault();if(navigable()){paused=true;syncPause();renderSidebar();}void exitImmersive(true);return;
     }
