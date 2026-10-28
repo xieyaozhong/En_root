@@ -1360,7 +1360,8 @@
       a.lastCastHit = { x: target.x, y: target.y, boss: target.kind === 'boss', blocked: true };
     }
     a.casts += 1;
-    var clashStarted = BossEvolution && target.kind === 'boss' && run.status === 'combat' ? BossEvolution.beginClash(run,a,target,type,effect) : null;
+    var activeBoss = a.enemies.find(function(e){return e.kind==='boss'&&e.alive;});
+    var clashStarted = BossEvolution && activeBoss && run.status === 'combat' ? BossEvolution.beginClash(run,a,activeBoss,type,effect) : null;
     if(clashStarted){result.clash=true;result.message+=' 同系法術碰撞！立刻連打進行對決。';}
     var facing = unit(target.x - a.player.x, target.y - a.player.y); a.player.facingX = facing.x; a.player.facingY = facing.y;
     effect(a, 'cast', a.player.x, a.player.y, { x2: target.x, y2: target.y, targetId: target.id,
