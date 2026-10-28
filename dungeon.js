@@ -36,7 +36,7 @@
   }
   const spellTypes = {attack:'攻擊咒', heal:'治癒咒', shield:'護盾咒', signature:'卡片奧義'};
   const icon = name => window.DungeonIcons?.icon(name) || '';
-  const itemIcons = {potion:'potion',bomb:'bomb',hourglass:'hourglass',barrier:'shield',focus:'ink'};
+  const itemIcons = {potion:'potion',bomb:'bomb',hourglass:'hourglass',barrier:'shield',focus:'ink',spellbreaker:'hex'};
   const npcIcons = {merchant:'shop',healer:'heal',smith:'attack',cartographer:'route',ferryman:'camp',lantern:'companion',echo:'spell',sentinel:'shield',lumina:'signature'};
   function spellIcon(spell) {
     if(spell.type==='interrupt')return 'shield';
@@ -297,6 +297,48 @@
     }
     if(ritual){iconLabel('chantButton',chanting?'dash':'shield',chanting?'Esc · 返回走位':'Enter · 封咒 '+(ritual.index+1)+'/3');}
     else iconLabel('chantButton',chanting?'dash':'spell',chanting?'Esc · 返回走位':'Enter · 詠唱');
+  }
+  let clashSeen=0, clashArena=null;
+  function renderBossSpell() {
+    const evolution=window.DungeonBossEvolution,spell=evolution?.active(run),duel=run?.status==='combat'?run.arena?.spellClash:null;
+    const area=$('bossSpellBar'),button=$('clashButton');
+    if(!area||!button)return;
+    area.hidden=!spell&&!duel;
+    button.hidden=!duel||paused;
+    $('gameSurface').dataset.clash=duel?'true':'false';
+    if(duel){
+      const text=duel.taps+' / '+duel.needed+' · '+duel.remaining.toFixed(1)+' 秒';
+      textIfChanged('clashProgress',text);
+      area.dataset.type=duel.type;
+      const key='對決:'+duel.word+':'+duel.taps;
+      if(area.dataset.key!==key){
+        area.dataset.key=key;
+        const glyphs=Array.from(duel.word||'');
+        area.innerHTML='<span class="boss-cast-name">同系對決 · '+esc(duel.name)+'</span><span class="boss-cast-letters">'+glyphs.map(c=>'<b class="complete">'+esc(c)+'</b>').join('')+'</span><span class="boss-cast-type">連打！</span>';
+      }
+    }else if(spell){
+      const letters=Array.from(spell.word||''),progress=Math.min(letters.length,Math.floor(letters.length*spell.elapsed/Math.max(.01,spell.duration)));
+      const key='吟唱:'+spell.serial+':'+progress;
+      area.dataset.type=spell.type;
+      if(area.dataset.key!==key){
+        area.dataset.key=key;
+        area.innerHTML='<span class="boss-cast-name">'+esc(spell.name)+'</span><span class="boss-cast-letters">'+letters.map((c,i)=>'<b'+(i<progress?' class="complete"':'')+'>'+esc(c)+'</b>').join('')+'</span><span class="boss-cast-type">'+esc(spellTypes[spell.type]||spell.type)+'</span>';
+      }
+    }else {area.dataset.key='';area.innerHTML='';}
+    if(run?.arena!==clashArena){clashArena=run?.arena;clashSeen=0;}
+    const result=run?.arena?.lastClash;
+    if(result&&result.serial!==clashSeen){
+      clashSeen=result.serial;
+      $('castFeedback').textContent=result.won?'✦ 法術對決勝利 · 首領破防':'法術對決失敗 · 受到反噬';
+      castFeedbackUntil=performance.now()+1100;
+      notify(result.won?'法術對決勝利！抓住首領失衡的機會反擊。':'法術對決失敗！下次連打更快可以反制。',!result.won);
+      tone(result.won?'heal':'damage');
+    }
+  }
+  function mashClash(){
+    if(!run||paused||persistenceBroken||!run.arena?.spellClash)return;
+    const result=Arena.mashClash?.(run);
+    if(result?.ok){renderBossSpell();if(result.taps>=result.needed)persist();}
   }
   function setChant(value) {
     if(!run || run.status!=='combat' || paused || persistenceBroken || run.arena?.player.staggerTime>0 || run.arena?.introRemaining>0)value=false;
@@ -797,6 +839,7 @@
     }
     if(window.DungeonBossDisruption?.blocksCast(run)){notify('咒語正被首領竊取，閃避追擊後會自動歸還。');return;}
     const type=run.spell.type, result=Arena.cast(run,text);
+    if(result?.clash){setChant(false);renderBossSpell();}
     notify(result.message || (result.ok?'咒語施放成功。':'拼寫還差一點，請修正後再試。'),!result.ok);
     if(result.ok){
       $('castFeedback').textContent=result.counter?(result.perfect?'✦ 精準反擊 ×2！':'✦ 收勢反擊 ×1.55！'):result.guarded?'首領護勢中 · 等待反擊空檔':result.fast?'✦ 迅捷施法！':'✦ 施法成功！';castFeedbackUntil=performance.now()+850;
@@ -853,7 +896,7 @@
     $('arenaCaption').hidden=false;
     if(run.status!=='combat') {$('bossBanner').hidden=true;$('arenaCaption').textContent={route:'命運的岔路，在你眼前展開。',reward:'那些微光，是留給旅人的禮物。',camp:'在火焰熄滅以前，歇息片刻。',shop:'走近商人交談，或前往出口繼續。',npc:'善意與挑戰，都從一句話開始。',event:'每一道星痕，都藏著一份抉擇。',won:'文字的力量，讓世界再次甦醒。',lost:'下一次，你會帶著更多知識回來。'}[run.status] || '';}
     $('inventoryButton').hidden=false;
-    renderVitals();renderAction();renderSidebar();renderLog();renderParty();renderStory();journey();syncPause();updateArenaHUD();syncAudio();presentation();
+    renderVitals();renderAction();renderSidebar();renderLog();renderParty();renderStory();journey();syncPause();updateArenaHUD();renderBossSpell();syncAudio();presentation();
   }
   async function settleRun() {
     if(finished)return true;
@@ -1057,12 +1100,16 @@
   document.addEventListener('fullscreenchange',screenChanged);
   document.addEventListener('webkitfullscreenchange',screenChanged);
   $('schoolBar').addEventListener('click',event=>{const button=event.target.closest('[data-school]');if(button)selectSchool(button.dataset.school);});
+  bindTouchPress($('clashButton'),mashClash);
   $('expandButton').onclick=toggleImmersive;$('immersiveExit').onclick=()=>exitImmersive(true);
   $('immersiveJournal').onclick=()=>openChronicle();
   $('immersiveSound').onclick=audioSettings;
   if($('immersivePause'))$('immersivePause').onclick=togglePause;
   document.addEventListener('keydown',event=>{
     if(event.isComposing || $('infoDialog').open)return;
+    if(run?.arena?.spellClash && !paused && ['Space','KeyF'].includes(event.code)){
+      event.preventDefault();mashClash();return;
+    }
     if($('inventoryDialog').open){if(event.code==='KeyB'){event.preventDefault();closeInventory();}return;}
     if(event.code==='KeyB' && run && !(event.target instanceof HTMLElement && event.target.closest('input,textarea,select'))){event.preventDefault();openInventory();return;}
     if(event.key==='Escape' && immersive && !chanting && !inConversation()){
@@ -1131,7 +1178,7 @@
       if(before!==run.status){setChant(false);actionSignature='';render();persist();tone(run.status==='won'?'win':run.status==='reward'?'loot':'hit');}
       if(saveClock>1.5){saveClock=0;persist();}
     }
-    if(time-lastPaint>80){lastPaint=time;syncBossDisruption();if(run){renderVitals();if(explorationStatuses.includes(run.status))renderAction();liveCombat();updateArenaHUD();renderLog();renderParty();}}
+    if(time-lastPaint>80){lastPaint=time;syncBossDisruption();renderBossSpell();if(run){renderVitals();if(explorationStatuses.includes(run.status))renderAction();liveCombat();updateArenaHUD();renderLog();renderParty();}}
     if(!paused)presentation();
     renderer.draw({run,focus:chanting,paused,reducedMotion},time);
     requestAnimationFrame(frame);
