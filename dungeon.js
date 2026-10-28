@@ -75,6 +75,7 @@
   let partySignature='', presentationRun=null, presentedCombat='', presentedPhase=0, presentedStatus='', lastEchoEffect='';
   let chantTargetKey='', chantTargetRun=null, duelTrackKey='', cueArena=null, cueId='';
   let chantTargetArena=null, chantTargetEncounter=null, chantTargetSpell=null, suspendedChantDraft=null, duelCounter=null;
+  let disruptArea=null, disruptSeen=0, disruptVisual='', inventoryResume=false;
   const directionKeys = {KeyW:'up',ArrowUp:'up',KeyS:'down',ArrowDown:'down',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
   const difficultyNames = {story:'故事',standard:'標準',veteran:'試煉'};
   const explorationStatuses = ['route','shop','npc','camp','reward','event'];
@@ -335,10 +336,10 @@
       textIfChanged('touchSpellMeaning',spell.ritual?'封咒 '+(spell.ritual.index+1)+' / 3 · 完成自動接續':(spellTypes[spell.type] || '魔法')+' · '+(spell.zh || ''));
     }
     const next=Chant.touchSequence(spell.word).find((_,i,sequence)=>sequence.slice(0,i).join('').length===typed.length);
-    const lettersKey=JSON.stringify([spell.word,typed]),buttonsKey=JSON.stringify([typed,chanting,paused]);
+    const curse=window.DungeonBossDisruption?.active(run),lettersKey=JSON.stringify([spell.word,typed,curse?.kind]),buttonsKey=JSON.stringify([typed,chanting,paused,curse?.kind]);
     if(lettersKey!==touchLettersKey){
       touchLettersKey=lettersKey;
-      $('touchSpellName').innerHTML=state.letters.map(letter=>`<span class="${letter.state}">${esc(letter.char)}</span>`).join('');
+      $('touchSpellName').innerHTML=state.letters.map(letter=>`<span class="${letter.state}">${esc(curse?.kind==='veil'&&letter.state!=='correct'?'•':curse?.kind==='steal'?'✖':letter.char)}</span>`).join('');
     }
     if(buttonsKey!==touchButtonsKey){
       touchButtonsKey=buttonsKey;
@@ -350,8 +351,8 @@
         button.setAttribute('aria-label','符文 '+button.dataset.rune+(isNext?' · 下一組':''));
       });
     }
-    iconLabel('touchCast',spell.ritual?'shield':'spell',state.complete?(spell.ritual?'封咒確認':'施放'):chanting?'詠唱中':spell.ritual?'封咒 '+(spell.ritual.index+1)+'/3':'詠唱');
-    $('touchCast').disabled=paused || run.arena?.player.staggerTime>0 || run.arena?.introRemaining>0;
+    iconLabel('touchCast',spell.ritual?'shield':'spell',curse?.kind==='steal'?'咒語被奪走':state.complete?(spell.ritual?'封咒確認':'施放'):chanting?'詠唱中':spell.ritual?'封咒 '+(spell.ritual.index+1)+'/3':'詠唱');
+    $('touchCast').disabled=paused || curse?.kind==='steal' || run.arena?.player.staggerTime>0 || run.arena?.introRemaining>0;
     $('touchCast').dataset.ready=String(state.complete);
     $('touchCast').dataset.state=state.complete?'ready':chanting?'chanting':'idle';
     $('touchCast').style.setProperty('--cast-progress',String(state.letters.length?state.matched/state.letters.length:0));
@@ -409,7 +410,7 @@
     document.body.classList.toggle('exploring',explorationStatuses.includes(run?.status));
     $('castFeedback').hidden=!combat || paused || performance.now()>=castFeedbackUntil;
     $('focusFlag').hidden=true;$('focusAbility').hidden=!combat || !Engine.hasChantSlow(run);$('chantButton').hidden=!combat;$('interactButton').hidden=!active || combat;
-    $('chantButton').disabled=paused || run?.arena?.player.staggerTime>0 || run?.arena?.introRemaining>0;
+    $('chantButton').disabled=paused || window.DungeonBossDisruption?.blocksCast(run) || run?.arena?.player.staggerTime>0 || run?.arena?.introRemaining>0;
     paintTouchSpell();updateQuickPotion();renderDuelHUD();
     if(!active || !world())return;
     const arena=world(),player=arena.player;
@@ -702,13 +703,15 @@
   function paintLetters(fromInput=false) {
     if (run?.status!=='combat' || !$('spellInput')) return;
     const target=syncChantTarget(),typed=$('spellInput').value,state=Chant.feedback(previousTyped,typed,target.word);
+    const curse=window.DungeonBossDisruption?.active(run);
+    const visual=(letter)=>curse?.kind==='veil'&&letter.state!=='correct'?'•':curse?.kind==='steal'?'✖':letter.char;
     const display=char=>char===' '?'␣':char;
-    $('spellWord').innerHTML=state.letters.map(letter=>`<span class="${letter.state==='correct'?'matched':letter.state==='wrong'?'wrong':''}">${esc(letter.char)}</span>`).join('');
-    const keys=state.letters.map(letter=>`<span class="qte-letter ${letter.state}">${esc(display(letter.char))}</span>`).join('')+(state.extra?`<span class="qte-letter wrong">+${[...state.extra].length}</span>`:'');
+    $('spellWord').innerHTML=state.letters.map(letter=>`<span class="${letter.state==='correct'?'matched':letter.state==='wrong'?'wrong':'pending'}">${esc(visual(letter))}</span>`).join('');
+    const keys=state.letters.map(letter=>`<span class="qte-letter ${letter.state}">${esc(display(visual(letter)))}</span>`).join('')+(state.extra?`<span class="qte-letter wrong">+${[...state.extra].length}</span>`:'');
     $('qteLetters').innerHTML=keys;if($('inlineQteLetters'))$('inlineQteLetters').innerHTML=keys;
-    $('qteNext').textContent=state.complete?'↵':display(state.next || '⌫');
+    $('qteNext').textContent=state.complete?'↵':curse?.kind==='veil'?'?':curse?.kind==='steal'?'✖':display(state.next || '⌫');
     $('qteProgress').style.width=(state.progress*100)+'%';$('qteProgressText').textContent=state.matched+' / '+state.letters.length;
-    $('qteHint').textContent=state.complete?(target.ritual?'封咒完成 · 自動接續下一組':'咒語完成！按 Enter 或「施法」'):state.extra?'刪除多出的字母，再施法':state.wrong?'第 '+(state.index+1)+' 個字母應為 '+display(state.next)+'，請刪除修正':state.kind==='corrected'?'已修正 · 繼續輸入':state.matched?'命中！繼續輸入下一鍵':target.ritual?'第 '+(target.ritual.index+1)+' / 3 組 · 依序輸入，完成自動確認':'依序輸入亮起的字母';
+    $('qteHint').textContent=curse?.kind==='veil'?'盲頁霧：字符被遮蔽，記住先前的字或等待霧散':curse?.kind==='steal'?'首領正在使用你的咒語，等待它歸還':state.complete?(target.ritual?'封咒完成 · 自動接續下一組':'咒語完成！按 Enter 或「施法」'):state.extra?'刪除多出的字母，再施法':state.wrong?'第 '+(state.index+1)+' 個字母應為 '+display(state.next)+'，請刪除修正':state.kind==='corrected'?'已修正 · 繼續輸入':state.matched?'命中！繼續輸入下一鍵':target.ritual?'第 '+(target.ritual.index+1)+' / 3 組 · 依序輸入，完成自動確認':'依序輸入亮起的字母';
     if($('inlineQteHint'))$('inlineQteHint').textContent=$('qteHint').textContent;
     if($('inlineQte')){$('inlineQte').classList.toggle('qte-invalid',state.wrong);$('inlineQte').classList.toggle('qte-ready',state.complete);}
     $('chantQte').classList.toggle('qte-ready',state.complete);$('chantQte').classList.toggle('qte-invalid',state.wrong);
@@ -745,6 +748,7 @@
       }else{notify(result.message || '封咒字母還差一點，修正後繼續。',true);tone('error');input.setAttribute('aria-invalid','true');}
       persist();return;
     }
+    if(window.DungeonBossDisruption?.blocksCast(run)){notify('咒語正被首領竊取，閃避追擊後會自動歸還。');return;}
     const type=run.spell.type, result=Arena.cast(run,text);
     notify(result.message || (result.ok?'咒語施放成功。':'拼寫還差一點，請修正後再試。'),!result.ok);
     if(result.ok){
