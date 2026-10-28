@@ -295,7 +295,7 @@
       if (!c || !NPCS[c.id] || !NPCS[c.id].companionRole || seen[c.id] || s.fallenCompanions.some(function (dead) { return dead.id === c.id; })) return false;
       seen[c.id] = true; return true;
     });
-    s.companions.splice(3).forEach(function (c) {
+    s.companions.splice(4).forEach(function (c) {
       if (!s.reserveCompanions.some(function (old) { return old.id === c.id; })) s.reserveCompanions.push(c);
     });
     return s.companions;
@@ -307,7 +307,7 @@
     var requirement = requirements[id], members = normalizeCompanions(s), active = members.find(function (c) { return c.id === id; });
     if (s.fallenCompanions.some(function (c) { return c.id === id; })) return { ok: false, requirement: requirement, reason: '這名旅伴已在本趟遠征陣亡，無法再次招募。' };
     if (active) return { ok: false, requirement: requirement, reason: '這名夥伴已經與你同行。' };
-    if (members.length >= 3) return { ok: false, requirement: requirement, reason: '隊伍已滿（3 / 3），請先讓一名旅伴返回營地。' };
+    if (members.length >= 4) return { ok: false, requirement: requirement, reason: '隊伍已滿（4 / 4），請先讓一名旅伴返回營地。' };
     var eligible = id === 'lantern' ? s.inventory.some(function (i) { return i.id === 'potion' && i.count > 0; })
       : id === 'echo' ? s.stats.correct >= 10 : id === 'sentinel' ? has(s, 'shell') || s.stats.bossesDefeated + (s.stats.npcBossesDefeated || 0) >= 1
       : (s.relationship && s.relationship.affection || 0) >= 20;
@@ -816,7 +816,7 @@
       if (npc.id === 'lantern') s.inventory.find(function (i) { return i.id === 'potion'; }).count -= 1;
       s.companions.push({ id: npc.id, npcId: npc.id, name: npc.name, sprite: npc.sprite, color: npc.color, role: npc.companionRole });
       s.reserveCompanions = s.reserveCompanions.filter(function (c) { return c.id !== npc.id; });
-      message = npc.name + ' 加入隊伍（' + s.companions.length + ' / 3）；將依個性自主探索與戰鬥，可能受傷或陣亡。';
+      message = npc.name + ' 加入隊伍（' + s.companions.length + ' / 4）；將依個性自主探索與戰鬥，可能受傷或陣亡。';
     } else if (npc.id === 'healer') { var healed = heal(s, 45); addItem(s, 'potion'); message = '芙苓包紮了傷口，恢復 ' + healed + ' 點生命，並送你 1 瓶苔露藥水。'; }
     else if (npc.id === 'smith') { s.player.power += 4; message = '布洛替咒語淬上星鐵：本趟咒語威力永久增加 4。'; }
     else if (npc.id === 'cartographer') {
