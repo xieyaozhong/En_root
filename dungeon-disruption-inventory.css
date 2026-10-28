@@ -38,16 +38,16 @@
 #gameSurface[data-spell-disruption="scatter"] .qte-letter{display:inline-block;will-change:transform;animation:word-gust .65s ease-out both}
 #gameSurface[data-spell-disruption="scatter"] .spell-word span:nth-child(4n+1),
 #gameSurface[data-spell-disruption="scatter"] #touchSpellName span:nth-child(4n+1),
-#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(4n+1){--gust-x:-23px;--gust-y:-21px;--gust-r:-18deg}
+#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(4n+1){--gust-x:-90px;--gust-y:-43px;--gust-r:-18deg}
 #gameSurface[data-spell-disruption="scatter"] .spell-word span:nth-child(4n+2),
 #gameSurface[data-spell-disruption="scatter"] #touchSpellName span:nth-child(4n+2),
-#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(4n+2){--gust-x:25px;--gust-y:-27px;--gust-r:20deg}
+#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(4n+2){--gust-x:94px;--gust-y:-56px;--gust-r:20deg}
 #gameSurface[data-spell-disruption="scatter"] .spell-word span:nth-child(4n+3),
 #gameSurface[data-spell-disruption="scatter"] #touchSpellName span:nth-child(4n+3),
-#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(4n+3){--gust-x:32px;--gust-y:22px;--gust-r:25deg}
+#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(4n+3){--gust-x:105px;--gust-y:37px;--gust-r:25deg}
 #gameSurface[data-spell-disruption="scatter"] .spell-word span:nth-child(4n),
 #gameSurface[data-spell-disruption="scatter"] #touchSpellName span:nth-child(4n),
-#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(4n){--gust-x:-30px;--gust-y:16px;--gust-r:-28deg}
+#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(4n){--gust-x:-100px;--gust-y:44px;--gust-r:-28deg}
 @keyframes word-gust{0%{transform:translate(0,0) rotate(0);opacity:1}65%{transform:translate(var(--gust-x),var(--gust-y)) rotate(var(--gust-r));opacity:.75}100%{transform:translate(var(--gust-x),var(--gust-y)) rotate(var(--gust-r));opacity:1}}
 #gameSurface[data-spell-disruption="steal"] .spell-word,#gameSurface[data-spell-disruption="steal"] #touchSpellName{opacity:.42;filter:grayscale(.5)}
 #gameSurface[data-spell-disruption="steal"] .touch-cast{border-color:#b56f97;opacity:.8}
@@ -62,3 +62,7 @@
  .touch-layout #gameSurface.is-immersive #immersiveInventory{display:inline-flex}
 }
 @media(prefers-reduced-motion:reduce){#gameSurface[data-spell-disruption="scatter"] .spell-word span,#gameSurface[data-spell-disruption="scatter"] .qte-letter,#gameSurface[data-spell-disruption="scatter"] #touchSpellName span{animation:none;transform:translate(var(--gust-x),var(--gust-y))}}
+
+#gameSurface[data-spell-disruption="sever"] .spell-word{position:relative;filter:drop-shadow(0 0 5px #ffaf773d)}
+#gameSurface[data-spell-disruption="sever"] .spell-word::after{content:"";position:absolute;top:45%;left:8%;width:85%;height:2px;background:#ffc189;transform:rotate(-14deg);box-shadow:0 0 11px #ffae6b;pointer-events:none}
+@media(max-width:600px){#gameSurface[data-spell-disruption="scatter"] .spell-word span,#gameSurface[data-spell-disruption="scatter"] #touchSpellName span,#gameSurface[data-spell-disruption="scatter"] .qte-letter{--gust-x:clamp(-33px,var(--gust-x),33px);--gust-y:clamp(-21px,var(--gust-y),21px)}}
