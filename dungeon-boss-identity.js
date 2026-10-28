@@ -154,6 +154,7 @@
     var p=area.player;
     function expire(items){for(var i=items.length-1;i>=0;i--){items[i].life-=dt;items[i].ready=Math.max(0,(items[i].ready||0)-dt);if(items[i].life<=0)items.splice(i,1);}}
     expire(state.vines);expire(state.decoys);expire(state.flowers);expire(state.coins);
+    state.vines.forEach(function(v){v.grow=Math.max(0,(v.grow||0)-dt);});
     state.traceClock-=dt;
     if(state.traceClock<=0){
       state.traceClock=.4;
@@ -175,7 +176,7 @@
           if(api.hazard)marked(api,area,boss,PROFILES.prism,{
             x:boss.x,y:boss.y,r:75,delay:.9,life:.35,damage:9,color:'#a8e9f2'});
         }
-      }else if(!area.spellClash && !area.ritual?.status==='charging' && !boss.action && boss.counterWindow<=0){
+      }else if(!area.spellClash && area.ritual?.status!=='charging' && !boss.action && boss.counterWindow<=0){
         state.mirrorClock-=dt;
         if(state.mirrorClock<=0){
           var pool=state.mirrors.filter(function(m){return Math.hypot(m.x-boss.x,m.y-boss.y)>125;});
@@ -190,7 +191,6 @@
     }
     // Pickups are earned by stepping into an actual visible rune,
     // never by entering a dangerous ring.
-    if(p.dashTime<=0&&p.invulnerable>0)return;
     state.flowers.concat(state.coins).forEach(function(item){
       if(item.used||item.ready>0||Math.hypot(item.x-p.x,item.y-p.y)>30)return;
       item.used=true;item.life=.35;
