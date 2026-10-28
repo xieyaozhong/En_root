@@ -16,7 +16,7 @@ for(const id of ['thorn','spore','witch','prism','king','hollow','astral','comet
 }
 const r=run(15),a=r.arena,boss=a.enemies[0];
 const type=D.forBoss(r);
-a.bossStageClock=0;a.roomPulse=1;boss.action=null;boss.counterWindow=0;r.enemy.intent.remaining=1000;
+a.bossStageClock=0;a.roomPulse=0;boss.action=null;boss.counterWindow=0;r.enemy.intent.remaining=1000;
 A.update(r,.05,{});
 const mark=a.hazards.find(h=>h.disruption);
 assert.ok(mark&&mark.disruption===type,'stage creates a telegraphed interference hitbox');
