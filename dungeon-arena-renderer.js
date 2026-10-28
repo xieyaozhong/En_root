@@ -519,6 +519,7 @@
       const living=enemies.filter(e=>e.alive!==false&&val(e.hp,1)>0);
       const active=living.filter(e=>e.active!==false);
       const obstacles=Array.isArray(a.obstacles)?a.obstacles:[];
+      this.sceneDepth(c,a,p,t,still);
       this.roomAtmosphere(c,a,p,t,still);
       const boss=active.find(e=>e.kind==='boss'||e.boss);
       if(boss)this.bossPresence(c,boss,a,p,t,still);
@@ -553,6 +554,7 @@
       if(boss)this.bossEntrance(c,boss,a,still,true);
     }
     drawExploration(c,a,run,scene,p,region,t,dt,still){
+      this.sceneDepth(c,a,p,t,still);
       const player=a.player||{x:480,y:420,r:12},objects=Array.isArray(a.objects)?a.objects:[],obstacles=Array.isArray(a.obstacles)?a.obstacles:[];
       if(run.status==='event'){
         const color=objects.find(o=>o.kind==='event')?.color || '#c7b9e9';
@@ -581,6 +583,41 @@
       });
       objects.forEach(o=>this.interactionLabel(c,o,p,String(o.id)===String(a.nearbyId)||String(o.id)===String(a.dialogId),String(o.id)===String(a.dialogId)));
       this.playerStatus(c,player,run,p,t,still);
+    }
+    sceneDepth(c,a,p,t,still){
+      // A shallow 2.5D lighting layer: ground fog, ruined runes and torchlight.
+      // All marks are below hazards and keep playable telegraphs unobstructed.
+      const seed=String(a.room?.id||a.key||'waypoint').split('').reduce((v,ch)=>((v*31+ch.charCodeAt(0))>>>0),31);
+      const tint=a.room?.color||p.glow;
+      c.save();
+      c.globalAlpha=.045;
+      for(let i=0;i<26;i++){
+        const xx=77+((seed+i*173)%812),yy=86+((seed*3+i*117)%379);
+        box(c,xx-17,yy,34+i%3*10,1,p.light);
+        box(c,xx-13,yy+3,18,1,p.accent);
+      }
+      c.globalAlpha=.07;
+      for(let i=0;i<5;i++){
+        const yy=132+i*75;
+        stroke(c,82,yy,878,yy,p.edge,1);
+      }
+      // Beams lean slightly across the camera instead of filling combat space.
+      c.globalAlpha=.052;
+      poly(c,[[74,60],[120,60],[375,495],[285,495]],p.light);
+      poly(c,[[852,60],[907,60],[694,495],[604,495]],tint);
+      // Light blooms are ambient; they never share the hazard warning red.
+      for(const xx of [80,880]){
+        const pulse=still?1:.84+.16*Math.sin(t*1.8+xx);
+        aura(c,xx,210,70,tint,.09*pulse);
+        oval(c,xx,210,16,6,tint);
+      }
+      c.globalAlpha=.09;
+      for(let i=0;i<14;i++){
+        const x=89+(seed+i*149)%775, baseY=96+(seed*7+i*73)%350;
+        const y=baseY-(still?0:(t*5+i*13)%90);
+        box(c,x,y,2,2,i%3?p.light:tint);
+      }
+      c.restore();
     }
     roomAtmosphere(c,a,p,t,still){
       const id=a.room?.id;
