@@ -48,4 +48,11 @@ assert.equal(ra.lastDisruption.kind,'sever');
 assert.ok(ra.disruptionSerial>=1);
 D.tick(ritual,ra,3);
 assert.equal(D.active(ritual),null);
-console.log('PASS boss disruption: warning, hit, serialization, expiry, ritual priority, temporary theft');
+const dodgeRun=run(87),da=dodgeRun.arena;
+da.hazards.push({id:'evade-test',source:'boss',kind:'circle',disruption:'sever',
+  x:da.player.x,y:da.player.y,r:150,delay:0,life:.4,hit:false,damage:0});
+da.player.dashTime=.2;da.player.dashX=1;da.player.dashY=0;da.player.invulnerable=.24;
+A.update(dodgeRun,.05,{});
+assert.equal(D.active(dodgeRun),null,'active dash evades a spell disruption');
+assert.ok(da.hazards.some(h=>h.id==='evade-test'&&h.hit),'dodge resolves the hitbox only once');
+console.log('PASS boss disruption: warning, hit, dash counterplay, serialization, expiry, ritual priority, temporary theft');
