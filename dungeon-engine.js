@@ -289,22 +289,37 @@
   function normalizeCompanions(s) {
     if (!Array.isArray(s.companions)) s.companions = [];
     if (!Array.isArray(s.reserveCompanions)) s.reserveCompanions = [];
+    if (!Array.isArray(s.fallenCompanions)) s.fallenCompanions = [];
     var seen = Object.create(null);
     s.companions = s.companions.filter(function (c) {
-      if (!c || !NPCS[c.id] || !NPCS[c.id].companionRole || seen[c.id]) return false;
+      if (!c || !NPCS[c.id] || !NPCS[c.id].companionRole || seen[c.id] || s.fallenCompanions.some(function (dead) { return dead.id === c.id; })) return false;
       seen[c.id] = true; return true;
     });
-    s.companions.splice(1).forEach(function (c) {
+    s.companions.splice(4).forEach(function (c) {
       if (!s.reserveCompanions.some(function (old) { return old.id === c.id; })) s.reserveCompanions.push(c);
     });
     return s.companions;
+  }
+  function healCompanions(s, portion) {
+    var recovered = 0;
+    (s.companions || []).forEach(function (c) {
+      var limit = Number(c.maxHp) || ({ lantern:72, echo:60, sentinel:112, lumina:78 }[c.id] || 70);
+      c.maxHp = limit;
+      var previous = Math.max(0, Number.isFinite(c.hp) ? c.hp : limit);
+      c.hp = Math.min(limit, previous + Math.round(limit * portion));
+      recovered += c.hp - previous;
+      c.morale = Math.min(100, (Number.isFinite(c.morale) ? c.morale : 75) + 18);
+    });
+    return recovered;
   }
   function getRecruitment(s, id) {
     var npc = NPCS[id];
     if (!npc || !npc.companionRole) return { ok: true, requirement: '' };
     var requirements = { lantern: '交付 1 瓶苔露藥水', echo: '本趟成功施法至少 10 次', sentinel: '持有古龍鱗片，或本趟擊敗過 1 位首領', lumina: '與露米娜的好感度達到 20' };
-    var requirement = requirements[id], active = normalizeCompanions(s)[0];
-    if (active) return { ok: false, requirement: requirement, reason: active.id === id ? '已經與你同行。' : '目前有 ' + active.name + ' 同行；先讓現任旅伴返回營地。' };
+    var requirement = requirements[id], members = normalizeCompanions(s), active = members.find(function (c) { return c.id === id; });
+    if (s.fallenCompanions.some(function (c) { return c.id === id; })) return { ok: false, requirement: requirement, reason: '這名旅伴已在本趟遠征陣亡，無法再次招募。' };
+    if (active) return { ok: false, requirement: requirement, reason: '這名夥伴已經與你同行。' };
+    if (members.length >= 4) return { ok: false, requirement: requirement, reason: '隊伍已滿（4 / 4），請先讓一名旅伴返回營地。' };
     var eligible = id === 'lantern' ? s.inventory.some(function (i) { return i.id === 'potion' && i.count > 0; })
       : id === 'echo' ? s.stats.correct >= 10 : id === 'sentinel' ? has(s, 'shell') || s.stats.bossesDefeated + (s.stats.npcBossesDefeated || 0) >= 1
       : (s.relationship && s.relationship.affection || 0) >= 20;
@@ -314,7 +329,7 @@
     if (!getNpc(s)) return fail('請在與旅人交談時調整同行夥伴。');
     var companion = normalizeCompanions(s)[0];
     if (!companion) return fail('目前沒有同行夥伴。');
-    s.companions = [];
+    s.companions.shift();
     if (!s.reserveCompanions.some(function (c) { return c.id === companion.id; })) s.reserveCompanions.push(companion);
     var message = companion.name + ' 返回營地休息；本趟再次相遇時仍需符合招募條件。';
     event(s, 'companion-dismiss', message); return done(message);
@@ -413,7 +428,7 @@
     var rarity = { N: 0, R: 1, SR: 2, SSR: 3, UR: 4 }[cleanCard.rarity] || 0;
     var runSeed = seed === undefined ? Date.now() : seed;
     var s = {
-      version: 1, nodesPerRegion: 6, regionCount: 4, companions: [], relationship: Story.createProfile(profile), giftDrops: [], bondQuest: null, status: 'route', practice: !!practice, card: cleanCard, cardBonus: rarity,
+      version: 1, nodesPerRegion: 6, regionCount: 4, companions: [], fallenCompanions: [], combatSchool: 'ember', schoolCharges: 0, relationship: Story.createProfile(profile), giftDrops: [], bondQuest: null, status: 'route', practice: !!practice, card: cleanCard, cardBonus: rarity,
       seed: runSeed, rng: hash(runSeed),
       region: 0, regionName: REGIONS[0].name, encounter: 0, completedNodes: 0,
       player: { hp: 120 + rarity * 3, maxHp: 120 + rarity * 3, shield: 0, gold: 35, power: 0, combo: 0, focus: 0 },
@@ -605,7 +620,7 @@
       s.status = 'won'; s.completedNodes = getCampaignLength(s);
       event(s, 'won', '最後的封印化作晨光。你為世界找回了名字！' + message, { gold: amount, drop: drop, gift: gift });
     } else {
-      if (e.kind === 'boss' && !e.isNpcBoss) heal(s, 24);
+      if (e.kind === 'boss' && !e.isNpcBoss) { heal(s, 24); healCompanions(s, .2); }
       makeRewards(s, e.kind !== 'battle');
       event(s, 'victory', message + (e.kind === 'boss' && !e.isNpcBoss ? '區域淨化，恢復 24 點生命。' : ''), { gold: amount, drop: drop, gift: gift, specialLoot: specialLoot });
     }
@@ -714,7 +729,7 @@
       s.player.gold -= 35; s.relics = s.relics.filter(function (r) { return r.id !== curse.id; });
       if (curse.id === 'fracture') { s.player.maxHp += s.fractureHpCost || 24; s.fractureHpCost = 0; }
       message = '付出 35 金幣，解除「' + curse.name + '」。';
-    } else if (choice === 'rest') { var amount = heal(s, Math.round(s.player.maxHp * 0.48)); message = '星燈照亮傷口，恢復 ' + amount + ' 點生命。'; }
+    } else if (choice === 'rest') { var amount = heal(s, Math.round(s.player.maxHp * 0.48)); var friends = healCompanions(s, .55); message = '星燈照亮傷口，恢復 ' + amount + ' 點生命，同行夥伴恢復 ' + friends + ' 點生命。'; }
     else { s.player.power += 3; heal(s, 10); message = '磨練完成：咒語威力永久增加 3，並恢復 10 點生命。'; }
     nextEncounter(s); event(s, 'camp', message); return done(message);
   }
@@ -811,9 +826,9 @@
       var recruitment = getRecruitment(s, npc.id);
       if (!recruitment.ok) return fail(recruitment.reason);
       if (npc.id === 'lantern') s.inventory.find(function (i) { return i.id === 'potion'; }).count -= 1;
-      s.companions = [{ id: npc.id, npcId: npc.id, name: npc.name, sprite: npc.sprite, color: npc.color, role: npc.companionRole }];
+      s.companions.push({ id: npc.id, npcId: npc.id, name: npc.name, sprite: npc.sprite, color: npc.color, role: npc.companionRole });
       s.reserveCompanions = s.reserveCompanions.filter(function (c) { return c.id !== npc.id; });
-      message = npc.name + ' 成為你的唯一同行夥伴。';
+      message = npc.name + ' 加入隊伍（' + s.companions.length + ' / 4）；將依個性自主探索與戰鬥，可能受傷或陣亡。';
     } else if (npc.id === 'healer') { var healed = heal(s, 45); addItem(s, 'potion'); message = '芙苓包紮了傷口，恢復 ' + healed + ' 點生命，並送你 1 瓶苔露藥水。'; }
     else if (npc.id === 'smith') { s.player.power += 4; message = '布洛替咒語淬上星鐵：本趟咒語威力永久增加 4。'; }
     else if (npc.id === 'cartographer') {

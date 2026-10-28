@@ -7,6 +7,8 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (Engine) {
   'use strict';
   var WIDTH = 960, HEIGHT = 540, RANGE = 440;
+  var CompanionAI = typeof module === 'object' && module.exports ? require('./dungeon-companion-ai.js') : (typeof window !== 'undefined' ? window.DungeonCompanionAI : null);
+  var CombatArts = typeof module === 'object' && module.exports ? require('./dungeon-combat-arts.js') : (typeof window !== 'undefined' ? window.DungeonCombatArts : null);
   var ROOMS = [
     { id: 'pillars', type: 'cover', name: '古柱迴廊', description: '石柱能擋住敵人的飛彈，也會阻擋移動。利用掩體靠近施法。', mutator: '四柱掩體' },
     { id: 'lanes', type: 'traps', name: '碎光十字', description: '地面每隔五秒亮起交錯光帶；預警結束前離開紅色區域。', mutator: '交替陷阱' },
@@ -248,11 +250,12 @@
       // A recruited traveler can be met again. During their duel they appear
       // only as the opponent; the run roster remains intact for the next room.
       return c && c.id !== opponent && ['lantern', 'echo', 'sentinel', 'lumina'].indexOf(c.id) >= 0 && list.findIndex(function (other) { return other && other.id === c.id; }) === index;
-    }).slice(0, 1).map(function (c, i) {
+    }).slice(0, 4).map(function (c, i) {
       var existing = saved.find(function (body) { return body.npcId === c.id; });
       var body = Object.assign({ x: a.player.x - 36, y: a.player.y + (i - 1) * 26, r: 11, cooldown: c.id === 'echo' ? 0 : 2 + i, castFlash: 0 }, existing || {},
         { id: 'companion-' + c.id, npcId: c.id, name: c.name, sprite: c.sprite || c.id, color: c.color || '#b9deff', role: c.role });
-      if (!Number.isFinite(body.x) || !Number.isFinite(body.y) || !validPosition(a, body, body.x, body.y)) place(a, body, a.player.x - 35, a.player.y);
+      if (CompanionAI) Object.assign(body, CompanionAI.body(run, c, existing));
+      if (!Number.isFinite(body.x) || !Number.isFinite(body.y) || !validPosition(a, body, body.x, body.y)) place(a, body, a.player.x - 35 - i * 16, a.player.y + i * 33);
       return body;
     });
     if (!Array.isArray(a.echoQueue)) a.echoQueue = [];
@@ -264,16 +267,18 @@
       x2: target.x, y2: target.y, npcId: companion.npcId, spellType: spellType || 'attack', spellWord: spellWord || '', color: companion.color, life: 0.65 });
   }
   function advanceCompanions(run, a, dt) {
+    if (CompanionAI) CompanionAI.advanceCombat(run, a, dt, { move: move });
     a.companions.forEach(function (c, index) {
-      var angle = Math.atan2(a.player.facingY, a.player.facingX) + Math.PI;
-      var destination = { x: a.player.x + Math.cos(angle) * 42, y: a.player.y + Math.sin(angle) * 42 };
-      var direction = unit(destination.x - c.x, destination.y - c.y), distance = dist(c, destination);
-      move(a, c, direction.x * Math.min(distance, 210 * dt), direction.y * Math.min(distance, 210 * dt));
-      // Reunite after a dash around a wall; companions never block actors or doors.
-      if (dist(c, a.player) > 185) place(a, c, a.player.x - 35, a.player.y);
+      if (!CompanionAI) {
+        var angle = Math.atan2(a.player.facingY, a.player.facingX) + Math.PI;
+        var destination = { x: a.player.x + Math.cos(angle) * 42, y: a.player.y + Math.sin(angle) * 42 };
+        var direction = unit(destination.x - c.x, destination.y - c.y), distance = dist(c, destination);
+        move(a, c, direction.x * Math.min(distance, 210 * dt), direction.y * Math.min(distance, 210 * dt));
+        if (dist(c, a.player) > 185) place(a, c, a.player.x - 35, a.player.y);
+      }
       c.castFlash = Math.max(0, c.castFlash - dt);
       c.cooldown = Math.max(0, c.cooldown - dt);
-      if (run.status !== 'combat' || a.introRemaining > 0 || c.cooldown > 0) return;
+      if (run.status !== 'combat' || a.introRemaining > 0 || c.cooldown > 0 || ['lost','panic','retreat'].indexOf(c.behavior) >= 0) return;
       if (c.npcId === 'lantern') {
         var shield = Math.min(6, Math.max(0, 24 - run.player.shield));
         c.cooldown = 8;
@@ -286,7 +291,7 @@
         if (recovery || starShield) companionCast(a, c, a.player, recovery ? 'heal' : 'shield', 'light');
       } else if (c.npcId === 'sentinel') {
         var target = targets(a, c).find(function (enemy) { return dist(enemy, c) <= 230; });
-        if (target) { c.cooldown = 4.5; companionCast(a, c, target, 'strike'); directDamage(run, a, target, 5 + Math.min(3, run.region)); }
+        if (target) { c.cooldown = 4.5; companionCast(a, c, target, 'strike'); if (CompanionAI) CompanionAI.friendlyFire(run, a, c, target, effect); if (run.status === 'combat') directDamage(run, a, target, 5 + Math.min(3, run.region)); }
       }
     });
     a.echoQueue.forEach(function (echo) {
@@ -294,7 +299,7 @@
       if (echo.delay > 0 || echo.done || run.status !== 'combat') return;
       echo.done = true;
       var companion = a.companions.find(function (c) { return c.npcId === (echo.npcId || 'echo'); });
-      if (!companion) return;
+      if (!companion || ['lost','panic','retreat'].indexOf(companion.behavior) >= 0) return;
       if (echo.heal > 0 || echo.shield > 0) {
         if (echo.heal > 0) Engine.healPlayer(run, echo.heal);
         if (echo.shield > 0) run.player.shield += Math.min(echo.shield, Math.max(0, 90 - run.player.shield));
@@ -305,7 +310,8 @@
       if (!target || !(echo.damage > 0)) return;
       var attackType = echo.spellType === 'heal' || echo.spellType === 'shield' ? 'attack' : echo.spellType;
       companionCast(a, companion, target, attackType, echo.spellWord);
-      directDamage(run, a, target, echo.damage);
+      if (CompanionAI) CompanionAI.friendlyFire(run, a, companion, target, effect);
+      if (run.status === 'combat') directDamage(run, a, target, echo.damage);
     });
     a.echoQueue = a.echoQueue.filter(function (echo) { return !echo.done && echo.delay > 0; });
   }
@@ -1070,7 +1076,18 @@
       if (a.time >= e.spawnAt) { e.active = true; a.wavesReleased = Math.max(a.wavesReleased, e.spawnAt >= 9 ? 3 : 2); effect(a, 'spawn', e.x, e.y, { r: 40, life: 0.7 }); }
       else return;
     }
-    var p = a.player, dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy), direction = unit(dx, dy);
+    // Lesser enemies can acquire an exposed party member; guardians still duel the player.
+    var p = a.player;
+    if (CompanionAI && e.kind !== 'boss') {
+      var exposed = (a.companions || []).filter(function (c) {
+        return !c.dead && c.hp > 0 && c.behavior !== 'lost' &&
+          (c.behavior === 'flank' || c.behavior === 'protect' || c.behavior === 'explore');
+      }).sort(function (left, right) {
+        return dist(e, left) - dist(e, right);
+      })[0];
+      if (exposed && dist(e, exposed) < 175 && dist(e, exposed) < dist(e, a.player) * (exposed.npcId === 'sentinel' ? 1.1 : 0.82)) p = exposed;
+    }
+    var dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy), direction = unit(dx, dy);
     e.hurt = Math.max(0, e.hurt - dt); e.phase = run.enemy.phase;
     e.counterWindow = Math.max(0, (e.counterWindow || 0) - dt);
     e.perfectWindow = Math.max(0, (e.perfectWindow || 0) - dt);
@@ -1101,7 +1118,7 @@
     if (e.chargeTime > 0) {
       e.chargeTime = Math.max(0, e.chargeTime - dt);
       move(a, e, e.chargeX * 365 * dt * motionScale, e.chargeY * 365 * dt * motionScale);
-      if (dist(e, p) <= e.r + p.r) { if (p.invulnerable > 0) countDodge(a, e); else applyHit(run, a, 11 + run.region * 2, e); }
+      if (dist(e, p) <= e.r + p.r) { if (p === a.player) { if (p.invulnerable > 0) countDodge(a, e); else applyHit(run, a, 11 + run.region * 2, e); } else if (CompanionAI) CompanionAI.hurt(run, a, p, 11 + run.region * 2, '突進攻擊', effect); }
       return;
     }
     if (e.telegraph > 0) { e.telegraph = Math.max(0, e.telegraph - dt); return; }
@@ -1210,7 +1227,9 @@
     // Mobile chanting allows slower walking. Moving keeps ordinary threats
     // active enough to require positioning; melee timing remains unchanged.
     var focusScale = meleeEncounter ? 0.72 : mobileFocus && magnitude > 0 ? 0.55 : 0.18;
-    var worldDt = dt * (a.focusActive ? focusScale : 1);
+    var hitStop = Math.max(0, a.hitStop || 0);
+    a.hitStop = Math.max(0, hitStop - dt);
+    var worldDt = dt * (a.focusActive ? focusScale : 1) * (hitStop > 0 ? 0.18 : 1);
     a.realTime += dt; if (!introActive) a.time += worldDt;
     a.introRemaining = Math.max(0, (a.introRemaining || 0) - dt);
     run.elapsed += dt; run.stats.elapsed = run.elapsed; run.spell.elapsed += dt;
@@ -1274,6 +1293,7 @@
       if (run.enemy.intent.remaining <= 0) intentPattern(run, a);
     }
     updateHazards(run, a, worldDt, motionScale);
+    if (CompanionAI && run.status === 'combat') CompanionAI.postCombat(run, a, worldDt, effect);
     if (bossBody) { run.enemy.action = bossBody.action; run.enemy.counterWindow = bossBody.counterWindow || 0; run.enemy.perfectWindow = bossBody.perfectWindow || 0; run.enemy.counterReady = !!bossBody.counterReady; }
     a.effects.forEach(function (e) { e.life -= dt; }); a.effects = a.effects.filter(function (e) { return e.life > 0; });
     updateTarget(a); return a;
@@ -1310,6 +1330,7 @@
     effect(a, 'cast', a.player.x, a.player.y, { x2: target.x, y2: target.y, targetId: target.id,
       spellType: type, spellWord: word, color: type === 'heal' ? '#88e7bf' : type === 'shield' ? '#89d6ff' : type === 'signature' ? '#f8d294' : '#c2a3ff', life: 0.45 });
     distribute(a, result.damage || 0, target);
+    if (CombatArts) CombatArts.afterCast(run, a, target, result, { damage:directDamage, effect:effect, heal:Engine.healPlayer });
     if (counter && result.damage > 0 && type !== 'heal' && type !== 'shield' && run.status === 'combat' && target.alive) {
       var extra = directDamage(run, a, target, Math.round(result.damage * (perfect ? 1 : 0.55)));
       if (extra > 0) {
