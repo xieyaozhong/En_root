@@ -65,4 +65,4 @@
 
 #gameSurface[data-spell-disruption="sever"] .spell-word{position:relative;filter:drop-shadow(0 0 5px #ffaf773d)}
 #gameSurface[data-spell-disruption="sever"] .spell-word::after{content:"";position:absolute;top:45%;left:8%;width:85%;height:2px;background:#ffc189;transform:rotate(-14deg);box-shadow:0 0 11px #ffae6b;pointer-events:none}
-@media(max-width:600px){#gameSurface[data-spell-disruption="scatter"] .spell-word span,#gameSurface[data-spell-disruption="scatter"] #touchSpellName span,#gameSurface[data-spell-disruption="scatter"] .qte-letter{--gust-x:clamp(-33px,var(--gust-x),33px);--gust-y:clamp(-21px,var(--gust-y),21px)}}
+@media(max-width:600px){#gameSurface[data-spell-disruption="scatter"] .spell-word span,#gameSurface[data-spell-disruption="scatter"] #touchSpellName span,#gameSurface[data-spell-disruption="scatter"] .qte-letter{--gust-x:28px;--gust-y:-14px}#gameSurface[data-spell-disruption="scatter"] .spell-word span:nth-child(odd),#gameSurface[data-spell-disruption="scatter"] #touchSpellName span:nth-child(odd),#gameSurface[data-spell-disruption="scatter"] .qte-letter:nth-child(odd){--gust-x:-28px;--gust-y:18px}}
