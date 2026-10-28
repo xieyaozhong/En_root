@@ -300,6 +300,18 @@
     });
     return s.companions;
   }
+  function healCompanions(s, portion) {
+    var recovered = 0;
+    (s.companions || []).forEach(function (c) {
+      var limit = Number(c.maxHp) || ({ lantern:72, echo:60, sentinel:112, lumina:78 }[c.id] || 70);
+      c.maxHp = limit;
+      var previous = Math.max(0, Number.isFinite(c.hp) ? c.hp : limit);
+      c.hp = Math.min(limit, previous + Math.round(limit * portion));
+      recovered += c.hp - previous;
+      c.morale = Math.min(100, (Number.isFinite(c.morale) ? c.morale : 75) + 18);
+    });
+    return recovered;
+  }
   function getRecruitment(s, id) {
     var npc = NPCS[id];
     if (!npc || !npc.companionRole) return { ok: true, requirement: '' };
@@ -608,7 +620,7 @@
       s.status = 'won'; s.completedNodes = getCampaignLength(s);
       event(s, 'won', '最後的封印化作晨光。你為世界找回了名字！' + message, { gold: amount, drop: drop, gift: gift });
     } else {
-      if (e.kind === 'boss' && !e.isNpcBoss) heal(s, 24);
+      if (e.kind === 'boss' && !e.isNpcBoss) { heal(s, 24); healCompanions(s, .2); }
       makeRewards(s, e.kind !== 'battle');
       event(s, 'victory', message + (e.kind === 'boss' && !e.isNpcBoss ? '區域淨化，恢復 24 點生命。' : ''), { gold: amount, drop: drop, gift: gift, specialLoot: specialLoot });
     }
@@ -717,7 +729,7 @@
       s.player.gold -= 35; s.relics = s.relics.filter(function (r) { return r.id !== curse.id; });
       if (curse.id === 'fracture') { s.player.maxHp += s.fractureHpCost || 24; s.fractureHpCost = 0; }
       message = '付出 35 金幣，解除「' + curse.name + '」。';
-    } else if (choice === 'rest') { var amount = heal(s, Math.round(s.player.maxHp * 0.48)); message = '星燈照亮傷口，恢復 ' + amount + ' 點生命。'; }
+    } else if (choice === 'rest') { var amount = heal(s, Math.round(s.player.maxHp * 0.48)); var friends = healCompanions(s, .55); message = '星燈照亮傷口，恢復 ' + amount + ' 點生命，同行夥伴恢復 ' + friends + ' 點生命。'; }
     else { s.player.power += 3; heal(s, 10); message = '磨練完成：咒語威力永久增加 3，並恢復 10 點生命。'; }
     nextEncounter(s); event(s, 'camp', message); return done(message);
   }
