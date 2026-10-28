@@ -115,7 +115,7 @@
     var previous = Array.isArray(exploration.companions) ? exploration.companions : [];
     exploration.companions = (Array.isArray(run.companions) ? run.companions : []).filter(function (c, index, list) {
       return c && ['lantern', 'echo', 'sentinel', 'lumina'].indexOf(c.id) >= 0 && !(c.id === 'lumina' && run.status === 'npc' && run.npc && run.npc.id === 'lumina') && list.findIndex(function (other) { return other && other.id === c.id; }) === index;
-    }).slice(0, 3).map(function (c, index) {
+    }).slice(0, 4).map(function (c, index) {
       var old = previous.find(function (body) { return body.npcId === c.id; });
       var actor = Object.assign({}, old || {}, { id: 'companion-' + c.id, npcId: c.id, name: c.name, role: c.role, sprite: c.sprite || c.id,
         color: c.color || '#b9deff', r: 11, x: clamp(finite(old && old.x, exploration.player.x - 35 + index * 28), 44, 916),
