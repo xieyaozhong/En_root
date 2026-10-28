@@ -3,20 +3,21 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#101b27">
-  <link rel="icon" type="image/svg+xml" href="assets/dungeon/favicon.svg?v=20261028-realtime1">
+  <link rel="icon" type="image/svg+xml" href="assets/dungeon/favicon.svg?v=20261028-nextgen2">
   <meta name="description" content="24 個隨機冒險節點與八位封印首領。看準蓄勢、閃過連段並反擊，以三組短咒語阻止禁咒；與星露法師露米娜同行，解開星圖與專屬戀愛篇章。">
   <title>符文地牢｜Word Relic</title>
-  <link rel="stylesheet" href="dungeon.css?v=20261028-realtime1"><link rel="stylesheet" href="dungeon-action.css?v=20261028-realtime1">
-  <link rel="stylesheet" href="dungeon-polish.css?v=20261028-realtime1">
-  <link rel="stylesheet" href="dungeon-chronicle.css?v=20261028-realtime1">
-  <link rel="stylesheet" href="dungeon-duel.css?v=20261028-realtime1">
-  <link rel="stylesheet" href="dungeon-fullscreen.css?v=20261028-realtime1">
-  <link rel="stylesheet" href="dungeon-mobile.css?v=20261028-realtime1">
+  <link rel="stylesheet" href="dungeon.css?v=20261028-nextgen2"><link rel="stylesheet" href="dungeon-action.css?v=20261028-nextgen2">
+  <link rel="stylesheet" href="dungeon-polish.css?v=20261028-nextgen2">
+  <link rel="stylesheet" href="dungeon-chronicle.css?v=20261028-nextgen2">
+  <link rel="stylesheet" href="dungeon-duel.css?v=20261028-nextgen2">
+  <link rel="stylesheet" href="dungeon-fullscreen.css?v=20261028-nextgen2">
+  <link rel="stylesheet" href="dungeon-mobile.css?v=20261028-nextgen2">
+  <link rel="stylesheet" href="dungeon-nextgen.css?v=20261028-nextgen2">
 </head>
 <body>
 <div class="shell">
   <header class="topbar">
-    <a class="brand" href="index.html"><img class="brand-mark" src="assets/dungeon/crest.svg?v=20261028-realtime1" width="44" height="44" alt=""><span>WORD RELIC<small>ENROOT · 字根魔法</small></span></a>
+    <a class="brand" href="index.html"><img class="brand-mark" src="assets/dungeon/crest.svg?v=20261028-nextgen2" width="44" height="44" alt=""><span>WORD RELIC<small>ENROOT · 字根魔法</small></span></a>
     <nav aria-label="主導覽"><a href="index.html">單字練習</a><a href="cards.html">卡片圖鑑</a><a class="active" href="dungeon.html" aria-current="page">符文地牢</a></nav>
     <button class="icon-button" id="helpButton" aria-label="遊玩說明"><span data-ui-icon="help"></span></button>
   </header>
@@ -33,6 +34,7 @@
         <div id="immersiveTools" class="immersive-tools" hidden><button id="immersivePause" type="button" aria-label="暫停遊戲"><i data-ui-icon="pause"></i><span>暫停</span></button><button id="immersiveJournal" type="button" aria-label="劇情手札"><i data-ui-icon="spell"></i><span>手札</span></button><button id="immersiveSound" type="button" aria-label="開啟配樂" aria-pressed="false"><i data-ui-icon="music"></i><span>配樂</span></button><button id="immersiveExit" type="button" aria-label="離開全螢幕"><i data-ui-icon="close"></i><span>離開</span></button></div>
         <div class="movement-bar" id="movementBar" hidden><div class="ability-stat"><span><i data-ui-icon="dash"></i>衝刺 <kbd>Space</kbd></span><div class="meter dash-meter"><i id="dashBar"></i></div><b id="dashLabel">就緒</b></div><div class="ability-stat" id="focusAbility"><span><i data-ui-icon="focus"></i>專注</span><div class="meter focus-meter"><i id="focusBar"></i></div><b id="focusLabel">100%</b></div><button id="interactButton" class="chant-button interaction-button" hidden disabled>E · 請先靠近</button><button id="chantButton" class="chant-button">Enter · 詠唱</button></div>
         <div id="partyStrip" class="party-strip" aria-label="同行夥伴" hidden></div>
+        <div id="schoolBar" class="school-bar" aria-label="招式派系" hidden></div>
         <div id="touchControls" class="touch-controls" hidden>
           <div class="joystick-wrap"><div id="moveJoystick" class="move-joystick" role="group" aria-label="拖曳移動搖桿" aria-describedby="joystickHint"><span class="joystick-base" aria-hidden="true"></span><span class="joystick-cross" aria-hidden="true"></span><span class="joystick-thumb" aria-hidden="true"></span></div><span id="joystickHint">拖曳移動 · 放開停止</span></div>
           <div class="touch-actions"><div id="touchSpellPreview" class="touch-spell-preview"><span id="touchSpellIcon" class="spell-emblem" aria-hidden="true"></span><div class="spell-copy"><b id="touchSpellName"></b><small id="touchSpellMeaning"></small></div></div><div id="touchRuneKeys" class="touch-rune-keys" role="group" aria-label="符文施法按鍵"></div><p id="touchChantHint" class="touch-chant-hint" role="status" aria-live="polite"></p><div class="touch-action-buttons"><button id="touchCast" class="touch-cast" type="button">詠唱</button><button id="touchInteract" class="touch-interact" type="button" hidden>互動</button><button id="touchDash" class="dash-button" type="button">衝刺</button><button id="touchPotion" class="touch-potion" type="button" disabled aria-label="使用苔露藥水，剩餘 0 瓶"><i data-ui-icon="potion"></i><span>藥水</span><b id="touchPotionCount">×0</b></button></div></div>
@@ -51,7 +53,7 @@
 </div>
 
 <script src="cards-data.js"></script><script src="cards-extra.js"></script><script src="card-art.js"></script><script src="card-art-extra.js"></script>
-<script src="dungeon-story.js?v=20261028-realtime1"></script><script src="dungeon-engine.js?v=20261028-realtime1"></script><script src="dungeon-storage.js?v=20261028-realtime1"></script><script src="dungeon-arena.js?v=20261028-realtime1"></script><script src="dungeon-explore.js?v=20261028-realtime1"></script><script src="dungeon-renderer.js?v=20261028-realtime1"></script><script src="dungeon-character.js?v=20261028-realtime1"></script>
-<script src="dungeon-enemy-character.js?v=20261028-realtime1"></script><script src="dungeon-arena-renderer.js?v=20261028-realtime1"></script><script src="dungeon-audio.js?v=20261028-realtime1"></script><script src="dungeon-controls.js?v=20261028-realtime1"></script><script src="dungeon-chant.js?v=20261028-realtime1"></script><script src="dungeon-icons.js?v=20261028-realtime1"></script><script src="dungeon.js?v=20261028-realtime1"></script>
+<script src="dungeon-story.js?v=20261028-nextgen2"></script><script src="dungeon-engine.js?v=20261028-nextgen2"></script><script src="dungeon-companion-ai.js?v=20261028-nextgen2"></script><script src="dungeon-combat-arts.js?v=20261028-nextgen2"></script><script src="dungeon-storage.js?v=20261028-nextgen2"></script><script src="dungeon-arena.js?v=20261028-nextgen2"></script><script src="dungeon-explore.js?v=20261028-nextgen2"></script><script src="dungeon-renderer.js?v=20261028-nextgen2"></script><script src="dungeon-character.js?v=20261028-nextgen2"></script>
+<script src="dungeon-enemy-character.js?v=20261028-nextgen2"></script><script src="dungeon-arena-renderer.js?v=20261028-nextgen2"></script><script src="dungeon-audio.js?v=20261028-nextgen2"></script><script src="dungeon-controls.js?v=20261028-nextgen2"></script><script src="dungeon-chant.js?v=20261028-nextgen2"></script><script src="dungeon-icons.js?v=20261028-nextgen2"></script><script src="dungeon.js?v=20261028-nextgen2"></script>
 </body>
 </html>
