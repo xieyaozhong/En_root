@@ -29,8 +29,8 @@
   function schedule(run,arena,boss,hazard,effect){
     const type=forBoss(run),spec=ATTACKS[type];
     if(!spec || !arena || !boss || arena.ritual?.status==='charging')return null;
-    // Once every two stage cycles; always clearly telegraphed and dash-avoidable.
-    if((arena.roomPulse||0)%2!==0)return null;
+    // First stage cycle and every other cycle thereafter; readable and dash-avoidable.
+    if((arena.roomPulse||0)%2!==1 && (run.enemy.phase||1)<2)return null;
     if(active(run))return null;
     const point=arena.player;
     const mark=hazard(arena,{
