@@ -18,7 +18,8 @@
     bomb: { id: 'bomb', name: '星火炸彈', icon: '✹', description: '造成 42 點無視護盾的傷害。', price: 30 },
     hourglass: { id: 'hourglass', name: '凝時沙漏', icon: '⌛', description: '敵方大型招式延後 6 秒；敵人與飛彈減速 6 秒。', price: 22 },
     barrier: { id: 'barrier', name: '琥珀護符', icon: '◇', description: '立即獲得 30 點護盾，持續至戰鬥結束。', price: 25 },
-    focus: { id: 'focus', name: '靈感墨水', icon: '◆', description: '接下來 3 次咒語傷害增加 12 點。', price: 26 }
+    focus: { id: 'focus', name: '靈感墨水', icon: '◆', description: '接下來 3 次咒語傷害增加 12 點。', price: 26 },
+    spellbreaker: { id:'spellbreaker',name:'封咒破針',icon:'✥',description:'打斷 Boss 的吟唱與禁咒，清除其法術攻勢，並創造反擊窗口。每次使用消耗一枚。',price:44 }
   };
   var RELICS = {
     ember: { id: 'ember', name: '餘燼羽毛', icon: '♨', description: '所有咒語傷害增加 4 點。', price: 65 },
@@ -192,6 +193,7 @@
       }
       return result;
     });
+    if ((hash(String(s.seed)+':seal-find:'+s.encounter)%4)===0) choices.push({ id:'spellbreaker', name:'發現封咒破針', description:'探索裂隙，拾取一枚可打斷 Boss 施法的封咒破針。', icon:'✥' });
     choices.push({ id: 'leave', name: '繼續旅途', description: '不付出代價，也不領取獎勵，前往下一個節點。', icon: '➜' });
     return Object.assign({}, definition, { choices: choices });
   }
@@ -221,6 +223,7 @@
     if (choice.maxHp) s.player.maxHp += choice.maxHp;
     var healed = choice.heal ? heal(s, choice.heal) : 0;
     var gold = choice.gainGold ? coins(s, choice.gainGold) : 0;
+    if (choice.id === 'spellbreaker') addItem(s,'spellbreaker');
     ['potion', 'bomb', 'focus'].forEach(function (itemId) { if (choice[itemId]) addItem(s, itemId, choice[itemId]); });
     if (choice.relic) addRelic(s, relicId);
     if (choice.gift) {
@@ -569,7 +572,7 @@
       { id: 'power', kind: 'upgrade', name: '刻印殘頁', icon: '✦', description: '本趟所有咒語威力永久增加 3。' },
       { id: 'supplies', kind: 'supply', name: '旅行補給', icon: '✚', description: '獲得 1 瓶苔露藥水與 22 金幣。' }
     ];
-    var item = pick(s, ['bomb', 'hourglass', 'barrier', 'focus']);
+    var item = pick(s, ['bomb', 'hourglass', 'barrier', 'focus', 'spellbreaker']);
     choices.push({ id: 'item-' + item, kind: 'item', itemId: item, name: ITEMS[item].name + ' × 2', icon: ITEMS[item].icon, description: ITEMS[item].description });
     if (available.length && (guaranteedRelic || random(s) < 0.72)) {
       var relic = RELICS[pick(s, available)];
@@ -736,7 +739,7 @@
   function makeShop(s) {
     s.status = 'shop';
     s.npc = { id: 'merchant', encounter: s.encounter, helped: false, challenged: false, defeated: false };
-    var itemIds = ['potion'].concat(shuffle(s, ['bomb', 'hourglass', 'barrier', 'focus']).slice(0, 2));
+    var itemIds = ['potion'].concat(shuffle(s, ['bomb', 'hourglass', 'barrier', 'focus', 'spellbreaker']).slice(0, 2));
     s.shop = itemIds.map(function (id) { return Object.assign({}, ITEMS[id], { id: 'buy-' + id, itemId: id, kind: 'item', sold: false }); });
     var available = Object.keys(RELICS).filter(function (id) { return !RELICS[id].special && !has(s, id); });
     if (available.length) {
@@ -891,6 +894,7 @@
     else if (id === 'hourglass') { s.enemy.intent.remaining += 6; s.enemy.intent.duration = Math.max(s.enemy.intent.duration, s.enemy.intent.remaining); message = '凝時沙漏啟動：敵方大型招式延後 6 秒。'; }
     else if (id === 'barrier') { var shield = Math.min(30, 90 - s.player.shield); s.player.shield += shield; message = '琥珀護符展開，獲得 ' + shield + ' 點護盾。'; }
     else if (id === 'focus') { s.player.focus += 3; message = '靈感墨水流動：接下來 3 次咒語傷害增加 12。'; }
+    else if (id === 'spellbreaker') { message = '封咒破針發出清澈的聲音，Boss 的詠唱被強行中斷！'; }
     event(s, 'item', message, { damage: damage, itemId: id });
     if (s.status === 'combat') { if (s.enemy.hp <= 0) winEncounter(s); else checkPhase(s); }
     return done(message, { damage: damage });
