@@ -1,4 +1,5 @@
 /* Boss interference and responsive, readable adventure bag. */
+.inventory-trigger[hidden]{display:none!important}
 .inventory-trigger{display:inline-flex;align-items:center;gap:5px;min-width:71px;padding:5px 9px;white-space:nowrap}
 .inventory-trigger>span:last-child{font-size:.7rem;color:#e1d1a4}
 .inventory-trigger .dungeon-icon{width:17px;height:17px;color:#e5c78c}
