@@ -215,7 +215,7 @@
       if (incoming) { incoming.life = 0; hurt(run, area, c, Math.max(3, incoming.damage * .7), '敵方彈幕', effect); }
       if (c.hurtCooldown > 0) return;
       var hazard = (area.hazards || []).find(function (h) {
-        if (h.cosmetic || h.life <= 0 || h.delay > 0 || h.source === 'companion') return false;
+        if (h.cosmetic || h.disruption || h.life <= 0 || h.delay > 0 || h.source === 'companion') return false;
         var r = h.r || 30, inner = h.innerR || 0, d = distance(h,c);
         return d < r + c.r && d >= Math.max(0, inner - c.r);
       });

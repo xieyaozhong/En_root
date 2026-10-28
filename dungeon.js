@@ -75,6 +75,7 @@
   let partySignature='', presentationRun=null, presentedCombat='', presentedPhase=0, presentedStatus='', lastEchoEffect='';
   let chantTargetKey='', chantTargetRun=null, duelTrackKey='', cueArena=null, cueId='';
   let chantTargetArena=null, chantTargetEncounter=null, chantTargetSpell=null, suspendedChantDraft=null, duelCounter=null;
+  let disruptArea=null, disruptSeen=0, disruptVisual='', inventoryResume=false;
   const directionKeys = {KeyW:'up',ArrowUp:'up',KeyS:'down',ArrowDown:'down',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
   const difficultyNames = {story:'故事',standard:'標準',veteran:'試煉'};
   const explorationStatuses = ['route','shop','npc','camp','reward','event'];
@@ -315,6 +316,51 @@
     button.onpointerdown=event=>{if(button.disabled || (event.button!=null && event.button!==0))return;event.preventDefault();action();};
     button.onclick=event=>{if(!button.disabled && event.detail===0)action();};
   }
+  function syncBossDisruption() {
+    const area=run?.status==='combat'?run.arena:null;
+    if(disruptArea!==area){disruptArea=area;disruptSeen=0;disruptVisual='';}
+    const attack=window.DungeonBossDisruption, event=area?.lastDisruption, input=$('spellInput');
+    if(event && event.serial && event.serial!==disruptSeen){
+      disruptSeen=event.serial;
+      if(input && !activeInterrupt()){
+        if(event.kind==='sever'){
+          const cut=text=>Array.from(text||'').slice(0,Math.ceil(Array.from(text||'').length/2)).join('');
+          input.value=cut(input.value);
+          if(suspendedChantDraft)suspendedChantDraft.text=cut(suspendedChantDraft.text);
+        }else if(event.kind==='steal'){
+          input.value='';
+          if(suspendedChantDraft)suspendedChantDraft.text='';
+          if(chanting)setChant(false);
+        }
+        previousTyped=input.value;
+      }
+      $('castFeedback').textContent='✦ '+event.name+'！';castFeedbackUntil=performance.now()+1100;
+      tone('hit');
+      if(input)paintLetters();
+    }
+    const effect=attack?.active(run),warning=area?.disruptionWarning;
+    const kind=effect?.kind || '';
+    if(kind!==disruptVisual){
+      disruptVisual=kind;
+      $('gameSurface').dataset.spellDisruption=kind;
+      touchLettersKey='';touchButtonsKey='';
+      if(input)paintLetters();
+    }
+    const status=$('spellInterference');
+    status.hidden=!effect&&!warning;
+    if(effect){
+      const spec=attack.ATTACKS[effect.kind];
+      status.dataset.kind=effect.kind;
+      const caption=spec.name+' · '+(effect.kind==='sever'?'已輸入字符減半':
+        effect.kind==='veil'?'字符遮蔽中':effect.kind==='scatter'?'字符被吹散':
+        '咒語被竊取，請先閃避');
+      if(status.textContent!==caption)status.textContent=caption;
+    }else if(warning){
+      status.dataset.kind=warning.kind;
+      const caption='⚠ '+warning.name+' 即將發動 · 走出預警範圍';
+      if(status.textContent!==caption)status.textContent=caption;
+    }else {status.dataset.kind='';status.textContent='';}
+  }
   function paintTouchSpell() {
     const combat=run?.status==='combat',spell=syncChantTarget();
     $('touchSpellPreview').hidden=!combat;$('touchRuneKeys').hidden=!combat;$('touchCast').hidden=!combat;
@@ -335,10 +381,10 @@
       textIfChanged('touchSpellMeaning',spell.ritual?'封咒 '+(spell.ritual.index+1)+' / 3 · 完成自動接續':(spellTypes[spell.type] || '魔法')+' · '+(spell.zh || ''));
     }
     const next=Chant.touchSequence(spell.word).find((_,i,sequence)=>sequence.slice(0,i).join('').length===typed.length);
-    const lettersKey=JSON.stringify([spell.word,typed]),buttonsKey=JSON.stringify([typed,chanting,paused]);
+    const curse=window.DungeonBossDisruption?.active(run),lettersKey=JSON.stringify([spell.word,typed,curse?.kind]),buttonsKey=JSON.stringify([typed,chanting,paused,curse?.kind]);
     if(lettersKey!==touchLettersKey){
       touchLettersKey=lettersKey;
-      $('touchSpellName').innerHTML=state.letters.map(letter=>`<span class="${letter.state}">${esc(letter.char)}</span>`).join('');
+      $('touchSpellName').innerHTML=state.letters.map(letter=>`<span class="${letter.state}">${esc(curse?.kind==='veil'&&letter.state!=='correct'?'•':curse?.kind==='steal'?'✖':letter.char)}</span>`).join('');
     }
     if(buttonsKey!==touchButtonsKey){
       touchButtonsKey=buttonsKey;
@@ -350,8 +396,8 @@
         button.setAttribute('aria-label','符文 '+button.dataset.rune+(isNext?' · 下一組':''));
       });
     }
-    iconLabel('touchCast',spell.ritual?'shield':'spell',state.complete?(spell.ritual?'封咒確認':'施放'):chanting?'詠唱中':spell.ritual?'封咒 '+(spell.ritual.index+1)+'/3':'詠唱');
-    $('touchCast').disabled=paused || run.arena?.player.staggerTime>0 || run.arena?.introRemaining>0;
+    iconLabel('touchCast',spell.ritual?'shield':'spell',curse?.kind==='steal'?'咒語被奪走':state.complete?(spell.ritual?'封咒確認':'施放'):chanting?'詠唱中':spell.ritual?'封咒 '+(spell.ritual.index+1)+'/3':'詠唱');
+    $('touchCast').disabled=paused || curse?.kind==='steal' || run.arena?.player.staggerTime>0 || run.arena?.introRemaining>0;
     $('touchCast').dataset.ready=String(state.complete);
     $('touchCast').dataset.state=state.complete?'ready':chanting?'chanting':'idle';
     $('touchCast').style.setProperty('--cast-progress',String(state.letters.length?state.matched/state.letters.length:0));
@@ -409,7 +455,7 @@
     document.body.classList.toggle('exploring',explorationStatuses.includes(run?.status));
     $('castFeedback').hidden=!combat || paused || performance.now()>=castFeedbackUntil;
     $('focusFlag').hidden=true;$('focusAbility').hidden=!combat || !Engine.hasChantSlow(run);$('chantButton').hidden=!combat;$('interactButton').hidden=!active || combat;
-    $('chantButton').disabled=paused || run?.arena?.player.staggerTime>0 || run?.arena?.introRemaining>0;
+    $('chantButton').disabled=paused || window.DungeonBossDisruption?.blocksCast(run) || run?.arena?.player.staggerTime>0 || run?.arena?.introRemaining>0;
     paintTouchSpell();updateQuickPotion();renderDuelHUD();
     if(!active || !world())return;
     const arena=world(),player=arena.player;
@@ -523,7 +569,9 @@
     if(immersive)void exitImmersive();
     autoScreenOptOut=false;
     if(releaseSession){releaseSession();releaseSession=null;sessionHeld=false;}
+    closeInventory();inventoryResume=false;
     run = null; receipt = null; paused = false; finished = false; persistenceBroken = false; settlementPromise = null;
+    $('inventoryButton').hidden=true;
     suspendedChantDraft=null;chantTargetRun=null;chantTargetArena=null;chantTargetEncounter=null;chantTargetSpell=null;chantTargetKey='';duelCounter=null;
     chanting=false;clearMovement();document.body.classList.remove('in-run');$('actionPanel').classList.remove('combat-panel','is-chanting');$('actionPanel').inert=false;
     actionSignature = sidebarSignature = logSignature = '';
@@ -702,13 +750,15 @@
   function paintLetters(fromInput=false) {
     if (run?.status!=='combat' || !$('spellInput')) return;
     const target=syncChantTarget(),typed=$('spellInput').value,state=Chant.feedback(previousTyped,typed,target.word);
+    const curse=window.DungeonBossDisruption?.active(run);
+    const visual=(letter)=>curse?.kind==='veil'&&letter.state!=='correct'?'•':curse?.kind==='steal'?'✖':letter.char;
     const display=char=>char===' '?'␣':char;
-    $('spellWord').innerHTML=state.letters.map(letter=>`<span class="${letter.state==='correct'?'matched':letter.state==='wrong'?'wrong':''}">${esc(letter.char)}</span>`).join('');
-    const keys=state.letters.map(letter=>`<span class="qte-letter ${letter.state}">${esc(display(letter.char))}</span>`).join('')+(state.extra?`<span class="qte-letter wrong">+${[...state.extra].length}</span>`:'');
+    $('spellWord').innerHTML=state.letters.map(letter=>`<span class="${letter.state==='correct'?'matched':letter.state==='wrong'?'wrong':'pending'}">${esc(visual(letter))}</span>`).join('');
+    const keys=state.letters.map(letter=>`<span class="qte-letter ${letter.state}">${esc(display(visual(letter)))}</span>`).join('')+(state.extra?`<span class="qte-letter wrong">+${[...state.extra].length}</span>`:'');
     $('qteLetters').innerHTML=keys;if($('inlineQteLetters'))$('inlineQteLetters').innerHTML=keys;
-    $('qteNext').textContent=state.complete?'↵':display(state.next || '⌫');
+    $('qteNext').textContent=state.complete?'↵':curse?.kind==='veil'?'?':curse?.kind==='steal'?'✖':display(state.next || '⌫');
     $('qteProgress').style.width=(state.progress*100)+'%';$('qteProgressText').textContent=state.matched+' / '+state.letters.length;
-    $('qteHint').textContent=state.complete?(target.ritual?'封咒完成 · 自動接續下一組':'咒語完成！按 Enter 或「施法」'):state.extra?'刪除多出的字母，再施法':state.wrong?'第 '+(state.index+1)+' 個字母應為 '+display(state.next)+'，請刪除修正':state.kind==='corrected'?'已修正 · 繼續輸入':state.matched?'命中！繼續輸入下一鍵':target.ritual?'第 '+(target.ritual.index+1)+' / 3 組 · 依序輸入，完成自動確認':'依序輸入亮起的字母';
+    $('qteHint').textContent=curse?.kind==='veil'?'盲頁霧：字符被遮蔽，記住先前的字或等待霧散':curse?.kind==='steal'?'首領正在使用你的咒語，等待它歸還':state.complete?(target.ritual?'封咒完成 · 自動接續下一組':'咒語完成！按 Enter 或「施法」'):state.extra?'刪除多出的字母，再施法':state.wrong?'第 '+(state.index+1)+' 個字母應為 '+display(state.next)+'，請刪除修正':state.kind==='corrected'?'已修正 · 繼續輸入':state.matched?'命中！繼續輸入下一鍵':target.ritual?'第 '+(target.ritual.index+1)+' / 3 組 · 依序輸入，完成自動確認':'依序輸入亮起的字母';
     if($('inlineQteHint'))$('inlineQteHint').textContent=$('qteHint').textContent;
     if($('inlineQte')){$('inlineQte').classList.toggle('qte-invalid',state.wrong);$('inlineQte').classList.toggle('qte-ready',state.complete);}
     $('chantQte').classList.toggle('qte-ready',state.complete);$('chantQte').classList.toggle('qte-invalid',state.wrong);
@@ -745,6 +795,7 @@
       }else{notify(result.message || '封咒字母還差一點，修正後繼續。',true);tone('error');input.setAttribute('aria-invalid','true');}
       persist();return;
     }
+    if(window.DungeonBossDisruption?.blocksCast(run)){notify('咒語正被首領竊取，閃避追擊後會自動歸還。');return;}
     const type=run.spell.type, result=Arena.cast(run,text);
     notify(result.message || (result.ok?'咒語施放成功。':'拼寫還差一點，請修正後再試。'),!result.ok);
     if(result.ok){
@@ -801,6 +852,7 @@
     $('floorLabel').textContent=String(Math.min(Engine.getCampaignLength(run),run.encounter+1)).padStart(2,'0')+' / '+Engine.getCampaignLength(run);
     $('arenaCaption').hidden=false;
     if(run.status!=='combat') {$('bossBanner').hidden=true;$('arenaCaption').textContent={route:'命運的岔路，在你眼前展開。',reward:'那些微光，是留給旅人的禮物。',camp:'在火焰熄滅以前，歇息片刻。',shop:'走近商人交談，或前往出口繼續。',npc:'善意與挑戰，都從一句話開始。',event:'每一道星痕，都藏著一份抉擇。',won:'文字的力量，讓世界再次甦醒。',lost:'下一次，你會帶著更多知識回來。'}[run.status] || '';}
+    $('inventoryButton').hidden=false;
     renderVitals();renderAction();renderSidebar();renderLog();renderParty();renderStory();journey();syncPause();updateArenaHUD();syncAudio();presentation();
   }
   async function settleRun() {
@@ -822,6 +874,48 @@
       saved=await Storage.load();lobby();notify('');
     }finally{busy=false;}
   }
+  function inventoryMarkup() {
+    const items=(run.inventory||[]).filter(item=>item.count>0);
+    const relics=run.relics||[],companions=run.companions||[],fallen=run.fallenCompanions||[];
+    const school=window.DungeonCombatArts?.get(run),card=run.card||{};
+    const relicEntries=relics.map(item=>{
+      const detail=Engine.RELICS[item.id]||item,curse=!!detail.cursed;
+      return '<article class="bag-entry'+(curse?' cursed':'')+'"><span class="bag-symbol">'+esc(item.icon||detail.icon||'✧')+'</span><div class="bag-info"><b>'+esc(detail.name||item.id)+'</b><small>'+esc(detail.description||'自動生效的遺物')+'</small></div>'+(curse?'<span class="bag-count">詛咒</span>':'')+'</article>';
+    }).join('');
+    const itemEntries=items.map(item=>'<article class="bag-entry"><span class="bag-symbol">'+icon(itemIcons[item.id]||'bag')+'</span><div class="bag-info"><b>'+esc(item.name||item.id)+'</b><small>'+esc(item.description||'冒險消耗品')+'</small></div><span class="bag-count">×'+Math.max(0,Number(item.count)||0)+'</span></article>').join('');
+    const partyEntries=companions.map(c=>'<article class="bag-entry"><span class="bag-symbol">'+icon(npcIcons[c.id]||'companion')+'</span><div class="bag-info"><b>'+esc(c.name||c.id)+'</b><small>'+esc(c.trait||'同行旅伴')+' · '+esc(window.DungeonCompanionAI?.LABELS[c.behavior]||'護衛')+' · HP '+Math.round(c.hp??c.maxHp??0)+'/'+Math.round(c.maxHp||0)+'</small></div></article>').join('');
+    const cardTitle=esc(card.word||'未選擇'),zh=esc(card.zh||''),rarity=esc(card.rarity||'N');
+    const stats='<div class="bag-overview"><div class="bag-stat"><b>'+relics.length+'</b><small>已裝備遺物</small></div><div class="bag-stat"><b>'+items.reduce((sum,item)=>sum+(Number(item.count)||0),0)+'</b><small>消耗品數量</small></div><div class="bag-stat"><b>'+Math.round(run.player?.gold||0)+'</b><small>持有金幣</small></div></div>';
+    return stats+'<h3 class="bag-head">'+icon('spell')+' 本命卡片與戰鬥流派</h3>'+
+      '<div class="bag-loadout">'+icon('signature')+'<div><b>'+cardTitle+' · '+rarity+(school?' / '+esc(school.name):'')+'</b><small>'+zh+(school?' · '+esc(school.detail):'')+'</small></div></div>'+
+      '<h3 class="bag-head">'+icon('relic')+' 已裝備遺物 <small>自動生效 · '+relics.length+' 件</small></h3>'+
+      (relics.length?'<div class="bag-grid">'+relicEntries+'</div>':'<div class="bag-empty">尚未取得遺物。戰勝首領或探索寶箱即可收集。</div>')+
+      '<h3 class="bag-head">'+icon('bag')+' 消耗道具 <small>'+items.length+' 類</small></h3>'+
+      (items.length?'<div class="bag-grid">'+itemEntries+'</div>':'<div class="bag-empty">目前沒有可用的道具。</div>')+
+      '<h3 class="bag-head">'+icon('companion')+' 同行角色 <small>'+companions.length+' / 4 · 陣亡 '+fallen.length+'</small></h3>'+
+      (companions.length?'<div class="bag-grid">'+partyEntries+'</div>':'<div class="bag-empty">尚未招募同行夥伴。</div>')+
+      '<p class="bag-footnote">遺物與戰鬥流派會自動生效；使用藥水、炸彈等道具請回到戰場側欄或快捷欄。打開背包時冒險時間會暫停。</p>';
+  }
+  function openInventory(){
+    const dialog=$('inventoryDialog');
+    if(!run||!dialog||dialog.open||$('infoDialog').open)return;
+    inventoryResume=!!navigable()&&!paused;
+    if(chanting)setChant(false);
+    paused=true;syncPause();if(run)renderSidebar();
+    $('inventoryContents').innerHTML=inventoryMarkup();
+    dialog.showModal();
+  }
+  function closeInventory(){if($('inventoryDialog')?.open)$('inventoryDialog').close();}
+  $('inventoryButton').onclick=openInventory;
+  $('immersiveInventory').onclick=openInventory;
+  $('closeInventory').onclick=closeInventory;
+  $('inventoryDialog').addEventListener('close',()=>{
+    if(inventoryResume&&navigable()&&!persistenceBroken){
+      paused=false;syncPause();renderSidebar();
+      $('arena').focus({preventScroll:true});
+    }
+    inventoryResume=false;
+  });
   function openDialog(html) {$('dialogContent').innerHTML=html;$('infoDialog').showModal();}
   function confirmAbandon(fromLobby) {
     if(run && !['won','lost'].includes(run.status)){paused=true;syncPause();}
@@ -839,7 +933,7 @@
   }
   function help() {
     if(run){paused=true;syncPause();}
-    openDialog('<h2>移動、閃避、詠唱</h2><ol><li><b>WASD／方向鍵移動：</b>繞過石柱、與近戰敵人保持距離。手機在左側移動區按住並拖曳，搖桿會在指尖附近出現；360 度走位，輕推慢走、推遠加速，放開即停止。</li><li><b>Space 衝刺：</b>沿移動方向快速位移，需先取得迅風羽或雷步印才會解鎖；短暫免疫碰撞傷害，冷卻 1.4 秒；不能穿越牆壁。冷卻即將結束前按下衝刺，可短暫緩衝並在就緒時出手。</li><li><b>Enter 詠唱：</b>敵人保持正常速度，依序輸入戰場提示的字母：下一鍵會亮起，打對變綠、打錯標紅；完成後再按 Enter 施法。施法後自動返回走位，也可按 Esc 取消詠唱。</li><li><b>手機符文施法：</b>點「詠唱」，依亮起的順序點 2～4 組符文，完成自動施放；不會開啟系統鍵盤。左手可持續拖曳搖桿，右手輸入符文，移動詠唱時保有 75% 移速。按衝刺可中斷詠唱並沿搖桿方向閃避，已輸入字母保留；完成施法也不會打斷左手走位。射程外會保留完整咒語，靠近後點「施放已備咒語」。</li><li><b>凝時透鏡：</b>只有持有這件遺物時，詠唱才會消耗專注並放慢敵人。離開詠唱即可恢復專注；專注歸零後恢復即時戰鬥。受擊會短暫硬直並中斷詠唱，隨後有保護時間避免連續受創。命中與受擊都有鏡頭及支援裝置的觸覺回饋，可在聲音設定關閉手機震動。</li><li><b>看清預警：</b>紅色地面標記會在短暫延遲後造成傷害。用走位離開，或衝刺穿過彈幕。</li><li><b>三重封咒：</b>首領蓄力強咒時，點首領提示或按詠唱，連續輸入三組短咒。每組輸入正確便自動確認並接續；手機沿用符文鍵。完成三組會打斷強咒並讓首領失衡，逾時將承受重創。封咒倒數不受詠唱慢時影響；暫停仍會停止倒數。</li><li><b>近戰首領：</b>觀察蓄勢、出手、連段與收招。不要一見抬手就連續衝刺，抓準攻擊命中的時機閃避；首領收招或失衡時再施法反擊。預設詠唱不會減速，只有凝時透鏡可放慢攻勢。沒有衝刺時，請利用移動和地形離開預警範圍。</li><li><b>靠近再施法：</b>咒語自動鎖定射程內最近的敵人；每五次成功施法輪到卡片奧義。</li></ol><h3>走近互動與旅途 NPC</h3><p>探索時用 WASD 或方向鍵走近傳送門、祭壇、營火或 NPC，按 E／Enter 互動；手機點「互動」。商店也要先走近商人才能購物。交談時按 Esc 返回場景，走到出口繼續。</p><p>旅途中可能遇見療癒師、鍛造師、製圖師、擺渡人，以及三位可招募的旅伴：燈旅精靈提供護盾、回聲學徒延遲模仿成功咒語、紙甲衛士主動迎擊。最多可同時招募四位夥伴；每人有不同個性，可能自行探索、走失、撤退、誤傷隊友或陣亡；隊友陣亡後本趟無法再次招募。路米需要交付一瓶藥水；伊可需要本趟成功施法十次；折鋒需要古龍鱗片或擊敗過首領；露米娜需要好感二十。交談時可讓現任旅伴返回營地，再邀請另一位。舊存檔的額外旅伴會留在候補名單，候補不會參戰。交談後可接受一次幫助，或輸入畫面指定文字發起雙階段 Boss 挑戰。商人同樣可被挑戰；NPC 的生命、攻勢和傷害比一般首領更高，擊敗必得專屬遺物。接受幫助後，本次相遇不能再挑戰。</p><h3>詛咒物品</h3><p>咒血棘冠讓傷害增加但治療減半；空鐘契幣提高金幣收益，也提高承受傷害；裂魂星核強化本命咒語，但扣除生命上限。購買及拾取前都會顯示代價。營火可花費 35 金幣解除最先取得的一件詛咒，佔用這次營地選擇。</p><h3>房間與遺物</h3><p>新遠征穿過四個區域、24 個節點，每區第六節點為首領。舊存檔保留原有 12／18 節點進度。新遠征每區從兩位首領中隨機選出一位；一般戰鬥隨機搭配房間、配置與敵群編隊。疾風讓敵人更快但增加金幣，護佑給予開場護盾，豐饒讓敵人更耐打也帶來更多金幣。地形、首領與相逢位置會保存在本次旅圖，讀檔不會重抽。走近戰鬥入口可看本層情報，全螢幕時也可在手札查看。戰利品三選一，移速、連鎖、衝刺與緩速遺物可以搭配。</p><h3>手機橫向全螢幕</h3><p>手機開始或接續冒險時會自動開啟滿版遊玩，請橫放手機。戰場鋪滿畫面，左下是浮動搖桿，右下是施法、閃避與藥水；符文只在詠唱時展開，上方保留暫停、手札、配樂與離開。支援的瀏覽器會進入原生全螢幕並嘗試鎖定橫向，其他瀏覽器使用滿版配置。按「離開」恢復一般版面後，不會自行反覆切回全螢幕；可再點展開圖示進入。</p><h3>配樂、暫停與接續</h3><p>開始或接續冒險時啟動聲音；「聲音設定」可獨立關閉背景配樂並保留戰鬥音效。手機切回遊戲後，點操作鍵或「恢復聲音」即可重新啟動音訊。八位可能遇見的主線 Boss 與九位 NPC 首領各有獨立主題曲，第二階段切換狂怒變奏。登場、攻擊與死亡都有對應特效；系統「減少動畫」設定會抑制震動。按 Esc 暫停；切換分頁也會自動暫停。正式冒險會保存位置與進度，重新整理可接續。</p><h3>星痕奇遇</h3><p>岔路可能出現六種隨機奇遇：餘火誓壇、月露井、無主行囊、逆寫石碑、墜星許願台與未寄星箋。走近物件先看代價和獎勵，再按互動作出選擇；每次只能選一項，也可以從出口直接離開。奇遇與石碑遺物保存在當次進度中，讀檔不重抽。</p><h3>星露法師與羈絆</h3><p>24 歲的露米娜正在尋回失落星圖。戰鬥與寶箱可能獲得禮物，走近她交談、贈禮，每次相逢最多送三件。好感 45 解鎖三幕星約冒險；完成後、好感 75，可主動告白。正式遠征的禮物、好感與回憶會跨局保存，練習模式僅體驗，離開後不累計。星露手札可回看已解鎖的故事。</p><h3>卡片與難度</h3><p>正式入場消耗 1 張收藏卡；練習免費。故事難度降低空間傷害，試煉提高傷害與彈速。失敗不退卡；道具、金幣與遺物只屬於本次冒險。</p>');
+    openDialog('<h2>移動、閃避、詠唱</h2><ol><li><b>WASD／方向鍵移動：</b>繞過石柱、與近戰敵人保持距離。手機在左側移動區按住並拖曳，搖桿會在指尖附近出現；360 度走位，輕推慢走、推遠加速，放開即停止。</li><li><b>Space 衝刺：</b>沿移動方向快速位移，需先取得迅風羽或雷步印才會解鎖；短暫免疫碰撞傷害，冷卻 1.4 秒；不能穿越牆壁。冷卻即將結束前按下衝刺，可短暫緩衝並在就緒時出手。</li><li><b>Enter 詠唱：</b>敵人保持正常速度，依序輸入戰場提示的字母：下一鍵會亮起，打對變綠、打錯標紅；完成後再按 Enter 施法。施法後自動返回走位，也可按 Esc 取消詠唱。</li><li><b>手機符文施法：</b>點「詠唱」，依亮起的順序點 2～4 組符文，完成自動施放；不會開啟系統鍵盤。左手可持續拖曳搖桿，右手輸入符文，移動詠唱時保有 75% 移速。按衝刺可中斷詠唱並沿搖桿方向閃避，已輸入字母保留；完成施法也不會打斷左手走位。射程外會保留完整咒語，靠近後點「施放已備咒語」。</li><li><b>凝時透鏡：</b>只有持有這件遺物時，詠唱才會消耗專注並放慢敵人。離開詠唱即可恢復專注；專注歸零後恢復即時戰鬥。受擊會短暫硬直並中斷詠唱，隨後有保護時間避免連續受創。命中與受擊都有鏡頭及支援裝置的觸覺回饋，可在聲音設定關閉手機震動。</li><li><b>看清預警：</b>紅色地面標記會在短暫延遲後造成傷害。用走位離開，或衝刺穿過彈幕。</li><li><b>三重封咒：</b>首領蓄力強咒時，點首領提示或按詠唱，連續輸入三組短咒。每組輸入正確便自動確認並接續；手機沿用符文鍵。完成三組會打斷強咒並讓首領失衡，逾時將承受重創。封咒倒數不受詠唱慢時影響；暫停仍會停止倒數。</li><li><b>近戰首領：</b>觀察蓄勢、出手、連段與收招。不要一見抬手就連續衝刺，抓準攻擊命中的時機閃避；首領收招或失衡時再施法反擊。預設詠唱不會減速，只有凝時透鏡可放慢攻勢。沒有衝刺時，請利用移動和地形離開預警範圍。</li><li><b>靠近再施法：</b>咒語自動鎖定射程內最近的敵人；每五次成功施法輪到卡片奧義。</li></ol><h3>首領施法干擾與背包</h3><p>部分首領會施展斷字斬、盲頁霧、亂序風或咒語竊取，地面有預警；離開標記範圍或衝刺可躲避。斷字斬會砍掉已輸入的後半段字符；盲頁霧遮蔽未完成的字符；亂序風將文字吹散並推動角色；咒語竊取會短暫封鎖該組咒語，並以回聲攻擊反制，時間結束後原咒語自動歸還。按 B 或點「背包」查看本命卡、裝備遺物和道具，檢視時會暫停戰鬥。</p><h3>走近互動與旅途 NPC</h3><p>探索時用 WASD 或方向鍵走近傳送門、祭壇、營火或 NPC，按 E／Enter 互動；手機點「互動」。商店也要先走近商人才能購物。交談時按 Esc 返回場景，走到出口繼續。</p><p>旅途中可能遇見療癒師、鍛造師、製圖師、擺渡人，以及三位可招募的旅伴：燈旅精靈提供護盾、回聲學徒延遲模仿成功咒語、紙甲衛士主動迎擊。最多可同時招募四位夥伴；每人有不同個性，可能自行探索、走失、撤退、誤傷隊友或陣亡；隊友陣亡後本趟無法再次招募。路米需要交付一瓶藥水；伊可需要本趟成功施法十次；折鋒需要古龍鱗片或擊敗過首領；露米娜需要好感二十。交談時可讓現任旅伴返回營地，再邀請另一位。舊存檔的額外旅伴會留在候補名單，候補不會參戰。交談後可接受一次幫助，或輸入畫面指定文字發起雙階段 Boss 挑戰。商人同樣可被挑戰；NPC 的生命、攻勢和傷害比一般首領更高，擊敗必得專屬遺物。接受幫助後，本次相遇不能再挑戰。</p><h3>詛咒物品</h3><p>咒血棘冠讓傷害增加但治療減半；空鐘契幣提高金幣收益，也提高承受傷害；裂魂星核強化本命咒語，但扣除生命上限。購買及拾取前都會顯示代價。營火可花費 35 金幣解除最先取得的一件詛咒，佔用這次營地選擇。</p><h3>房間與遺物</h3><p>新遠征穿過四個區域、24 個節點，每區第六節點為首領。舊存檔保留原有 12／18 節點進度。新遠征每區從兩位首領中隨機選出一位；一般戰鬥隨機搭配房間、配置與敵群編隊。疾風讓敵人更快但增加金幣，護佑給予開場護盾，豐饒讓敵人更耐打也帶來更多金幣。地形、首領與相逢位置會保存在本次旅圖，讀檔不會重抽。走近戰鬥入口可看本層情報，全螢幕時也可在手札查看。戰利品三選一，移速、連鎖、衝刺與緩速遺物可以搭配。</p><h3>手機橫向全螢幕</h3><p>手機開始或接續冒險時會自動開啟滿版遊玩，請橫放手機。戰場鋪滿畫面，左下是浮動搖桿，右下是施法、閃避與藥水；符文只在詠唱時展開，上方保留暫停、手札、配樂與離開。支援的瀏覽器會進入原生全螢幕並嘗試鎖定橫向，其他瀏覽器使用滿版配置。按「離開」恢復一般版面後，不會自行反覆切回全螢幕；可再點展開圖示進入。</p><h3>配樂、暫停與接續</h3><p>開始或接續冒險時啟動聲音；「聲音設定」可獨立關閉背景配樂並保留戰鬥音效。手機切回遊戲後，點操作鍵或「恢復聲音」即可重新啟動音訊。八位可能遇見的主線 Boss 與九位 NPC 首領各有獨立主題曲，第二階段切換狂怒變奏。登場、攻擊與死亡都有對應特效；系統「減少動畫」設定會抑制震動。按 Esc 暫停；切換分頁也會自動暫停。正式冒險會保存位置與進度，重新整理可接續。</p><h3>星痕奇遇</h3><p>岔路可能出現六種隨機奇遇：餘火誓壇、月露井、無主行囊、逆寫石碑、墜星許願台與未寄星箋。走近物件先看代價和獎勵，再按互動作出選擇；每次只能選一項，也可以從出口直接離開。奇遇與石碑遺物保存在當次進度中，讀檔不重抽。</p><h3>星露法師與羈絆</h3><p>24 歲的露米娜正在尋回失落星圖。戰鬥與寶箱可能獲得禮物，走近她交談、贈禮，每次相逢最多送三件。好感 45 解鎖三幕星約冒險；完成後、好感 75，可主動告白。正式遠征的禮物、好感與回憶會跨局保存，練習模式僅體驗，離開後不累計。星露手札可回看已解鎖的故事。</p><h3>卡片與難度</h3><p>正式入場消耗 1 張收藏卡；練習免費。故事難度降低空間傷害，試煉提高傷害與彈速。失敗不退卡；道具、金幣與遺物只屬於本次冒險。</p>');
   }
   function codex() {
     if(run){paused=true;syncPause();}
@@ -969,6 +1063,8 @@
   if($('immersivePause'))$('immersivePause').onclick=togglePause;
   document.addEventListener('keydown',event=>{
     if(event.isComposing || $('infoDialog').open)return;
+    if($('inventoryDialog').open){if(event.code==='KeyB'){event.preventDefault();closeInventory();}return;}
+    if(event.code==='KeyB' && run && !(event.target instanceof HTMLElement && event.target.closest('input,textarea,select'))){event.preventDefault();openInventory();return;}
     if(event.key==='Escape' && immersive && !chanting && !inConversation()){
       event.preventDefault();if(navigable()){paused=true;syncPause();renderSidebar();}void exitImmersive(true);return;
     }
@@ -1030,11 +1126,12 @@
       const previousTarget=chantTargetKey;syncChantTarget();if(previousTarget!==chantTargetKey)paintLetters();
       dashQueued=false;saveClock+=delta;
       impactFeedback();
+      syncBossDisruption();
       if((world()?.dashes || 0)>dashesBefore){renderer.burst('dash');tone('dash');}
       if(before!==run.status){setChant(false);actionSignature='';render();persist();tone(run.status==='won'?'win':run.status==='reward'?'loot':'hit');}
       if(saveClock>1.5){saveClock=0;persist();}
     }
-    if(time-lastPaint>80){lastPaint=time;if(run){renderVitals();if(explorationStatuses.includes(run.status))renderAction();liveCombat();updateArenaHUD();renderLog();renderParty();}}
+    if(time-lastPaint>80){lastPaint=time;syncBossDisruption();if(run){renderVitals();if(explorationStatuses.includes(run.status))renderAction();liveCombat();updateArenaHUD();renderLog();renderParty();}}
     if(!paused)presentation();
     renderer.draw({run,focus:chanting,paused,reducedMotion},time);
     requestAnimationFrame(frame);
