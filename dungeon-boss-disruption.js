@@ -55,7 +55,7 @@
     if(effect){
       const x=type==='steal'&&boss?boss.x:arena.player.x;
       const y=type==='steal'&&boss?boss.y:arena.player.y;
-      effect(arena,'impact',x,y,{text:spec.name,color:spec.color,r:59,life:1.05});
+      effect(arena,'impact',x,y,{text:type==='steal'?'奪取 '+(run.spell?.word||'咒語'):spec.name,color:spec.color,r:59,life:1.05});
     }
     if(type==='scatter'){
       // A gust also displaces the mage, respecting world collision in caller.
