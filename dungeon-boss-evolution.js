@@ -52,6 +52,7 @@
     arena.hazards=(arena.hazards||[]).filter(function(h){return h.ownerId!==boss.id||h.actionId||h.disruption;});
     boss.volley=null;
     if(boss.action)boss.action=null;
+    run.enemy.intent.remaining=Math.max(3.1,run.enemy.intent.remaining||0);
     chant.status='clash';
     if(effect)effect(arena,'counter',boss.x,boss.y,{text:'同系法術對決！',r:100,color:'#f1dd9e',life:1});
     return clash;
@@ -145,7 +146,7 @@
   function interrupt(run,arena,api){
     if(!arena||run.status!=='combat')return false;
     var boss=findBoss(arena),chant=active(run),ritual=arena.ritual;
-    if(!boss||(!chant&&ritual?.status!=='charging'&&!boss.action))return false;
+    if(!boss||(!chant&&ritual?.status!=='charging'&&boss.action?.kind!=='spell'))return false;
     if(ritual&&ritual.status==='charging')ritual.status='broken';
     if(arena.spellClash)arena.spellClash=null;
     arena.bossChant=null;arena.bossChantCooldown=5;
