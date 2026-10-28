@@ -668,7 +668,13 @@
       const pose=modern?this.actorPose('companion:'+String(actor.id||id),actor,{effects:(space?.effects||[]).filter(e=>e.kind==='companion-cast'&&e.npcId===id)}):null;
       c.save();c.translate(Math.round(x),Math.round(y));if(!modern)c.scale(.52,.52);this.npc(c,id,p,t,still,false,1,pose);c.restore();
       const name=String(actor.name||({lantern:'路米',echo:'伊可',sentinel:'折鋒',lumina:'露米娜'}[id]||'同行者')).split('・').pop();
-      c.save();c.font='bold 11px sans-serif';c.textAlign='center';c.fillStyle=color;c.fillText('◆ '+name,x,y+24);c.restore();
+      c.save();c.font='bold 11px sans-serif';c.textAlign='center';c.fillStyle=color;c.fillText('◆ '+name,x,y+24);
+      const ratio=clamp(val(actor.hp,val(actor.maxHp,1))/Math.max(1,val(actor.maxHp,1)),0,1);
+      box(c,x-24,y+29,48,5,'#131b27');box(c,x-23,y+30,46*ratio,3,ratio<.32?'#ff7d92':ratio<.65?'#ffd18e':'#9ee4ca');
+      const state=String(actor.behavior||'protect'),statuses={lost:'走失',explore:'探索',wander:'閒晃',panic:'驚慌',retreat:'撤退',return:'歸隊',flank:'側襲'};
+      if(statuses[state]){c.font='bold 9px sans-serif';c.fillStyle=state==='lost'||state==='panic'?'#ffb2a0':'#d9d5ff';c.fillText(statuses[state],x,y+46);}
+      if(val(actor.alertFlash)>0){c.globalAlpha=Math.min(.7,val(actor.alertFlash));c.strokeStyle='#ff8b98';c.lineWidth=2;c.beginPath();c.ellipse(x,y-13,23,31,0,0,TAU);c.stroke();}
+      c.restore();
     }
     interactable(c,o,p,t,still,near){
       const x=val(o.x),y=val(o.y),color=o.color||p.glow;
@@ -1346,6 +1352,20 @@
       if(life<=0)return;c.save();
       if(e.kind==='cast'||e.kind==='companion-cast'||e.kind==='chain'){
         this.spellEffect(c,e,p,still);
+      }else if(String(e.kind).indexOf('school-')===0){
+        // Directional calligraphy and layered impact rings preserve the hazard silhouettes.
+        const ring=val(e.r,30),charged=!!e.charged;
+        if(Number.isFinite(e.fromX)&&Number.isFinite(e.fromY)){
+          c.globalAlpha=alpha*.25;stroke(c,e.fromX,e.fromY,x,y,color,charged?7:3);
+          c.globalAlpha=alpha*.8;stroke(c,e.fromX,e.fromY,x,y,'#fff4e2',1.3);
+        }
+        c.globalAlpha=alpha*.75;c.strokeStyle=color;c.lineWidth=charged?3:2;
+        for(let i=0;i<2;i++){const size=ring*(.44+progress*.72)+i*12;c.beginPath();c.ellipse(x,y-9,size,size*.57,0,0,TAU);c.stroke();}
+        for(let i=0;i<(charged?12:7);i++){
+          const angle=i*TAU/(charged?12:7)+(!still?progress*.5:0),len=ring*(.58+progress*.4),px=x+Math.cos(angle)*len,py=y-9+Math.sin(angle)*len*.58;
+          gem(c,px,py,charged?4:2,i%3===0?'#ffeed4':color);
+        }
+        if(e.text){c.globalAlpha=alpha;c.textAlign='center';c.font='bold 13px sans-serif';c.fillStyle=color;c.fillText(String(e.text),x,y-55-progress*15);}
       }else if(e.kind==='boss-intro'||e.kind==='phase'){
         const intro=e.kind==='boss-intro',label=String(e.name||e.text||(intro?'封印之主降臨':'第二階段 · 解放'));
         c.globalAlpha=Math.min(1,alpha*3);box(c,255,65,450,49,'#171b2b');box(c,255,65,450,2,color);box(c,255,112,450,2,color);
