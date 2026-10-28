@@ -916,7 +916,7 @@
   }
   function intentPattern(run, a) {
     var caster = living(a).find(function (e) { return e.active && !e.action; });
-    if (!caster) return;
+    if (!caster || a.spellClash) return;
     if (meleeBoss(caster) && dist(caster, a.player) > 285) return;
     var intent = Engine.resolveArenaIntent(run); if (!intent) return;
     if (run.enemy.kind === 'boss') bossPattern(run, a, intent);
@@ -1024,7 +1024,7 @@
   }
   function advanceBossStage(run, a, dt) {
     var stage = BOSS_ARENAS[a.room.bossId], boss = living(a).find(function (e) { return e.kind === 'boss'; });
-    if (!stage || !boss || getInterrupt(run)) return;
+    if (!stage || !boss || getInterrupt(run) || a.spellClash) return;
     a.bossStageClock = Math.max(0, (Number.isFinite(a.bossStageClock) ? a.bossStageClock : stage.interval) - dt);
     if (a.bossStageClock > 0 || boss.action || boss.counterWindow > 0) return;
     a.bossStageClock = stage.interval; a.roomPulse += 1;
@@ -1093,13 +1093,15 @@
     // Lesser enemies can acquire an exposed party member; guardians still duel the player.
     var p = a.player;
     if (CompanionAI && e.kind !== 'boss') {
+      var taunted = (a.companions||[]).find(function(c){return c.id===e.aggroCompanion&&!c.dead&&c.hp>0;});
+      if(taunted && e.aggroRemaining>0){p=taunted;e.aggroRemaining=Math.max(0,e.aggroRemaining-dt);}
       var exposed = (a.companions || []).filter(function (c) {
         return !c.dead && c.hp > 0 && c.behavior !== 'lost' &&
           (c.behavior === 'flank' || c.behavior === 'protect' || c.behavior === 'explore');
       }).sort(function (left, right) {
         return dist(e, left) - dist(e, right);
       })[0];
-      if (exposed && dist(e, exposed) < 175 && dist(e, exposed) < dist(e, a.player) * (exposed.npcId === 'sentinel' ? 1.1 : 0.82)) p = exposed;
+      if (!taunted && exposed && dist(e, exposed) < 175 && dist(e, exposed) < dist(e, a.player) * (exposed.npcId === 'sentinel' ? 1.1 : 0.82)) p = exposed;
     }
     var dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy), direction = unit(dx, dy);
     e.hurt = Math.max(0, e.hurt - dt); e.phase = run.enemy.phase;
@@ -1118,6 +1120,7 @@
         }
       }
     }
+    if (a.spellClash && e.kind==='boss') return;
     if (advanceAction(run, a, e, dt, motionScale)) return;
     face(e, p.x, p.y);
     if (e.kind === 'boss') {
@@ -1391,7 +1394,7 @@
   }
   function useItem(run, id) {
     var a = ensure(run), available = a ? targets(a) : [], target = available[0];
-    if(id==='spellbreaker' && (!a || !BossEvolution || !a.enemies.some(function(e){return e.kind==='boss'&&e.alive&&e.action;}) && a.ritual?.status!=='charging')) return {ok:false,message:'必須在首領詠唱或蓄力時才能使用封咒破針。'};
+    if(id==='spellbreaker' && (!a || !BossEvolution || !a.enemies.some(function(e){return e.kind==='boss'&&e.alive&&e.action?.kind==='spell';}) && a.ritual?.status!=='charging')) return {ok:false,message:'必須在首領詠唱或蓄力時才能使用封咒破針。'};
     if (a && a.introRemaining > 0 && id === 'bomb') return { ok: false, message: '等待首領登場後才能投擲炸彈。' };
     if (a && id === 'bomb' && !target) return { ok: false, message: '下一波敵人尚未出現，先保留炸彈。' };
     var result = Engine.useItem(run, id, { damageLimit: a ? available.reduce(function (sum, e) { return sum + e.hp; }, 0) : Infinity });
