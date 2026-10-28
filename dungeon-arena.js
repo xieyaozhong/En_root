@@ -250,7 +250,7 @@
       // A recruited traveler can be met again. During their duel they appear
       // only as the opponent; the run roster remains intact for the next room.
       return c && c.id !== opponent && ['lantern', 'echo', 'sentinel', 'lumina'].indexOf(c.id) >= 0 && list.findIndex(function (other) { return other && other.id === c.id; }) === index;
-    }).slice(0, 3).map(function (c, i) {
+    }).slice(0, 4).map(function (c, i) {
       var existing = saved.find(function (body) { return body.npcId === c.id; });
       var body = Object.assign({ x: a.player.x - 36, y: a.player.y + (i - 1) * 26, r: 11, cooldown: c.id === 'echo' ? 0 : 2 + i, castFlash: 0 }, existing || {},
         { id: 'companion-' + c.id, npcId: c.id, name: c.name, sprite: c.sprite || c.id, color: c.color || '#b9deff', role: c.role });
