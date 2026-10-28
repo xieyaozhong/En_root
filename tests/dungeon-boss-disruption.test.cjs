@@ -49,6 +49,7 @@ assert.ok(ra.disruptionSerial>=1);
 D.tick(ritual,ra,3);
 assert.equal(D.active(ritual),null);
 const dodgeRun=run(87),da=dodgeRun.arena;
+dodgeRun.relics.push({...E.RELICS.gale}); // Unlock dash for this counterplay test.
 da.hazards.push({id:'evade-test',source:'boss',kind:'circle',disruption:'sever',
   x:da.player.x,y:da.player.y,r:150,delay:0,life:.4,hit:false,damage:0});
 da.player.dashTime=.2;da.player.dashX=1;da.player.dashY=0;da.player.invulnerable=.24;
