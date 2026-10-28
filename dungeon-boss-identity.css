@@ -1,0 +1,15 @@
+/* Boss domain guide: informative, not a gameplay-obscuring alert. */
+.boss-identity-hint:not([hidden]){display:block;margin:4px 1px 2px;padding:4px 7px;border-left:2px solid #a8cfce;border-radius:4px;background:#14202dd9;color:#d4e5e6;font-size:.62rem;line-height:1.42;max-width:min(510px,72vw);overflow:hidden;text-overflow:ellipsis}
+.boss-identity-hint b{color:#ffe5b5;margin-right:.45em}
+.boss-identity-hint .counter{color:#b6e6d0}
+.boss-identity-hint .boss-description{color:#b7c9d1}
+.boss-domain-guide{margin:12px 0}
+.boss-domain-guide h3{font-size:1.08rem}
+.boss-domain-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:9px}
+.boss-domain-entry{padding:12px;border:1px solid #839ea54d;border-radius:9px;background:#1d2d3759}
+.boss-domain-entry h4{margin:0 0 6px;color:#e9e8d6;font-size:.83rem}
+.boss-domain-entry .role{font-size:.68rem;color:#bfc6e8}
+.boss-domain-entry p{margin:5px 0;font-size:.75rem;line-height:1.56}
+.boss-domain-entry strong{color:#a7e5c6}
+@media(max-width:690px){.boss-identity-hint:not([hidden]){font-size:.5rem;max-width:94vw;white-space:nowrap}.boss-identity-hint .boss-description{display:none}.boss-identity-hint .counter{font-size:.5rem}}
+@media(orientation:landscape) and (max-height:510px){.boss-identity-hint:not([hidden]){margin:0 1px;font-size:.45rem;padding:1px 4px}.boss-identity-hint .boss-description{display:none}}
