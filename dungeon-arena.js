@@ -1391,7 +1391,7 @@
   }
   function useItem(run, id) {
     var a = ensure(run), available = a ? targets(a) : [], target = available[0];
-    if(id==='spellbreaker' && (!a || !BossEvolution || !a.enemies.some(function(e){return e.kind==='boss'&&e.alive&&e.action;}) && !a.ritual?.status==='charging')) return {ok:false,message:'必須在首領詠唱或蓄力時才能使用封咒破針。'};
+    if(id==='spellbreaker' && (!a || !BossEvolution || !a.enemies.some(function(e){return e.kind==='boss'&&e.alive&&e.action;}) && a.ritual?.status!=='charging')) return {ok:false,message:'必須在首領詠唱或蓄力時才能使用封咒破針。'};
     if (a && a.introRemaining > 0 && id === 'bomb') return { ok: false, message: '等待首領登場後才能投擲炸彈。' };
     if (a && id === 'bomb' && !target) return { ok: false, message: '下一波敵人尚未出現，先保留炸彈。' };
     var result = Engine.useItem(run, id, { damageLimit: a ? available.reduce(function (sum, e) { return sum + e.hp; }, 0) : Infinity });
