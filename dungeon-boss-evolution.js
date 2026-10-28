@@ -145,7 +145,7 @@
   function interrupt(run,arena,api){
     if(!arena||run.status!=='combat')return false;
     var boss=findBoss(arena),chant=active(run),ritual=arena.ritual;
-    if(!boss||(!chant&&!ritual?.status==='charging'&&!boss.action))return false;
+    if(!boss||(!chant&&ritual?.status!=='charging'&&!boss.action))return false;
     if(ritual&&ritual.status==='charging')ritual.status='broken';
     if(arena.spellClash)arena.spellClash=null;
     arena.bossChant=null;arena.bossChantCooldown=5;
