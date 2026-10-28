@@ -1208,7 +1208,10 @@
           else if (BossDisruption) BossDisruption.apply(run,a,h.disruption,effect,hazard);
           h.hit = true;
         } else if (a.player.invulnerable > 0) countDodge(a, h);
-        else if (applyHit(run, a, h.damage, h) && !h.repeat) h.hit = true;
+        else if (applyHit(run, a, h.damage, h)) {
+          if(h.hexEffect==='snare')a.player.snaredTime=Math.max(a.player.snaredTime||0,1.8);
+          if(!h.repeat)h.hit=true;
+        }
       }
     });
     a.hazards = a.hazards.filter(function (h) { return h.life > 0; });
@@ -1259,6 +1262,7 @@
     a.introRemaining = Math.max(0, (a.introRemaining || 0) - dt);
     run.elapsed += dt; run.stats.elapsed = run.elapsed; run.spell.elapsed += dt;
     p.invulnerable = Math.max(0, p.invulnerable - dt); p.dashCooldown = Math.max(0, p.dashCooldown - dt);
+    p.snaredTime=Math.max(0,(p.snaredTime||0)-dt);
     if (magnitude && canMove) { p.facingX = ix; p.facingY = iy; }
     p.dashBuffer = Math.max(0, (p.dashBuffer || 0) - dt);
     if (!dashUnlocked || staggered) { p.dashBuffer = 0; p.dashTime = 0; }
@@ -1279,7 +1283,7 @@
       if (p.dashTime === 0) dashBurst(run, a);
     }
     if (walkDt > 0 && canMove) {
-      var speed = 180 * (has(run, 'gale') ? 1.22 : 1) * (mobileFocus ? 0.75 : 1);
+      var speed = 180 * (has(run, 'gale') ? 1.22 : 1) * (mobileFocus ? 0.75 : 1) * (p.snaredTime>0?.58:1);
       move(a, p, ix * speed * walkDt, iy * speed * walkDt);
     }
     if (a.disruptionGust && a.disruptionGust.remaining>0) {
