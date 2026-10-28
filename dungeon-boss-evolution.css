@@ -1,0 +1,28 @@
+/* High-stakes magic face-offs and readable enemy letters. */
+.boss-spellbar:not([hidden]){display:flex;align-items:center;justify-content:space-between;gap:12px;margin:5px 4px 0;padding:5px 8px;background:#14152bdc;border:1px solid #a5a0d0;border-radius:6px;box-shadow:0 0 12px #aaa4db26}
+.boss-spellbar .boss-cast-name{color:#e3dcf8;font-weight:700;font-size:.62rem;white-space:nowrap}
+.boss-spellbar .boss-cast-letters{display:flex;flex:1;justify-content:center;gap:3px}
+.boss-spellbar .boss-cast-letters b{font:800 .9rem/1.2 ui-monospace,monospace;color:#98a2b4;text-shadow:0 0 8px #b49afc44}
+.boss-spellbar .boss-cast-letters b.complete{color:#eac9fe;text-shadow:0 0 9px #e8b2ee}
+.boss-spellbar .boss-cast-type{color:#c7cbdf;font-size:.58rem}
+.boss-spellbar[data-type="attack"]{border-color:#e7ab8d}
+.boss-spellbar[data-type="heal"]{border-color:#8edcbd}
+.boss-spellbar[data-type="shield"]{border-color:#a0c9e7}
+.boss-spellbar[data-type="signature"]{border-color:#f7d391}
+.clash-button:not([hidden]){display:flex;position:absolute;left:50%;bottom:16%;transform:translateX(-50%);z-index:25;align-items:center;gap:9px;padding:13px 19px;background:linear-gradient(120deg,#55418a,#a16199);color:#fff2cc;border:2px solid #ffe09c;border-radius:16px;box-shadow:0 0 26px #d4a1f5a5,0 6px 25px #120b25bd;white-space:nowrap;font-size:.88rem;font-weight:900;touch-action:manipulation;cursor:pointer}
+.clash-button:active{background:#b886aa;scale:1.03}
+.clash-button span{background:#271c41;border-radius:10px;padding:5px 9px;font:800 .83rem ui-monospace,monospace}
+#gameSurface[data-clash="true"] .arena{outline:2px solid #efd4a5;outline-offset:0}
+#gameSurface[data-clash="true"] .clash-button{animation:clash-pulse .34s ease-in-out infinite alternate}
+@keyframes clash-pulse{to{box-shadow:0 0 35px #ffdc93c9,0 6px 25px #120b25bd}}
+@media(max-width:700px){.clash-button:not([hidden]){bottom:13%;font-size:.66rem;padding:9px 12px}.boss-spellbar:not([hidden]){gap:5px;padding:3px 5px}.boss-spellbar .boss-cast-letters b{font-size:.69rem}.boss-spellbar .boss-cast-name{font-size:.56rem}}
+@media(orientation:landscape) and (max-height:550px){.touch-layout #gameSurface.is-immersive .clash-button:not([hidden]){left:57%;bottom:23%;padding:11px;z-index:50}.touch-layout .boss-spellbar:not([hidden]){margin:2px 2px 0}.touch-layout .boss-spellbar .boss-cast-name{display:none}}
+@media(prefers-reduced-motion:reduce){#gameSurface[data-clash="true"] .clash-button{animation:none}}
+
+#breakSpellButton[hidden],#touchBreaker[hidden]{display:none!important}
+#breakSpellButton:not([hidden]){display:inline-flex;align-items:center;justify-content:center;border:1px solid #a3dbc9;color:#c7f5e1;background:#28544e;font-weight:700;font-size:.72rem;padding:6px 11px}
+#breakSpellButton:disabled,#touchBreaker:disabled{opacity:.42;filter:grayscale(.7)}
+#touchBreaker:not([hidden]){border-color:#9adbc6;color:#c8f8df;background:#24463c;font-size:.61rem;padding:7px;min-height:44px}
+.touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchBreaker:not([hidden]){right:185px;bottom:73px;width:49px;height:49px;border-color:#a9edcb;background:radial-gradient(circle at 30% 15%,#487d67,#1d4038);color:#d5ffe1;z-index:5}
+.touch-layout.chanting-mode #gameSurface.is-immersive:not(.immersive-terminal) #touchBreaker:not([hidden]){right:185px;bottom:61px}
+@media(orientation:landscape) and (max-height:550px){.touch-layout #gameSurface.is-immersive:not(.immersive-terminal) #touchBreaker:not([hidden]){right:181px;bottom:66px}}

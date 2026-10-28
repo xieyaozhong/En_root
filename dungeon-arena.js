@@ -10,6 +10,7 @@
   var CompanionAI = typeof module === 'object' && module.exports ? require('./dungeon-companion-ai.js') : (typeof window !== 'undefined' ? window.DungeonCompanionAI : null);
   var CombatArts = typeof module === 'object' && module.exports ? require('./dungeon-combat-arts.js') : (typeof window !== 'undefined' ? window.DungeonCombatArts : null);
   var BossDisruption = typeof module === 'object' && module.exports ? require('./dungeon-boss-disruption.js') : (typeof window !== 'undefined' ? window.DungeonBossDisruption : null);
+  var BossEvolution = typeof module === 'object' && module.exports ? require('./dungeon-boss-evolution.js') : (typeof window !== 'undefined' ? window.DungeonBossEvolution : null);
   var ROOMS = [
     { id: 'pillars', type: 'cover', name: '古柱迴廊', description: '石柱能擋住敵人的飛彈，也會阻擋移動。利用掩體靠近施法。', mutator: '四柱掩體' },
     { id: 'lanes', type: 'traps', name: '碎光十字', description: '地面每隔五秒亮起交錯光帶；預警結束前離開紅色區域。', mutator: '交替陷阱' },
@@ -445,12 +446,18 @@
       Object.assign(list[0], { name: '鏡爪伏擊', windup: 1.1, r: 165, spread: 1.75 });
       Object.assign(list[1], { name: '裂光反爪', motion: 'claw', windup: 0.8, r: 185, spread: 2.1, recovery: 2 });
     }
+    if (boss) list.forEach(function (attack, index) {
+      attack.windup = Math.max(0.52, attack.windup * (run.difficulty === 'story' ? .88 : .66));
+      attack.active = Math.max(.17, attack.active * .72);
+      attack.recovery = index === list.length - 1 ? Math.max(.7, attack.recovery * .8) : Math.max(.12, attack.recovery*.72);
+      attack.lunge = Math.round(attack.lunge * 1.72);
+    });
     if (phase === 2 && turn % 2 === 0) {
       list[1].recovery = 0.18;
       list.push({ name: heavy ? '墜王重擊' : '裂鏡終刺', kind: 'melee', windup: heavy ? 1.25 : 0.95, active: 0.32,
         recovery: 2.15, r: 225, spread: heavy ? 1.5 : 1.35, lunge: 220, damage: Math.max(24, damage + 9), motion: heavy ? 'overhead' : 'thrust' });
       if (id === 'smith') Object.assign(list[2], { name: '星鐵終鎚', windup: 1.5, lunge: 75, recovery: 2.4 });
-      if (id === 'sentinel') Object.assign(list[2], { name: '穿頁終刺', r: 260, spread: 0.85, windup: 1.05 });
+      if (id === 'sentinel') Object.assign(list[2], { name: '穿頁終刺', r: 260, spread: 0.85, windup: 0.6 });
     }
     return list;
   }
@@ -894,6 +901,7 @@
         }
       }
     }
+    if (BossEvolution) BossEvolution.wideMagic(run,a,boss,function(spec){ return hazard(a,Object.assign({source:'boss',ownerId:boss.id},spec)); });
     // The pose follows the actual first release and last active danger in this
     // pattern. The boss cannot begin another attack until its recovery ends.
     var created = a.hazards.filter(function (h) { return h.ownerId === boss.id && Number(h.id.split('-')[1]) >= previousHazards; });
@@ -901,10 +909,14 @@
     var last = created.reduce(function (value, h) { return Math.max(value, h.delay + h.life); }, boss.volley ? boss.volley.delay + 0.4 : 0);
     if (!Number.isFinite(first)) first = 1;
     setAction(a, boss, { kind: 'spell', name: a.lastPattern, duration: first, active: Math.max(0.35, last - first), recovery: 1.5 });
+    if (BossEvolution) {
+      BossEvolution.start(run,a,boss);
+      if (a.patternCount % 3 === 2) BossEvolution.summon(run,a,boss,{place:place,effect:effect});
+    }
   }
   function intentPattern(run, a) {
     var caster = living(a).find(function (e) { return e.active && !e.action; });
-    if (!caster) return;
+    if (!caster || a.spellClash) return;
     if (meleeBoss(caster) && dist(caster, a.player) > 285) return;
     var intent = Engine.resolveArenaIntent(run); if (!intent) return;
     if (run.enemy.kind === 'boss') bossPattern(run, a, intent);
@@ -1012,7 +1024,7 @@
   }
   function advanceBossStage(run, a, dt) {
     var stage = BOSS_ARENAS[a.room.bossId], boss = living(a).find(function (e) { return e.kind === 'boss'; });
-    if (!stage || !boss || getInterrupt(run)) return;
+    if (!stage || !boss || getInterrupt(run) || a.spellClash) return;
     a.bossStageClock = Math.max(0, (Number.isFinite(a.bossStageClock) ? a.bossStageClock : stage.interval) - dt);
     if (a.bossStageClock > 0 || boss.action || boss.counterWindow > 0) return;
     a.bossStageClock = stage.interval; a.roomPulse += 1;
@@ -1081,13 +1093,15 @@
     // Lesser enemies can acquire an exposed party member; guardians still duel the player.
     var p = a.player;
     if (CompanionAI && e.kind !== 'boss') {
+      var taunted = (a.companions||[]).find(function(c){return c.id===e.aggroCompanion&&!c.dead&&c.hp>0;});
+      if(taunted && e.aggroRemaining>0){p=taunted;e.aggroRemaining=Math.max(0,e.aggroRemaining-dt);}
       var exposed = (a.companions || []).filter(function (c) {
         return !c.dead && c.hp > 0 && c.behavior !== 'lost' &&
           (c.behavior === 'flank' || c.behavior === 'protect' || c.behavior === 'explore');
       }).sort(function (left, right) {
         return dist(e, left) - dist(e, right);
       })[0];
-      if (exposed && dist(e, exposed) < 175 && dist(e, exposed) < dist(e, a.player) * (exposed.npcId === 'sentinel' ? 1.1 : 0.82)) p = exposed;
+      if (!taunted && exposed && dist(e, exposed) < 175 && dist(e, exposed) < dist(e, a.player) * (exposed.npcId === 'sentinel' ? 1.1 : 0.82)) p = exposed;
     }
     var dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy), direction = unit(dx, dy);
     e.hurt = Math.max(0, e.hurt - dt); e.phase = run.enemy.phase;
@@ -1106,13 +1120,14 @@
         }
       }
     }
+    if (a.spellClash && e.kind==='boss') return;
     if (advanceAction(run, a, e, dt, motionScale)) return;
     face(e, p.x, p.y);
     if (e.kind === 'boss') {
       // Melee bosses close distance and guard until their committed attack or
       // recovery; they do not slide around while winding up or swinging.
       var desired = meleeBoss(e) ? 135 : 260;
-      var speed = meleeBoss(e) ? (e.phase === 2 ? 118 : 96) : (e.phase === 2 ? 34 : 24);
+      var speed = meleeBoss(e) ? (e.phase === 2 ? 440 : 340) : (e.phase === 2 ? 52 : 38);
       if (d > desired) move(a, e, direction.x * speed * dt * motionScale, direction.y * speed * dt * motionScale);
       return;
     }
@@ -1193,7 +1208,10 @@
           else if (BossDisruption) BossDisruption.apply(run,a,h.disruption,effect,hazard);
           h.hit = true;
         } else if (a.player.invulnerable > 0) countDodge(a, h);
-        else if (applyHit(run, a, h.damage, h) && !h.repeat) h.hit = true;
+        else if (applyHit(run, a, h.damage, h)) {
+          if(h.hexEffect==='snare')a.player.snaredTime=Math.max(a.player.snaredTime||0,1.8);
+          if(!h.repeat)h.hit=true;
+        }
       }
     });
     a.hazards = a.hazards.filter(function (h) { return h.life > 0; });
@@ -1222,6 +1240,7 @@
     if (!dt) return a;
     input = input || {}; var p = a.player;
     if (BossDisruption) BossDisruption.tick(run,a,dt);
+    if (BossEvolution && a.spellClash) BossEvolution.tick(run,a,dt,{damage:directDamage,hurt:function(r,area,dmg){applyHit(r,area,dmg,{source:'clash'});},effect:effect});
     var introActive = a.introRemaining > 0, staggered = (p.staggerTime || 0) > 0;
     p.staggerTime = Math.max(0, (p.staggerTime || 0) - dt);
     var focusRequested = !!input.focus, mobileFocus = !!input.mobile && focusRequested, dashUnlocked = canDash(run);
@@ -1243,6 +1262,7 @@
     a.introRemaining = Math.max(0, (a.introRemaining || 0) - dt);
     run.elapsed += dt; run.stats.elapsed = run.elapsed; run.spell.elapsed += dt;
     p.invulnerable = Math.max(0, p.invulnerable - dt); p.dashCooldown = Math.max(0, p.dashCooldown - dt);
+    p.snaredTime=Math.max(0,(p.snaredTime||0)-dt);
     if (magnitude && canMove) { p.facingX = ix; p.facingY = iy; }
     p.dashBuffer = Math.max(0, (p.dashBuffer || 0) - dt);
     if (!dashUnlocked || staggered) { p.dashBuffer = 0; p.dashTime = 0; }
@@ -1263,7 +1283,7 @@
       if (p.dashTime === 0) dashBurst(run, a);
     }
     if (walkDt > 0 && canMove) {
-      var speed = 180 * (has(run, 'gale') ? 1.22 : 1) * (mobileFocus ? 0.75 : 1);
+      var speed = 180 * (has(run, 'gale') ? 1.22 : 1) * (mobileFocus ? 0.75 : 1) * (p.snaredTime>0?.58:1);
       move(a, p, ix * speed * walkDt, iy * speed * walkDt);
     }
     if (a.disruptionGust && a.disruptionGust.remaining>0) {
@@ -1300,6 +1320,7 @@
     advanceCompanions(run, a, worldDt);
     if (run.status !== 'combat') { updateTarget(a); return a; }
     advanceRoom(run, a, worldDt);
+    if (BossEvolution && !a.spellClash) BossEvolution.tick(run,a,worldDt,{damage:directDamage,hurt:function(r,area,dmg){applyHit(r,area,dmg,{source:'clash'});},effect:effect});
     advanceBossShots(run, a, worldDt);
     a.enemies.forEach(function (e) { if (run.status === 'combat') enemyAI(run, a, e, worldDt, motionScale * (a.enemyMoveScale || 1)); });
     var bossBody = a.enemies.find(function (e) { return e.kind === 'boss' && e.alive; });
@@ -1320,6 +1341,7 @@
     if (a.player.staggerTime > 0) return { ok: false, reason: 'stagger', message: '受擊硬直中，站穩後才能施法。' };
     if (getInterrupt(run)) return submitInterrupt(run, text);
     if (BossDisruption && BossDisruption.blocksCast(run)) return { ok:false, reason:'stolen', message:'首領暫時奪走這組咒語。閃避回聲攻擊，等待咒語歸還！' };
+    if (a.spellClash) return {ok:false,reason:'clash',message:'法術正在對決，連按空白鍵或畫面上的對決按鈕！'};
     var possible = targets(a), target = possible[0];
     if (!target) return { ok: false, message: '下一波敵人正在進場，利用空檔移動與恢復專注。' };
     if (dist(target, a.player) > RANGE + target.r) return { ok: false, message: '敵人超出咒語射程，先靠近再施法。' };
@@ -1342,6 +1364,9 @@
       a.lastCastHit = { x: target.x, y: target.y, boss: target.kind === 'boss', blocked: true };
     }
     a.casts += 1;
+    var activeBoss = a.enemies.find(function(e){return e.kind==='boss'&&e.alive;});
+    var clashStarted = BossEvolution && activeBoss && run.status === 'combat' ? BossEvolution.beginClash(run,a,activeBoss,type,effect) : null;
+    if(clashStarted){result.clash=true;result.message+=' 同系法術碰撞！立刻連打進行對決。';}
     var facing = unit(target.x - a.player.x, target.y - a.player.y); a.player.facingX = facing.x; a.player.facingY = facing.y;
     effect(a, 'cast', a.player.x, a.player.y, { x2: target.x, y2: target.y, targetId: target.id,
       spellType: type, spellWord: word, color: type === 'heal' ? '#88e7bf' : type === 'shield' ? '#89d6ff' : type === 'signature' ? '#f8d294' : '#c2a3ff', life: 0.45 });
@@ -1374,17 +1399,20 @@
   }
   function useItem(run, id) {
     var a = ensure(run), available = a ? targets(a) : [], target = available[0];
+    if(id==='spellbreaker' && (!a || !BossEvolution || !a.enemies.some(function(e){return e.kind==='boss'&&e.alive&&e.action?.kind==='spell';}) && a.ritual?.status!=='charging')) return {ok:false,message:'必須在首領詠唱或蓄力時才能使用封咒破針。'};
     if (a && a.introRemaining > 0 && id === 'bomb') return { ok: false, message: '等待首領登場後才能投擲炸彈。' };
     if (a && id === 'bomb' && !target) return { ok: false, message: '下一波敵人尚未出現，先保留炸彈。' };
     var result = Engine.useItem(run, id, { damageLimit: a ? available.reduce(function (sum, e) { return sum + e.hp; }, 0) : Infinity });
     if (result.ok && a) {
       if (result.damage) { distribute(a, result.damage, target); effect(a, 'bomb', target ? target.x : a.player.x, target ? target.y : a.player.y, { r: 95, life: 0.65, color: '#ffca86' }); }
       if (id === 'hourglass') { a.slowTime = Math.max(a.slowTime, 6); a.enemies.forEach(function (e) { e.cooldown += 2; }); }
+      if (id === 'spellbreaker' && BossEvolution) BossEvolution.interrupt(run,a,{effect:effect});
       if (id === 'potion' || id === 'barrier') effect(a, id === 'potion' ? 'heal' : 'shield', a.player.x, a.player.y, { r: 32, color: id === 'potion' ? '#89e4ac' : '#9edcff' });
       updateTarget(a);
     }
     return result;
   }
+  function mashClash(run){var a=ensure(run);if(!a||!BossEvolution)return {ok:false};return BossEvolution.mash(run,a,effect);}
   function getSummary(run) {
     var a = run && run.arena;
     return a ? { room: a.room.name, mutator: a.room.mutator, layout: a.room.layout, formation: a.room.formation, omen: a.room.omen,
@@ -1402,6 +1430,6 @@
     delete a.player.queuedDashX; delete a.player.queuedDashY;
   }
   return { ensure: ensure, update: update, cast: cast, useItem: useItem, getSummary: getSummary, clearInput: clearInput,
-    getInterrupt: getInterrupt, submitInterrupt: submitInterrupt, ROOMS: ROOMS, BOSS_ARENAS: BOSS_ARENAS,
+    getInterrupt: getInterrupt, submitInterrupt: submitInterrupt, mashClash:mashClash, ROOMS: ROOMS, BOSS_ARENAS: BOSS_ARENAS,
     WIDTH: WIDTH, HEIGHT: HEIGHT, CAST_RANGE: RANGE };
 });

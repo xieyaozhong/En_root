@@ -104,10 +104,14 @@
     if (actor.morale < 22 && enemy && distance(actor, enemy) < 160) { setBehavior(run, actor, 'panic'); return; }
     if (actor.behavior === 'lost' && actor.lostTimer > 0) return;
     if (actor.behavior === 'lost') { setBehavior(run, actor, 'return'); return; }
-    if (near > 280 && actor.behavior !== 'return') { actor.lostTimer = 3 + random(run) * 6; setBehavior(run, actor, 'lost'); return; }
+    if (near > (actor.npcId==='echo'?245:actor.npcId==='lantern'?410:280) && actor.behavior !== 'return') { actor.lostTimer = 3 + random(run) * 6; setBehavior(run, actor, 'lost'); return; }
     if (actor.behavior === 'return' && near > 78) return;
     var r = random(run);
-    if (r < p.curiosity * (combat ? .16 : .30)) setBehavior(run, actor, 'explore');
+    if(actor.npcId==='lantern' && near<175 && r<.6){setBehavior(run,actor,'protect');return;}
+    if(actor.npcId==='sentinel' && combat && enemy && r<.72){setBehavior(run,actor,'flank');return;}
+    if(actor.npcId==='echo' && !combat && r<.58){setBehavior(run,actor,'explore');}
+    else if(actor.npcId==='lumina' && combat && run.player.hp<run.player.maxHp*.55 && r<.6){setBehavior(run,actor,'protect');return;}
+    else if (r < p.curiosity * (combat ? .16 : .30)) setBehavior(run, actor, 'explore');
     else if (r < p.curiosity * (combat ? .24 : .53)) setBehavior(run, actor, 'wander');
     else if (combat && enemy && r < p.bravery * .68 + .23) setBehavior(run, actor, 'flank');
     else setBehavior(run, actor, 'protect');
@@ -193,6 +197,38 @@
     (area.companions || []).forEach(function (actor) {
       if (actor.dead) return;
       steer(run, area, actor, dt, true, function (c, dx, dy) { api.move(area, c, dx, dy); });
+      actor.specialTimer=Math.max(0,(actor.specialTimer||0)-dt);
+      if(actor.specialTimer<=0){
+        if(actor.npcId==='lantern' && distance(actor,area.player)<135 && run.player.shield<45){
+          run.player.shield=Math.min(90,run.player.shield+5);
+          actor.specialTimer=7;
+          if(api.effect)api.effect(area,'shield',area.player.x,area.player.y,{color:'#8de9d9',r:29,life:.4,text:'路米守護'});
+        }else if(actor.npcId==='sentinel'){
+          var closest=(area.enemies||[]).filter(function(e){return e.alive&&e.active&&e.kind!=='boss';})
+            .sort(function(a,b){return distance(a,actor)-distance(b,actor);})[0];
+          if(closest&&distance(closest,actor)<160){
+            closest.aggroCompanion=actor.id;closest.aggroRemaining=2.4;
+            actor.specialTimer=5.5;
+            if(api.effect)api.effect(area,'counter',actor.x,actor.y,{color:'#ffd38e',r:30,life:.4,text:'折鋒挑釁'});
+          }
+        }else if(actor.npcId==='lumina'){
+          var wounded=(area.companions||[]).filter(function(c){return !c.dead&&c.hp<c.maxHp*.65;})
+            .sort(function(a,b){return a.hp/a.maxHp-b.hp/b.maxHp;})[0];
+          if(wounded&&distance(wounded,actor)<175){
+            wounded.hp=Math.min(wounded.maxHp,wounded.hp+6);actor.specialTimer=9;
+            if(api.effect)api.effect(area,'heal',wounded.x,wounded.y,{color:'#e9b8ef',r:25,life:.5,text:'露米娜療癒'});
+          }else if(run.player.hp<run.player.maxHp*.58&&distance(actor,area.player)<175){
+            run.player.hp=Math.min(run.player.maxHp,run.player.hp+4);actor.specialTimer=9;
+            if(api.effect)api.effect(area,'heal',area.player.x,area.player.y,{color:'#e9b8ef',r:25,life:.5,text:'露米娜治療'});
+          }
+        }else if(actor.npcId==='echo'){
+          // Echo records the boss's last incantation, never instantly copying
+          // unearned spells; its delayed echo damage still follows player casts.
+          if(area.bossChant&&area.bossChant.status==='chanting'){
+            actor.observedWord=area.bossChant.word;actor.specialTimer=3;
+          }
+        }
+      }
       save(run, actor);
     });
   }
