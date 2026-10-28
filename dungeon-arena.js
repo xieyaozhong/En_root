@@ -1076,7 +1076,18 @@
       if (a.time >= e.spawnAt) { e.active = true; a.wavesReleased = Math.max(a.wavesReleased, e.spawnAt >= 9 ? 3 : 2); effect(a, 'spawn', e.x, e.y, { r: 40, life: 0.7 }); }
       else return;
     }
-    var p = a.player, dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy), direction = unit(dx, dy);
+    // Lesser enemies can acquire an exposed party member; guardians still duel the player.
+    var p = a.player;
+    if (CompanionAI && e.kind !== 'boss') {
+      var exposed = (a.companions || []).filter(function (c) {
+        return !c.dead && c.hp > 0 && c.behavior !== 'lost' &&
+          (c.behavior === 'flank' || c.behavior === 'protect' || c.behavior === 'explore');
+      }).sort(function (left, right) {
+        return dist(e, left) - dist(e, right);
+      })[0];
+      if (exposed && dist(e, exposed) < 175 && dist(e, exposed) < dist(e, a.player) * (exposed.npcId === 'sentinel' ? 1.1 : 0.82)) p = exposed;
+    }
+    var dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy), direction = unit(dx, dy);
     e.hurt = Math.max(0, e.hurt - dt); e.phase = run.enemy.phase;
     e.counterWindow = Math.max(0, (e.counterWindow || 0) - dt);
     e.perfectWindow = Math.max(0, (e.perfectWindow || 0) - dt);
@@ -1107,7 +1118,7 @@
     if (e.chargeTime > 0) {
       e.chargeTime = Math.max(0, e.chargeTime - dt);
       move(a, e, e.chargeX * 365 * dt * motionScale, e.chargeY * 365 * dt * motionScale);
-      if (dist(e, p) <= e.r + p.r) { if (p.invulnerable > 0) countDodge(a, e); else applyHit(run, a, 11 + run.region * 2, e); }
+      if (dist(e, p) <= e.r + p.r) { if (p === a.player) { if (p.invulnerable > 0) countDodge(a, e); else applyHit(run, a, 11 + run.region * 2, e); } else if (CompanionAI) CompanionAI.hurt(run, a, p, 11 + run.region * 2, '突進攻擊', effect); }
       return;
     }
     if (e.telegraph > 0) { e.telegraph = Math.max(0, e.telegraph - dt); return; }
