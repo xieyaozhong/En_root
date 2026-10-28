@@ -39,7 +39,7 @@
         traceClock:0,mirrorClock:2.8,warp:null,clock:0,cooldown:0,phase:run.enemy.phase||1};
     }
     var b=area.bossIdentity;
-    if(id==='prism'&&b.mirrors.length!==4)b.mirrors=[{x:285,y:150},{x:690,y:410},{x:695,y:148},{x:295,y:414}];
+    if(id==='prism'&&b.mirrors.length!==4)b.mirrors=[{x:340,y:155},{x:620,y:385},{x:625,y:155},{x:335,y:385}];
     return b;
   }
   function effect(api,area,kind,x,y,text,color){
@@ -110,7 +110,8 @@
           delay:1.75+c*.2,life:.42,damage:9,color:'#ffc4b9'});
       }
     }else if(id==='constellation'||id==='echo'){
-      var trail=state.trace.length?state.trace.slice(-(phase===2?4:2)): [{x:p.x,y:p.y}];
+      var trail=[11,6,3,1].slice(phase===2?0:2).map(function(offset){return state.trace[state.trace.length-offset];}).filter(Boolean);
+      if(!trail.length)trail=[{x:p.x,y:p.y}];
       trail.forEach(function(q,i){state.decoys.push({x:q.x,y:q.y,life:2.3+(i*.25),kind:id==='echo'?'echo':'memory'});
         mark({x:q.x,y:q.y,r:phase===2?70:53,delay:1.65+i*.4,life:.48,damage:8,color:theme.color});});
     }else if(id==='merchant'){
