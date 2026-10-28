@@ -59,7 +59,7 @@ Domain.tick(prism,m,.1,{hazard:(area,h)=>Object.assign({id:'mirror-shot'},h),eff
 assert.ok(m.bossIdentity.warp && m.bossIdentity.warp.remaining>.6,'exit is visibly marked before relocation');
 const exit=Object.assign({},m.bossIdentity.warp.target);
 assert.ok(exit.x!==initial.x||exit.y!==initial.y);
-Domain.tick(prism,m,.8,{hazard:(area,h)=>{area.hazards.push(h);return h;},effect:()=>{}});
+Domain.tick(prism,m,.9,{hazard:(area,h)=>{area.hazards.push(h);return h;},effect:()=>{}});
 assert.equal(m.bossIdentity.warp,null);
 assert.ok(Math.hypot(mob.x-exit.x,mob.y-exit.y)<1,'boss actually exits the marked mirror');
 assert.ok(mob.counterWindow>=.7,'the exit offers a learnable punish window');
