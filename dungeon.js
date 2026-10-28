@@ -482,6 +482,24 @@
     // Healing must preserve the held joystick and the partially entered spell.
     notify(result.message);tone('heal');renderVitals();updateQuickPotion();renderSidebar();persist();
   }
+  function quickBreak(){
+    if(!run||paused||persistenceBroken||busy||run.status!=='combat')return;
+    doAction('useItem','spellbreaker');
+  }
+  function updateBreaker() {
+    const count=run?.inventory?.find(item=>item.id==='spellbreaker')?.count||0;
+    const boss=run?.arena?.enemies?.find(e=>e.kind==='boss'&&e.alive);
+    const ready=!!boss&&(boss.action?.kind==='spell'||run.arena?.ritual?.status==='charging');
+    for(const id of ['breakSpellButton','touchBreaker']){
+      const button=$(id);if(!button)continue;
+      button.hidden=run?.status!=='combat'||count<=0;
+      button.disabled=paused||!ready||!count;
+      button.title=ready?'立即打斷 Boss 吟唱並取得反擊窗口':'等待首領開始吟唱';
+      if(id==='breakSpellButton')textIfChanged(id,'✥ 破咒針 ×'+count);
+    }
+  }
+  $('breakSpellButton').onclick=quickBreak;
+  bindTouchPress($('touchBreaker'),quickBreak);
   function updateArenaHUD() {
     const active=!!navigable(),combat=run?.status==='combat';
     $('expandButton').disabled=!run;
@@ -498,7 +516,7 @@
     $('castFeedback').hidden=!combat || paused || performance.now()>=castFeedbackUntil;
     $('focusFlag').hidden=true;$('focusAbility').hidden=!combat || !Engine.hasChantSlow(run);$('chantButton').hidden=!combat;$('interactButton').hidden=!active || combat;
     $('chantButton').disabled=paused || window.DungeonBossDisruption?.blocksCast(run) || run?.arena?.player.staggerTime>0 || run?.arena?.introRemaining>0;
-    paintTouchSpell();updateQuickPotion();renderDuelHUD();
+    paintTouchSpell();updateQuickPotion();updateBreaker();renderDuelHUD();
     if(!active || !world())return;
     const arena=world(),player=arena.player;
     if(combat){
@@ -1178,7 +1196,7 @@
       if(before!==run.status){setChant(false);actionSignature='';render();persist();tone(run.status==='won'?'win':run.status==='reward'?'loot':'hit');}
       if(saveClock>1.5){saveClock=0;persist();}
     }
-    if(time-lastPaint>80){lastPaint=time;syncBossDisruption();renderBossSpell();if(run){renderVitals();if(explorationStatuses.includes(run.status))renderAction();liveCombat();updateArenaHUD();renderLog();renderParty();}}
+    if(time-lastPaint>80){lastPaint=time;syncBossDisruption();renderBossSpell();updateBreaker();if(run){renderVitals();if(explorationStatuses.includes(run.status))renderAction();liveCombat();updateArenaHUD();renderLog();renderParty();}}
     if(!paused)presentation();
     renderer.draw({run,focus:chanting,paused,reducedMotion},time);
     requestAnimationFrame(frame);
