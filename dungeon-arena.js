@@ -9,6 +9,7 @@
   var WIDTH = 960, HEIGHT = 540, RANGE = 440;
   var CompanionAI = typeof module === 'object' && module.exports ? require('./dungeon-companion-ai.js') : (typeof window !== 'undefined' ? window.DungeonCompanionAI : null);
   var CombatArts = typeof module === 'object' && module.exports ? require('./dungeon-combat-arts.js') : (typeof window !== 'undefined' ? window.DungeonCombatArts : null);
+  var BossDisruption = typeof module === 'object' && module.exports ? require('./dungeon-boss-disruption.js') : (typeof window !== 'undefined' ? window.DungeonBossDisruption : null);
   var ROOMS = [
     { id: 'pillars', type: 'cover', name: '古柱迴廊', description: '石柱能擋住敵人的飛彈，也會阻擋移動。利用掩體靠近施法。', mutator: '四柱掩體' },
     { id: 'lanes', type: 'traps', name: '碎光十字', description: '地面每隔五秒亮起交錯光帶；預警結束前離開紅色區域。', mutator: '交替陷阱' },
@@ -1067,6 +1068,7 @@
     } else if (mechanic === 'moonflowers') {
       [260, 700].forEach(function (x, index) { mark({ kind: 'ring', x: x, y: 280, r: 90, innerR: 60, delay: 1.8 + index * 0.5 }); });
     }
+    if (BossDisruption) BossDisruption.schedule(run,a,boss,hazard,effect);
     // A fresh floor tell always precedes the next committed boss attack.
     run.enemy.intent.remaining = Math.max(run.enemy.intent.remaining, 1.1);
   }
@@ -1185,6 +1187,10 @@
       if (!h.impactShown && !h.cosmetic) { h.impactShown = true; effect(a, 'impact', h.x, h.y, { r: h.r || 26, color: h.color, life: 0.4 }); }
       if (!h.cosmetic && (!h.hit || h.repeat) && contains(h, a.player)) {
         if (a.player.invulnerable > 0) countDodge(a, h);
+        else if (h.disruption) {
+          if (BossDisruption) BossDisruption.apply(run,a,h.disruption,effect,hazard);
+          h.hit = true;
+        }
         else if (applyHit(run, a, h.damage, h) && !h.repeat) h.hit = true;
       }
     });
@@ -1213,6 +1219,7 @@
     var raw = Number(deltaSeconds), dt = Number.isFinite(raw) ? clamp(raw, 0, 0.1) : 0;
     if (!dt) return a;
     input = input || {}; var p = a.player;
+    if (BossDisruption) BossDisruption.tick(run,a,dt);
     var introActive = a.introRemaining > 0, staggered = (p.staggerTime || 0) > 0;
     p.staggerTime = Math.max(0, (p.staggerTime || 0) - dt);
     var focusRequested = !!input.focus, mobileFocus = !!input.mobile && focusRequested, dashUnlocked = canDash(run);
@@ -1256,6 +1263,12 @@
     if (walkDt > 0 && canMove) {
       var speed = 180 * (has(run, 'gale') ? 1.22 : 1) * (mobileFocus ? 0.75 : 1);
       move(a, p, ix * speed * walkDt, iy * speed * walkDt);
+    }
+    if (a.disruptionGust && a.disruptionGust.remaining>0) {
+      var gustDt=Math.min(dt,a.disruptionGust.remaining);
+      move(a,p,a.disruptionGust.vx*gustDt,a.disruptionGust.vy*gustDt);
+      a.disruptionGust.remaining=Math.max(0,a.disruptionGust.remaining-dt);
+      if(a.disruptionGust.remaining===0)a.disruptionGust=null;
     }
     p.moving = !staggered && (dashDt > 0 || canMove && magnitude > 0);
     if (run.status !== 'combat') return a;
@@ -1304,6 +1317,7 @@
     if (a.introRemaining > 0) return { ok: false, reason: 'intro', message: '首領正在登場，先移動到適合的位置。' };
     if (a.player.staggerTime > 0) return { ok: false, reason: 'stagger', message: '受擊硬直中，站穩後才能施法。' };
     if (getInterrupt(run)) return submitInterrupt(run, text);
+    if (BossDisruption && BossDisruption.blocksCast(run)) return { ok:false, reason:'stolen', message:'首領暫時奪走這組咒語。閃避回聲攻擊，等待咒語歸還！' };
     var possible = targets(a), target = possible[0];
     if (!target) return { ok: false, message: '下一波敵人正在進場，利用空檔移動與恢復專注。' };
     if (dist(target, a.player) > RANGE + target.r) return { ok: false, message: '敵人超出咒語射程，先靠近再施法。' };
