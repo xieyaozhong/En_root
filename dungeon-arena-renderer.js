@@ -48,8 +48,8 @@
   class DungeonArenaRenderer {
     constructor(canvas){
       if(!canvas?.getContext)throw new Error('DungeonArenaRenderer requires a canvas');
-      this.canvas=canvas;canvas.width=W;canvas.height=H;canvas.style.imageRendering='pixelated';
-      this.ctx=canvas.getContext('2d',{alpha:false});this.ctx.imageSmoothingEnabled=false;
+      this.canvas=canvas;canvas.width=W;canvas.height=H;canvas.style.imageRendering='auto';
+      this.ctx=canvas.getContext('2d',{alpha:false});this.ctx.imageSmoothingEnabled=true;
       this.backdrops=PAL.map((p,i)=>this.background(p,i));
       this.legacy=window.DungeonRenderer?.prototype||null;
       this.random=random(77483);this.clock=0;this.lastTime=null;this.particles=[];this.trail=[];this.shake=0;this.flash=0;this.flashKind='';this.lastScene=null;this.lastPlayer=null;this.lastRoom=null;
@@ -57,7 +57,7 @@
       this.actorTracks=new Map();this.actorFrame=0;this.actorRun=null;this.actorSpace=null;this.actorScope='';this.actorContext=null;this.hurtCue=0;
       this.bossBackdrops=new Map();
     }
-    resize(){this.ctx.imageSmoothingEnabled=false;}
+    resize(){this.ctx.imageSmoothingEnabled=true;}
     background(p,region){
       const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;
       const c=canvas.getContext('2d'),rnd=random(92813+region*1009);c.imageSmoothingEnabled=false;
