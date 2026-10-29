@@ -1,0 +1,44 @@
+/* Mobile gameplay: block double-tap smart zoom without disabling pinch-to-zoom.
+ * touch-action is intersected across the target's ancestors, so a scoped
+ * manipulation root also covers non-button HUD text and touch overlays.
+ * Joystick / canvas and rapid-action keys keep their existing touch-action:none. */
+body.touch-layout.in-run,
+body.touch-layout.in-run .game-layout,
+body.touch-layout.in-run #gameSurface,
+body.touch-layout.in-run #gameSurface > .stage-frame,
+body.touch-layout.in-run #gameSurface .arena,
+body.touch-layout.in-run #gameSurface .stage-top,
+body.touch-layout.in-run #gameSurface .vitals,
+body.touch-layout.in-run #gameSurface #touchControls,
+body.touch-layout.in-run #gameSurface #movementBar,
+body.touch-layout.in-run #gameSurface #immersiveTools,
+body.touch-layout.in-run #gameSurface #partyStrip,
+body.touch-layout.in-run #gameSurface #actionPanel,
+body.touch-layout.in-run #gameSurface #clashButton,
+body.touch-layout.in-run #gameSurface #bossBanner {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* These surfaces are continuously dragged / rapidly tapped; prohibit
+ * native panning and the double-tap gesture on their own hit regions. */
+body.touch-layout.in-run #arena,
+body.touch-layout.in-run #moveJoystick,
+body.touch-layout.in-run #touchRuneKeys,
+body.touch-layout.in-run #touchRuneKeys button,
+body.touch-layout.in-run #touchDash,
+body.touch-layout.in-run #touchCast,
+body.touch-layout.in-run #clashButton,
+body.touch-layout.in-run #touchBreaker,
+body.touch-layout.in-run #touchPotion {
+  touch-action: none;
+}
+
+/* Text-entry fields and modal content keep native selections, touch scroll and
+ * accessibility zoom; do not force gesture cancellation on the whole document. */
+body.touch-layout.in-run #gameSurface dialog,
+body.touch-layout.in-run #gameSurface dialog input,
+body.touch-layout.in-run #gameSurface dialog textarea,
+body.touch-layout.in-run #gameSurface dialog select {
+  touch-action: auto;
+}
