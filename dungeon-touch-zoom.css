@@ -14,7 +14,6 @@ body.touch-layout.in-run #gameSurface #movementBar,
 body.touch-layout.in-run #gameSurface #immersiveTools,
 body.touch-layout.in-run #gameSurface #partyStrip,
 body.touch-layout.in-run #gameSurface #actionPanel,
-body.touch-layout.in-run #gameSurface #clashButton,
 body.touch-layout.in-run #gameSurface #bossBanner {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -28,7 +27,7 @@ body.touch-layout.in-run #touchRuneKeys,
 body.touch-layout.in-run #touchRuneKeys button,
 body.touch-layout.in-run #touchDash,
 body.touch-layout.in-run #touchCast,
-body.touch-layout.in-run #clashButton,
+body.touch-layout.in-run #gameSurface #clashButton,
 body.touch-layout.in-run #touchBreaker,
 body.touch-layout.in-run #touchPotion {
   touch-action: none;
