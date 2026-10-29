@@ -1168,6 +1168,16 @@
     const target=event.target;
     if(target instanceof HTMLElement && target.closest('#gameSurface') && !target.closest('input,textarea,select,dialog'))event.preventDefault();
   }));
+  // Fallback for iOS WebKit smart-zoom. CSS touch-action:manipulation is the
+  // primary safeguard; cancelling dblclick prevents native zoom where the
+  // gesture still dispatches a double-click. Keep actual click/pointerdown
+  // gameplay handlers, pinch accessibility and editable dialogs untouched.
+  document.addEventListener('dblclick',event=>{
+    if(!touchLayout || !run || !event.cancelable)return;
+    const target=event.target;
+    if(!target?.closest?.('#gameSurface') || target.closest('dialog,input,textarea,select,[contenteditable="true"]'))return;
+    event.preventDefault();
+  },{capture:true,passive:false});
   $('arena').onpointerdown=()=>{if(!touchLayout && chanting)setChant(false);$('arena').focus({preventScroll:true});};
   window.addEventListener('blur',()=>{clearMovement();if(navigable()){paused=true;syncPause();persist();}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){clearMovement();if(navigable()){paused=true;syncPause();persist();}}});
