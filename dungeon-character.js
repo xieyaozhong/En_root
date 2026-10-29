@@ -147,6 +147,12 @@
       shape([[-12,-30],[-14+flow,-17],[-7+flow*.7,-22],[-3,-35]],p.lining);
       shape([[8,-42],[11+flow*.5,-24],[19+flow,-17],[21+flow,-19],[13,-43]],p.coat);
       shape([[11,-37],[12+flow*.5,-25],[18+flow,-19],[14+flow*.6,-26]],p.liningLight);
+      // Stitched hems give the layered cape and tunic true sculpted depth.
+      const sashGlint=still?0:Math.sin(time*3.1)*.55;
+      shape([[-12,-33],[-15+flow,-18],[-10+flow*.8,-20],[-8,-33]],p.edge);
+      shape([[12,-35],[18+flow,-17],[16+flow*.5,-19],[10,-30]],p.liningLight);
+      shape([[-12,-34],[-16+flow,-15],[-13+flow,-17],[-9,-34]],p.gold);
+      shape([[9,-40],[17+flow,-16],[14+flow,-17],[8,-37]],p.goldLight);
       leg(c,frontHip,frontKnee,frontAnkle,p,false,profile?2:0);
       const rearShoulder=B(-8,-49), frontShoulder=B(8,-49);
       const rearElbow=B(-12-stride*2-windup*2,-39-windup*8-release*3);
@@ -178,6 +184,16 @@
         shape([[-7,-33],[-9,-30],[-8,-27],[-6,-27],[-5,-31]],p.lining);
         mark(-8,-31,3,1,p.goldLight);
       }
+      // Raised chest armor, beveled inlay and two floating shoulder guards.
+      const breast=B(0,-42),shoulderL=B(-9,-48),shoulderR=B(9,-48);
+      shape([[-8,-47],[0,-50],[8,-47],[7,-36],[2,-32],[-7,-35]],p.outline);
+      shape([[-6,-46],[0,-48],[6,-46],[5,-38],[0,-34],[-5,-38]],p.ivoryShade);
+      shape([[-3,-46],[0,-48],[2,-46],[1,-35],[-2,-38]],p.ivory);
+      shape([[-11,-49],[-7,-53],[-2,-51],[-4,-46],[-10,-44]],p.edge);
+      shape([[5,-51],[10,-52],[13,-48],[10,-44],[5,-47]],p.fold);
+      for(const shoulder of [shoulderL,shoulderR]){jewel(c,shoulder[0],shoulder[1],3,p.gold);}
+      star(c,breast[0],breast[1]+1+sashGlint,4,p.goldLight);
+      mark(-1,-28,2,5,p.goldLight);mark(-1,-23,2,2,p.liningLight);
       const headX=profile?2:0, hy=-63;
       shape([[headX-7,hy-7],[headX+5,hy-8],[headX+9,hy-3],[headX+9,hy+6],[headX+4,hy+11],[headX-4,hy+9],[headX-8,hy+3]],p.outline);
       if (!back) {
@@ -207,6 +223,10 @@
         shape([[headX+7,hy-1],[headX+8,hy],[headX+8+lag*.25,hy+10],[headX+7+lag*.4,hy+12]],p.hair);
         mark(headX-7,hy+1,2,2,p.goldLight);
       }
+      // Individual polished hair strands and tapered shadow wisps.
+      shape([[headX-5,hy-4],[headX-2,hy-7],[headX+1,hy-6],[headX-3,hy],[headX-4,hy+6]],p.hairLight);
+      shape([[headX+6,hy-2],[headX+8,hy-1],[headX+9+lag*.24,hy+10],[headX+8,hy+14],[headX+7,hy+8]],p.hairShade);
+      mark(headX-4,hy+3,2,1,p.goldLight);
       // A low star-trimmed travelling hat, with a soft asymmetric crown.
       const hatSway=lag*.12;
       shape([[-19+hatSway,-68],[-10,-72],[-7,-80],[-1,-84],[7,-81],[12,-73],[20+hatSway,-69],[17+hatSway,-65],[5,-64],[-9,-65]],p.outline);
@@ -224,6 +244,16 @@
       // Staff orientation follows the wrist through a held wind-up and a sharp release.
       const staffAngle=fallen ? mix(-.08,.78,fall) : dash ? -.34 : -.08-stride*.04-windup*.24+release*.58;
       staff(c,frontWrist,staffAngle,p,chant ? .75 : casting ? Math.max(windup,release) : 0,time,still);
+      // Diegetic luminous gem facets stay coupled to the wrist and actual
+      // cast pose. No new animation timer can alter hit registration.
+      if((chant||casting)&&!fallen){
+        const focus=chant?.52:Math.max(.12,release),height=42,tip=B(frontWrist[0]+Math.sin(staffAngle)*height,frontWrist[1]-Math.cos(staffAngle)*height);
+        c.save();c.globalAlpha*=Math.min(.72,focus*.7);c.strokeStyle=p.glow;c.lineWidth=1.1;
+        c.beginPath();c.ellipse(tip[0],tip[1],8+focus*7,4+focus*6,staffAngle,0,TAU);c.stroke();
+        for(let i=0;i<5;i++){const a=i*TAU/5+(still?0:time*.6);
+          const q=[tip[0]+Math.cos(a)*14,tip[1]+Math.sin(a)*11];jewel(c,q[0],q[1],2,p.goldLight);}
+        c.restore();
+      }
       if (release>.15 && !still) {
         c.save(); c.globalAlpha *= release*.55;
         const tip=[frontWrist[0]+Math.sin(staffAngle)*34,frontWrist[1]-Math.cos(staffAngle)*34];

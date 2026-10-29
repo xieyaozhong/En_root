@@ -1,0 +1,80 @@
+/* Word Relic HD remaster — refined material contrast and accessible HUD.
+ * The combat canvas owns all attack-zone graphics. CSS never tints warnings. */
+:root{
+  --hd-glass:rgba(23,33,49,.88);
+  --hd-glass-edge:rgba(180,217,224,.24);
+  --hd-bevel-light:rgba(221,247,235,.1);
+}
+.stage-frame{
+  position:relative;
+  isolation:isolate;
+  box-shadow:0 15px 48px rgba(2,8,16,.36),inset 0 1px 0 rgba(246,240,212,.12);
+}
+.stage-frame:before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  border:1px solid rgba(191,215,225,.24);border-radius:inherit;
+  box-shadow:inset 0 1px 0 rgba(240,248,255,.14),inset 0 -2px 0 rgba(2,8,19,.16);
+}
+.stage-frame>*{position:relative}
+.stage-top{
+  background:linear-gradient(120deg,rgba(42,62,76,.2),rgba(11,19,35,.12));
+  box-shadow:inset 0 -1px 0 rgba(192,213,226,.12);
+}
+.stage-frame .arena{
+  position:relative;isolation:isolate;
+  box-shadow:inset 0 0 0 1px rgba(197,230,234,.18),0 6px 23px rgba(1,9,19,.25);
+}
+.stage-frame .arena canvas{
+  display:block;max-width:100%;
+  image-rendering:auto;
+  filter:contrast(1.05) saturate(1.08);
+}
+.stage-frame .arena-vignette{
+  pointer-events:none;opacity:.55;
+}
+.boss-banner:not([hidden]){
+  border:1px solid rgba(224,203,183,.31);
+  background:linear-gradient(136deg,rgba(31,36,57,.94),rgba(25,26,46,.84));
+  box-shadow:0 6px 26px rgba(5,9,22,.35),inset 0 1px 0 rgba(245,227,193,.14);
+  backdrop-filter:blur(4px);
+}
+.boss-banner .boss-heading strong{
+  letter-spacing:.035em;
+  text-shadow:0 1px 6px rgba(0,0,0,.36);
+}
+.boss-spellbar:not([hidden]){
+  background:linear-gradient(100deg,rgba(26,31,49,.96),rgba(37,31,62,.9));
+  box-shadow:0 1px 10px rgba(13,8,35,.24),inset 0 1px 0 rgba(231,208,247,.12);
+}
+.clash-button:not([hidden]){
+  border-width:2px;
+  background:linear-gradient(145deg,#7e5a98,#4f417d 60%,#836799);
+  text-shadow:0 2px 5px rgba(28,13,48,.55);
+  box-shadow:0 0 24px rgba(205,160,235,.42),inset 0 2px 0 rgba(255,241,209,.25);
+}
+.boss-identity-hint:not([hidden]){
+  background:linear-gradient(110deg,rgba(20,30,44,.94),rgba(35,45,61,.83));
+  border-left-width:3px;
+}
+.inventory-dialog,.inventory-dialog[open]{
+  border-color:rgba(184,215,224,.3);
+  box-shadow:0 18px 55px rgba(4,9,19,.65),inset 0 1px 0 rgba(232,251,255,.12);
+}
+.bag-entry,.codex-item,.boss-domain-entry{
+  box-shadow:inset 0 1px 0 rgba(209,223,221,.075),0 3px 12px rgba(3,11,21,.08);
+}
+.boss-domain-entry:hover{
+  border-color:rgba(197,229,222,.45);
+  background:linear-gradient(140deg,rgba(34,56,67,.42),rgba(32,29,54,.42));
+}
+#vitals .meter>i,#movementBar .meter>i{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 0 9px rgba(214,244,222,.16);
+}
+@media(max-width:700px){
+  .stage-frame .arena canvas{filter:contrast(1.035) saturate(1.06)}
+  .boss-banner:not([hidden]){backdrop-filter:none}
+  .stage-frame{box-shadow:0 7px 20px rgba(3,11,22,.2)}
+}
+@media(prefers-reduced-motion:reduce){
+  .boss-domain-entry,.clash-button,.boss-spellbar{animation:none!important;transition:none!important}
+}

@@ -48,8 +48,8 @@
   class DungeonArenaRenderer {
     constructor(canvas){
       if(!canvas?.getContext)throw new Error('DungeonArenaRenderer requires a canvas');
-      this.canvas=canvas;canvas.width=W;canvas.height=H;canvas.style.imageRendering='pixelated';
-      this.ctx=canvas.getContext('2d',{alpha:false});this.ctx.imageSmoothingEnabled=false;
+      this.canvas=canvas;canvas.width=W;canvas.height=H;canvas.style.imageRendering='auto';
+      this.ctx=canvas.getContext('2d',{alpha:false});this.ctx.imageSmoothingEnabled=true;
       this.backdrops=PAL.map((p,i)=>this.background(p,i));
       this.legacy=window.DungeonRenderer?.prototype||null;
       this.random=random(77483);this.clock=0;this.lastTime=null;this.particles=[];this.trail=[];this.shake=0;this.flash=0;this.flashKind='';this.lastScene=null;this.lastPlayer=null;this.lastRoom=null;
@@ -57,7 +57,7 @@
       this.actorTracks=new Map();this.actorFrame=0;this.actorRun=null;this.actorSpace=null;this.actorScope='';this.actorContext=null;this.hurtCue=0;
       this.bossBackdrops=new Map();
     }
-    resize(){this.ctx.imageSmoothingEnabled=false;}
+    resize(){this.ctx.imageSmoothingEnabled=true;}
     background(p,region){
       const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;
       const c=canvas.getContext('2d'),rnd=random(92813+region*1009);c.imageSmoothingEnabled=false;
@@ -205,6 +205,7 @@
       c.drawImage(this.backdrops[region],0,0);
       const bossId=arena?this.bossIdentity(arena):null;
       if(bossId)this.bossEnvironment(c,bossId,arena,p,t,still);
+      if((arena||exploration)&&window.DungeonHighDefinition?.stage)window.DungeonHighDefinition.stage(c,run,arena||exploration,t,still);
       this.ambience(c,p,region,t,still);
       if(exploration)this.drawExploration(c,exploration,run,scene,p,region,t,dt,still);
       else if(arena)this.drawArena(c,arena,run,scene,p,region,t,dt,still);else this.lobby(c,p,region,t);
@@ -610,6 +611,7 @@
       this.sceneDepth(c,a,p,t,still);
       this.roomAtmosphere(c,a,p,t,still);
       this.bossBattlefield(c,a,t,still);
+      if(window.DungeonHighDefinition?.domain)window.DungeonHighDefinition.domain(c,a,t,still);
       const boss=active.find(e=>e.kind==='boss'||e.boss);
       if(boss)this.bossPresence(c,boss,a,p,t,still);
       if(boss)this.bossEntrance(c,boss,a,still);
@@ -627,10 +629,12 @@
       if(val(run?.player?.hp,1)>0)layers.push({kind:'player',object:player,y:val(player.y)});
       layers.sort((a,b)=>a.y-b.y);
       layers.forEach(layer=>{
+        if(layer.kind!=='obstacle'&&window.DungeonHighDefinition?.underActor)window.DungeonHighDefinition.underActor(c,layer.object,layer.kind==='player'?'player':layer.object.kind==='boss'?'boss':layer.kind==='companion'?'ally':'enemy',layer.object.phase);
         if(layer.kind==='obstacle')this.obstacle(c,layer.object,p,region);
         else if(layer.kind==='player')this.mage(c,layer.object,p,t,still,run);
         else if(layer.kind==='companion')this.companion(c,layer.object,p,t,still);
         else this.foe(c,layer.object,p,t,still,region);
+        if(layer.kind!=='obstacle'&&window.DungeonHighDefinition?.actorRim)window.DungeonHighDefinition.actorRim(c,layer.object,layer.kind==='player'?'player':layer.object.kind==='boss'?'boss':'enemy',t,still);
       });
       (a.projectiles||[]).forEach(b=>this.projectile(c,b,p,t,still));
       (a.effects||[]).filter(e=>!/dash|spawn|death/.test(e.kind)&&!(e.kind==='boss-intro'&&Number.isFinite(a.introRemaining))).forEach(e=>this.effect(c,e,p,t,still));
@@ -640,6 +644,7 @@
       if(aim&&Number.isFinite(aim.x)&&Number.isFinite(aim.y)&&aim.x>24&&aim.x<936&&aim.y>55&&aim.y<504){
         c.save();c.globalAlpha=.55;const x=aim.x,y=aim.y;stroke(c,x-7,y,x-3,y,p.light,1);stroke(c,x+3,y,x+7,y,p.light,1);stroke(c,x,y-7,x,y-3,p.light,1);stroke(c,x,y+3,x,y+7,p.light,1);c.restore();
       }
+      if(window.DungeonHighDefinition?.highlight)window.DungeonHighDefinition.highlight(c,run,a,t,still);
       if(boss)this.bossEntrance(c,boss,a,still,true);
     }
     drawExploration(c,a,run,scene,p,region,t,dt,still){
@@ -665,10 +670,12 @@
       (a.companions||[]).forEach(o=>layers.push({kind:'companion',object:o,y:val(o.y)}));
       objects.forEach(o=>layers.push({kind:'interactable',object:o,y:val(o.y)}));layers.push({kind:'player',object:player,y:val(player.y)});
       layers.sort((a,b)=>a.y-b.y).forEach(layer=>{
+        if(layer.kind!=='obstacle'&&window.DungeonHighDefinition?.underActor)window.DungeonHighDefinition.underActor(c,layer.object,layer.kind==='player'?'player':layer.kind==='companion'?'ally':'enemy');
         if(layer.kind==='obstacle')this.obstacle(c,layer.object,p,region);
         else if(layer.kind==='player')this.mage(c,player,p,t,still,run);
         else if(layer.kind==='companion')this.companion(c,layer.object,p,t,still);
         else this.interactable(c,layer.object,p,t,still,String(layer.object.id)===String(a.nearbyId)||String(layer.object.id)===String(a.dialogId));
+        if(layer.kind==='player'&&window.DungeonHighDefinition?.actorRim)window.DungeonHighDefinition.actorRim(c,player,'player',t,still);
       });
       objects.forEach(o=>this.interactionLabel(c,o,p,String(o.id)===String(a.nearbyId)||String(o.id)===String(a.dialogId),String(o.id)===String(a.dialogId)));
       this.playerStatus(c,player,run,p,t,still);

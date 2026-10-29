@@ -466,6 +466,98 @@
       poly(c,[[mark[0]-7,mark[1]-3],[mark[0]+7,mark[1]-3],[mark[0]+6,mark[1]+5],[mark[0],mark[1]+10],[mark[0]-6,mark[1]+5]],'#a8e5d4');rune(c,mark[0],mark[1]+2,4,{glow:p.dark},1);
     }
   }
+  // The material pass follows the same articulated body anchors as weapons
+  // and robes. It adds model detail without altering the enemy collision body.
+  function surfaceRegalia(c,id,m,p,boss){
+    if(!boss)return;
+    const B=(x,y)=>bodyPoint(m,x,y);
+    const wink=m.still?0:Math.sin(m.time*2.6)*2;
+    c.save();
+    c.globalAlpha=.91;
+    if(id==='thorn'){
+      for(const side of[-1,1]){
+        const root=B(side*21,-59),tip=B(side*(42+m.flutter*.3),-105);
+        seg(c,root,tip,5,p.dark);
+        seg(c,[root[0]+side*1,root[1]],[tip[0]+side*1,tip[1]+4],2,'#a0c586');
+        for(let i=0;i<3;i++){
+          const q=B(side*(26+i*5),-67-i*12);
+          poly(c,[[q[0]-side*8,q[1]+5],[q[0]+side*11,q[1]-9],[q[0]+side*2,q[1]+11]],i%2?p.edge:p.glow);
+        }
+      }
+      for(let i=0;i<6;i++){const a=i*TAU/6,at=B(Math.cos(a)*22,-95+Math.sin(a)*9);gem(c,...at,4,p.glow);}
+    }else if(id==='spore'){
+      const q=B(0,-91);for(let i=0;i<8;i++){
+        const dx=-34+i*9,dy=-12+Math.sin(i*.9)*7;
+        disk(c,q[0]+dx,q[1]+dy,3+i%3,i%2?'#eee2ba':'#91bfa0');
+      }
+      for(const side of[-1,1]){const at=B(side*28,-50);gem(c,...at,6,p.glow);seg(c,B(side*20,-49),at,2,p.edge);}
+    }else if(id==='prism'){
+      for(let i=0;i<8;i++){
+        const angle=i*TAU/8,a=B(Math.cos(angle)*38,-52+Math.sin(angle)*24),b=B(Math.cos(angle)*49,-56+Math.sin(angle)*31);
+        poly(c,[[a[0]-3,a[1]+3],[b[0],b[1]-8],[b[0]+6,b[1]+8]],i%2?'#91c4e9':'#d5f3ff');
+        seg(c,a,b,1,'#fcf9f9');
+      }
+      for(const side of[-1,1]){const q=B(side*13,-55);
+        poly(c,[[q[0]-side*6,q[1]-22],[q[0]+side*8,q[1]-15],[q[0]+side*12,q[1]+13],[q[0]-side*5,q[1]+19]],side>0?'#87bad4':'#d8e8fa');
+        seg(c,[q[0]-side*3,q[1]-20],[q[0]+side*2,q[1]+9],2,'#f8f5ff');
+      }
+      gem(c,...B(0,-51),9,'#d7effd');gem(c,...B(0,-51),5,'#fff4ff');
+    }else if(id==='king'||id==='smith'||id==='sentinel'){
+      for(const side of[-1,1]){
+        const shoulder=B(side*19,-54),elbow=B(side*28,-37);
+        poly(c,[[shoulder[0]-11,shoulder[1]-7],[shoulder[0]+10,shoulder[1]-9],
+          [elbow[0]+8,elbow[1]+5],[elbow[0]-5,elbow[1]+11]],p.dark);
+        poly(c,[[shoulder[0]-8,shoulder[1]-5],[shoulder[0]+8,shoulder[1]-6],
+          [elbow[0]+4,elbow[1]+3],[elbow[0]-4,elbow[1]+7]],id==='sentinel'?'#d4cba4':'#b1a4aa');
+        seg(c,[shoulder[0]-6,shoulder[1]-4],[elbow[0]-2,elbow[1]+5],2,'#f3d7ac');
+        gem(c,...B(side*23,-52),5,p.gold);
+      }
+      const heart=B(0,-42);
+      poly(c,[[heart[0]-13,heart[1]-7],[heart[0]+12,heart[1]-7],[heart[0]+7,heart[1]+18],
+        [heart[0],heart[1]+24],[heart[0]-8,heart[1]+18]],p.edge);
+      seg(c,[heart[0]-7,heart[1]-5],[heart[0]+1,heart[1]+16],2,'#f7e7cb');
+      gem(c,heart[0],heart[1]+6,5,id==='smith'?'#ffbd78':'#f7e9c4');
+    }else if(['witch','hollow','cometqueen','constellation','cartographer','echo','lumina'].includes(id)){
+      for(const side of[-1,1]){
+        const a=B(side*13,-57),b=B(side*(25+m.flutter*.3),-18);
+        poly(c,[[a[0]-side*3,a[1]],[a[0]+side*5,a[1]-4],
+          [b[0]+side*6,b[1]+8],[b[0]-side*2,b[1]+12]],p.dark);
+        seg(c,[a[0]+side*1,a[1]],[b[0]+side*1,b[1]+4],2,p.glow);
+        gem(c,...B(side*21,-20),3,'#f5dabb');
+      }
+      for(let i=0;i<5;i++){
+        const a=-1.2+i*.6,at=B(Math.cos(a)*17,-75+Math.sin(a)*7);
+        star(c,at[0],at[1],i===2?5:3,p.glow);
+      }
+      star(c,...B(0,-42+wink*.2),6,'#fff0cf');
+    }else if(id==='astral'){
+      for(const side of[-1,1])for(let i=0;i<4;i++){
+        const at=B(side*(18+i*7),-65-i*11),to=B(side*(26+i*8),-84-i*13);
+        seg(c,at,to,4,p.edge);seg(c,[at[0]+side,at[1]],[to[0]+side,to[1]],1,'#e9faff');
+        gem(c,...to,3,p.glow);
+      }
+      for(let i=0;i<3;i++)gem(c,...B(0,-50-i*13),4+i,'#ebdfb4');
+    }else if(id==='healer'||id==='lantern'){
+      for(const side of[-1,1]){
+        const at=B(side*17,-40);
+        for(let i=0;i<4;i++){
+          const a=i*TAU/4;disk(c,at[0]+Math.cos(a)*7,at[1]+Math.sin(a)*7,5,'#a8dcb4');
+        }
+        gem(c,...at,6,'#ffedc3');
+      }
+    }else if(id==='ferryman'){
+      for(const side of[-1,1]){
+        seg(c,B(side*21,-42),B(side*33,-14),3,'#95c5d4');
+        for(let i=0;i<3;i++)gem(c,...B(side*(24+i*3),-34+i*10),3,'#c9e9df');
+      }
+    }else if(id==='merchant'){
+      for(let i=0;i<8;i++){
+        const a=i*TAU/8,at=B(Math.cos(a)*28,-43+Math.sin(a)*18);
+        disk(c,at[0],at[1],5,'#866448');disk(c,at[0],at[1]-1,3,'#f4d68f');
+      }
+    }
+    c.restore();
+  }
   function supports(id){return KNOWN.has(String(id||'').replace(/^npc-/,''));}
   function draw(c,pose={},actor={}){
     const id=String(actor.npcId||actor.sprite||actor.enemyId||actor.id||'slime').replace(/^npc-/,''),boss=actor.kind==='boss'||actor.boss;
@@ -480,6 +572,7 @@
       else if(['astral','prism'].includes(id))beast(c,id,m,p,actor);
       else smallCreature(c,id,m,p);
       if(!humanoids&&!boss)variantRegalia(c,m,p,actor,id==='mushroom'?66:['moth','raven','starling'].includes(id)?59:52);
+      surfaceRegalia(c,id,m,p,boss);
       return true;
     }finally{c.restore();}
   }
