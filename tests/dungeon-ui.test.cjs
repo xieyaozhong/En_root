@@ -226,6 +226,8 @@ async function harness(active = null, options = {}) {
   const run = await h.combat(); assert.equal(run.difficulty, 'story'); assert.equal(h.calls.consumes, 0, 'practice never consumes cards');
   assert.equal(h.$('floorLabel').textContent,'01 / 24','new campaign length appears on the HUD');
   assert.equal(h.doc.activeElement, h.$('arena'), 'battle focuses the movement surface');
+  const desktopDouble=h.fire(h.$('arena'),'dblclick',{detail:2,cancelable:true});
+  assert.equal(desktopDouble.defaultPrevented,false,'desktop mouse double-click behavior is not changed');
   const p = run.arena.player, startX = p.x;
   await h.key('KeyD'); h.tick(.1); assert.ok(p.x > startX, 'WASD reaches arena update');
   await h.key('KeyD','keyup'); h.tick(.1); const stopX = p.x; h.tick(.1); assert.equal(p.x, stopX, 'released key does not stick');
@@ -519,6 +521,16 @@ async function harness(active = null, options = {}) {
   assert.ok(mobile.$('touchSpellIcon').querySelector('svg'),'mobile spell has an original glyph');
   assert.equal(mobile.$('touchCast').querySelector('svg').getAttribute('aria-hidden'),'true','glyph does not duplicate the control name');
   assert.ok(mobile.doc.body.classList.contains('touch-layout'),'narrow screens select the touch layout');
+  const doubledArena=mobile.fire(mobile.$('arena'),'dblclick',{detail:2,cancelable:true});
+  const doubledClash=mobile.fire(mobile.$('clashButton'),'dblclick',{detail:2,cancelable:true});
+  const doubledRune=mobile.fire(mobile.$('touchRuneKeys'),'dblclick',{detail:2,cancelable:true});
+  assert.equal(doubledArena.defaultPrevented,true,'double-tapping the game canvas must not zoom the phone browser');
+  assert.equal(doubledClash.defaultPrevented,true,'rapid spell-clash tapping must not invoke smart zoom');
+  assert.equal(doubledRune.defaultPrevented,true,'rapid spell-rune tapping must not invoke smart zoom');
+  const modalDouble=mobile.fire(mobile.$('infoDialog'),'dblclick',{detail:2,cancelable:true});
+  assert.equal(modalDouble.defaultPrevented,false,'a readable dialog keeps normal gestures');
+  const outsideDouble=mobile.fire(mobile.$('helpButton'),'dblclick',{detail:2,cancelable:true});
+  assert.equal(outsideDouble.defaultPrevented,false,'ordinary page controls outside the gameplay surface are unchanged');
   assert.equal(mobile.$('spellInput').readOnly,true,'mobile never exposes an editable system-keyboard field');
   assert.equal(mobile.$('touchControls').closest('.arena'),null,'the touch controls are outside the battlefield');
   assert.equal(mobile.$('touchRuneKeys').closest('#touchControls'),mobile.$('touchControls'));
