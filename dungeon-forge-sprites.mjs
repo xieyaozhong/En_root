@@ -1,0 +1,184 @@
+/* Word Relic sprite trial — Agent Sprite Forge 0.4 atlas playback.
+ * Uses the upstream MIT runtime verbatim; the initial sheet is CODE-DRAWN
+ * from our existing mage rig, NOT AI video. Real Forge 3.0 exports can replace it.
+ * Keeps collision, pose timing, movement, damage, and save data untouched. */
+import {normalizeAnimation,frameAt,fallbackCell,anchoredRect,gaitFrame} from './vendor/agent-sprite-forge/forge-runtime.mjs';
+
+const CELL=[128,128],ANCHOR=[64,114],TAU=Math.PI*2;
+const SOURCE="codeart-fallback";
+const SPECS={
+  idle:{frames:6,ms:165,loop:true},
+  walk:{frames:8,ms:80,loop:true,stride:54},
+  run:{frames:8,ms:65,loop:true,stride:54},
+  cast:{frames:8,ms:70,loop:false},
+  chant:{frames:8,ms:110,loop:true},
+  dash:{frames:6,ms:65,loop:false},
+  hurt:{frames:6,ms:70,loop:false},
+  fallen:{frames:6,ms:110,loop:false}
+};
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+let enabled=true,ready=false,busy=false,active='codeart',failure='';
+try{enabled=localStorage.getItem('dungeon_forge_sprite_mode')!=='off';}catch(_){}
+const clips=new Map(),loadedSheets=new Map();
+function safeUrl(base,path){
+  const url=new URL(path,base);
+  if(!['https:','http:'].includes(url.protocol)||url.origin!==new URL(base).origin)
+    throw new TypeError('Sprite assets must be from the same site');
+  return url.href;
+}
+function makeManifest(name,n){
+  const durationsMs=Array(n).fill(SPECS[name].ms);
+  return {schemaVersion:'3.0',name,sourceSize:CELL,sourceAnchor:ANCHOR,
+    sourceRect:[0,0,...CELL],encodedSize:CELL,encodedAnchor:ANCHOR,contentSize:CELL,
+    frameCount:n,fps:1000/SPECS[name].ms,durationSeconds:n*SPECS[name].ms/1000,durationsMs,
+    loop:SPECS[name].loop,loopPolicy:SPECS[name].loop?'cycle':'oneshot',
+    fallback:{type:'png-atlas',cellSize:CELL,pages:[{file:name+'-atlas-00.png',firstFrame:0,frameCount:n,columns:n}]},
+    artSource:SOURCE,placeholder:true,pixelArt:false,sampling:'linear',strideWorldUnits:SPECS[name].stride};
+}
+function samplePose(name,k,n){
+  const phase=TAU*k/n,base={time:k*0.16,phase,
+    facingX:1,facingY:0,mode:name,moving:0,speed:0,still:false,
+    castProgress:0,hurtProgress:0};
+  if(name==='walk'||name==='run'){base.mode='walk';base.moving=1;base.speed=name==='run'?285:155;}
+  if(name==='cast'){base.mode='cast';base.castProgress=clamp((k+.2)/(n-1),0,1);}
+  if(name==='chant'){base.mode='chant';base.castProgress=.4;base.time=k*.125;}
+  if(name==='dash'){base.mode='dash';base.speed=300;base.moving=1;}
+  if(name==='hurt'){base.mode='hurt';base.hurtProgress=k/(n-1);}
+  if(name==='fallen'){base.mode='fallen';base.hurtProgress=k/(n-1);}
+  return base;
+}
+function generatedSheet(name){
+  const n=SPECS[name].frames;
+  const canvas=document.createElement('canvas');canvas.width=CELL[0]*n;canvas.height=CELL[1];
+  const ctx=canvas.getContext('2d');
+  if(!ctx||typeof window.DungeonCharacter?.draw!=='function')return null;
+  ctx.imageSmoothingEnabled=true;
+  for(let k=0;k<n;k++){
+    ctx.save();ctx.translate(k*CELL[0]+ANCHOR[0],ANCHOR[1]);
+    window.DungeonCharacter.draw(ctx,samplePose(name,k,n),'player');
+    ctx.restore();
+  }
+  return canvas;
+}
+function synthesize(){
+  if(ready||busy||typeof document==='undefined')return;
+  busy=true;
+  try{
+    for(const name of Object.keys(SPECS)){
+      const image=generatedSheet(name);
+      if(!image)throw new Error('Mage rig or Canvas not ready');
+      const manifest=makeManifest(name,SPECS[name].frames);
+      clips.set(name,{manifest,clip:normalizeAnimation(manifest),pages:[image]});
+    }
+    active='codeart';failure='';ready=true;
+  }catch(error){failure=String(error?.message||error);ready=false;clips.clear();}
+  finally{busy=false;updateControl();}
+}
+function selectPose(pose){
+  const mode=pose?.mode||'idle';
+  if(mode==='fallen')return 'fallen';
+  if(mode==='hurt')return 'hurt';
+  if(mode==='dash')return 'dash';
+  if(mode==='chant')return 'chant';
+  if(mode==='cast')return 'cast';
+  if(mode==='walk'&&Number(pose?.speed)>225)return 'run';
+  if(mode==='walk')return 'walk';
+  return 'idle';
+}
+function frameFor(name,pose,item){
+  const count=item.clip.frameCount;
+  if(pose?.still)return 0;
+  if((name==='walk'||name==='run')&&Number.isFinite(pose?.phase)){
+    // Distance, not timer driven: blocked characters cannot skate in place.
+    return gaitFrame(((pose.phase%TAU)+TAU)%TAU/TAU*54,
+      item.clip.strideWorldUnits||54,count).frame;
+  }
+  if(name==='cast'||name==='hurt'||name==='fallen'){
+    const q=clamp(Number(name==='cast'?pose.castProgress:pose.hurtProgress)||0,0,1);
+    return Math.min(count-1,Math.floor(q*(count-1)+1e-5));
+  }
+  return frameAt(item.clip,Math.max(0,Number(pose?.time)||0)*1000,
+    name==='dash'?'cycle':item.clip.mode).frame;
+}
+function draw(ctx,pose,appearance='player'){
+  if(!enabled||appearance!=='player')return false;
+  if(!ready){synthesize();if(!ready)return false;}
+  const name=selectPose(pose),item=clips.get(name)||clips.get('idle');
+  if(!item||!item.pages.length)return false;
+  const frame=frameFor(name,pose,item);
+  const cell=fallbackCell(item.manifest,frame);
+  const image=item.pages[cell.page];
+  if(!image||image.complete===false||image.naturalWidth===0)return false;
+  const scale=active==='codeart'?1:Number(item.manifest.displayScale)||1;
+  const rect=anchoredRect(item.clip,0,0,scale,{snap:false});
+  ctx.save();
+  try{
+    if(Number(pose?.facingX)<-.08)ctx.scale(-1,1);
+    const oldSmooth=ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled=item.manifest.pixelArt!==true;
+    ctx.drawImage(image,cell.x,cell.y,cell.width,cell.height,
+      rect.x,rect.y,rect.width,rect.height);
+    ctx.imageSmoothingEnabled=oldSmooth;
+  }finally{ctx.restore();}
+  return true;
+}
+function updateControl(){
+  const b=document.getElementById('spriteForgeToggle');
+  if(!b)return;
+  b.textContent=enabled?'逐格動畫：開':'逐格動畫：關';
+  b.title=active==='codeart'?
+    'Agent Sprite Forge 播放引擎；目前使用程式繪製的測試圖格，非 AI 影片輸出。點擊可比較。':
+    '已載入 Agent Sprite Forge 3.0 PNG Atlas';
+  b.setAttribute('aria-pressed',String(enabled));
+  b.dataset.forgeStatus=ready?active:failure?'unavailable':'loading';
+}
+function toggle(){
+  enabled=!enabled;
+  try{localStorage.setItem('dungeon_forge_sprite_mode',enabled?'on':'off');}catch(_){}
+  updateControl();return enabled;
+}
+/** Replace prototype with a genuine ASF 3.0 package.
+ * One URL per action to animation.json, all relative to SAME SITE. PNG pages
+ * are loaded using manifest.fallback.pages[i].file. Failed loads leave the
+ * working codeart rig unchanged. Never writes game state or external keys. */
+async function loadSet(manifestUrls){
+  if(!manifestUrls||typeof manifestUrls!=='object')throw new TypeError('Expected {idle,walk,...} manifest URL map');
+  const entries=Object.entries(manifestUrls);
+  if(!entries.length)throw new TypeError('No animation manifests');
+  const staged=new Map();
+  for(const [name,entry] of entries){
+    if(!SPECS[name])throw new TypeError('Unsupported action: '+name);
+    const abs=new URL(entry,document.baseURI);
+    if(abs.origin!==location.origin||!['http:','https:'].includes(abs.protocol))throw new TypeError('Same-origin manifest required');
+    const response=await fetch(abs.href,{cache:'force-cache'});
+    if(!response.ok)throw new Error('Missing '+name+' animation.json: '+response.status);
+    const manifest=await response.json();
+    const clip=normalizeAnimation(manifest);
+    if(clip.frameCount>180||!clip.fallback?.pages?.length)throw new TypeError('Missing or oversized PNG atlas for '+name);
+    const pictures=[];
+    for(const page of clip.fallback.pages){
+      const url=safeUrl(abs.href,page.file);
+      const image=await new Promise((resolve,reject)=>{
+        const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('Failed atlas '+url));img.src=url;
+      });pictures.push(image);
+    }
+    staged.set(name,{manifest,clip,pages:pictures});
+  }
+  if(!staged.has('idle'))throw new TypeError('Forge sprite set must include idle');
+  // Safely preserve code-art fallback for missing actions.
+  const next=new Map(clips);
+  for(const [name,data] of staged)next.set(name,data);
+  clips.clear();for(const [name,data] of next)clips.set(name,data);
+  active='forge-package';ready=true;updateControl();
+  return staged.size;
+}
+const api=Object.freeze({draw,selectPose,frameFor,toggle,loadSet,
+  isEnabled:()=>enabled,isReady:()=>ready,isForgePackage:()=>active==='forge-package',
+  diagnostic:()=>({ready,enabled,source:active,failure,clips:[...clips.keys()]})});
+if(typeof window!=='undefined'){
+  window.DungeonForgeSprites=api;
+  const button=document.getElementById('spriteForgeToggle');
+  if(button){button.addEventListener('click',toggle);updateControl();}
+}
+export {draw,selectPose,frameFor,loadSet,toggle,makeManifest,samplePose};
+export default api;
