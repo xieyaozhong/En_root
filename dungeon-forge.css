@@ -1,0 +1,26 @@
+/* Agent Sprite Forge experimental visual mode.
+ * CSS has no effect on game hit regions, touch action, input or saving. */
+.stage-controls .forge-toggle{
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  width:auto;min-width:84px;height:35px;min-height:35px;
+  padding:4px 8px;font-size:.62rem;white-space:nowrap;letter-spacing:.015em;
+  color:#cfebdf;background:linear-gradient(145deg,#264a49,#243544);
+  border:1px solid #7ebeb39c;border-radius:7px;
+  box-shadow:inset 0 1px 0 #c7fff01f,0 3px 11px #06111a49;
+  touch-action:manipulation;
+}
+.stage-controls .forge-toggle[aria-pressed="false"]{
+  color:#c2c5cb;background:#26303b;border-color:#6173829c;
+}
+.stage-controls .forge-toggle:focus-visible{
+  outline:2px solid #e8dfaa;outline-offset:2px;
+}
+#gameSurface.is-immersive .stage-controls .forge-toggle{
+  min-width:72px;height:42px;min-height:42px;font-size:.56rem;
+}
+@media(max-width:720px){
+  .stage-controls .forge-toggle{min-width:62px;padding:3px 5px;font-size:.52rem;}
+}
+@media(max-width:430px){
+  .stage-controls .forge-toggle{min-width:56px;padding:3px 4px;font-size:.48rem}
+}
