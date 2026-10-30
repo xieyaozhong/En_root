@@ -3,6 +3,7 @@
  * from our existing mage rig, NOT AI video. Real Forge 3.0 exports can replace it.
  * Keeps collision, pose timing, movement, damage, and save data untouched. */
 import {normalizeAnimation,frameAt,fallbackCell,anchoredRect,gaitFrame} from './vendor/agent-sprite-forge/forge-runtime.mjs';
+import {render as drawPixelLab} from './dungeon-pixellab.mjs';
 
 const CELL=[128,128],ANCHOR=[64,114],TAU=Math.PI*2;
 const SOURCE="codeart-fallback";
@@ -102,6 +103,8 @@ function frameFor(name,pose,item){
 }
 function draw(ctx,pose,appearance='player'){
   if(!enabled||appearance!=='player')return false;
+  // User-owned PixelLab character sheets take priority over codeart/Forge fallback.
+  if(drawPixelLab(ctx,pose,'player'))return true;
   if(!ready){synthesize();if(!ready)return false;}
   const name=selectPose(pose),item=clips.get(name)||clips.get('idle');
   if(!item||!item.pages.length)return false;
