@@ -1102,7 +1102,8 @@
       if(dash)aura(c,x,y-11,22,'#bfeaff',.11);
       c.save();if(invuln&&!(modern&&pose?pose.still:still))c.globalAlpha*=.62+Math.sin((modern&&pose?pose.time:t)*26)**2*.3;
       c.translate(Math.round(x),Math.round(y));
-      if(modern&&pose)window.DungeonCharacter.draw(c,pose,'player');
+      if(pose && window.DungeonForgeSprites?.draw(c,pose,'player')){/* Agent Sprite Forge atlas, aligned to the original feet anchor. */}
+      else if(modern&&pose)window.DungeonCharacter.draw(c,pose,'player');
       else{
         c.scale(face*.57,.57);
         const casting=pose?pose.mode==='chant'||pose.mode==='cast':showMarker&&!dash&&run?.status==='combat'&&(run?.arena?.focusActive||(run?.arena?.effects||[]).some(e=>e.kind==='cast'&&val(e.life)>.12));
