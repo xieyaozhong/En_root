@@ -3,24 +3,25 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#101b27">
-  <link rel="icon" type="image/svg+xml" href="assets/dungeon/favicon.svg?v=20261029-tap7">
+  <link rel="icon" type="image/svg+xml" href="assets/dungeon/favicon.svg?v=20261030-forge1">
   <meta name="description" content="《符文地牢》HD 2.5D 畫質重製：18 種獨特 Boss、動態藤蔓、鏡面穿梭、精細角色建模、材質光影與法術對決。">
   <title>符文地牢｜Word Relic</title>
-  <link rel="stylesheet" href="dungeon.css?v=20261029-tap7"><link rel="stylesheet" href="dungeon-action.css?v=20261029-tap7">
-  <link rel="stylesheet" href="dungeon-polish.css?v=20261029-tap7">
-  <link rel="stylesheet" href="dungeon-chronicle.css?v=20261029-tap7">
-  <link rel="stylesheet" href="dungeon-duel.css?v=20261029-tap7">
-  <link rel="stylesheet" href="dungeon-fullscreen.css?v=20261029-tap7">
-  <link rel="stylesheet" href="dungeon-mobile.css?v=20261029-tap7">
-  <link rel="stylesheet" href="dungeon-nextgen.css?v=20261029-tap7">
-  <link rel="stylesheet" href="dungeon-disruption-inventory.css?v=20261029-tap7">
-  <link rel="stylesheet" href="dungeon-boss-evolution.css?v=20261029-tap7"><link rel="stylesheet" href="dungeon-boss-identity.css?v=20261029-tap7"><link rel="stylesheet" href="dungeon-hd.css?v=20261029-tap7">
-  <link rel="stylesheet" href="dungeon-touch-zoom.css?v=20261029-tap7">
+  <link rel="stylesheet" href="dungeon.css?v=20261030-forge1"><link rel="stylesheet" href="dungeon-action.css?v=20261030-forge1">
+  <link rel="stylesheet" href="dungeon-polish.css?v=20261030-forge1">
+  <link rel="stylesheet" href="dungeon-chronicle.css?v=20261030-forge1">
+  <link rel="stylesheet" href="dungeon-duel.css?v=20261030-forge1">
+  <link rel="stylesheet" href="dungeon-fullscreen.css?v=20261030-forge1">
+  <link rel="stylesheet" href="dungeon-mobile.css?v=20261030-forge1">
+  <link rel="stylesheet" href="dungeon-nextgen.css?v=20261030-forge1">
+  <link rel="stylesheet" href="dungeon-disruption-inventory.css?v=20261030-forge1">
+  <link rel="stylesheet" href="dungeon-boss-evolution.css?v=20261030-forge1"><link rel="stylesheet" href="dungeon-boss-identity.css?v=20261030-forge1"><link rel="stylesheet" href="dungeon-hd.css?v=20261030-forge1">
+  <link rel="stylesheet" href="dungeon-touch-zoom.css?v=20261030-forge1">
+  <link rel="stylesheet" href="dungeon-forge.css?v=20261030-forge1">
 </head>
 <body>
 <div class="shell">
   <header class="topbar">
-    <a class="brand" href="index.html"><img class="brand-mark" src="assets/dungeon/crest.svg?v=20261029-tap7" width="44" height="44" alt=""><span>WORD RELIC<small>ENROOT · 字根魔法</small></span></a>
+    <a class="brand" href="index.html"><img class="brand-mark" src="assets/dungeon/crest.svg?v=20261030-forge1" width="44" height="44" alt=""><span>WORD RELIC<small>ENROOT · 字根魔法</small></span></a>
     <nav aria-label="主導覽"><a href="index.html">單字練習</a><a href="cards.html">卡片圖鑑</a><a class="active" href="dungeon.html" aria-current="page">符文地牢</a></nav>
     <button class="icon-button" id="helpButton" aria-label="遊玩說明"><span data-ui-icon="help"></span></button>
   </header>
@@ -30,7 +31,7 @@
     <div class="game-layout">
       <section class="game-column" id="gameSurface" aria-label="冒險場景">
         <div class="stage-frame">
-          <div class="stage-top"><div><span class="chapter" id="chapterLabel">CHAPTER I</span><h2 id="regionLabel">苔光秘林</h2></div><div class="stage-controls"><span class="floor-label" id="floorLabel">尚未出發</span><button class="icon-button inventory-trigger" id="inventoryButton" type="button" aria-label="開啟冒險背包" title="背包 · B" hidden><span data-ui-icon="bag"></span><span>背包</span></button><button class="icon-button" id="expandButton" aria-label="橫向全螢幕遊玩" title="開始冒險後，橫放手機進入全螢幕" disabled><span data-ui-icon="expand"></span><span class="expand-label">橫向全螢幕</span></button><button class="icon-button" id="pauseButton" hidden aria-label="暫停遊戲"><span data-ui-icon="pause"></span></button></div></div>
+          <div class="stage-top"><div><span class="chapter" id="chapterLabel">CHAPTER I</span><h2 id="regionLabel">苔光秘林</h2></div><div class="stage-controls"><span class="floor-label" id="floorLabel">尚未出發</span><button class="icon-button inventory-trigger" id="inventoryButton" type="button" aria-label="開啟冒險背包" title="背包 · B" hidden><span data-ui-icon="bag"></span><span>背包</span></button><button class="icon-button" id="expandButton" aria-label="橫向全螢幕遊玩" title="開始冒險後，橫放手機進入全螢幕" disabled><span data-ui-icon="expand"></span><span class="expand-label">橫向全螢幕</span></button><button class="icon-button forge-toggle" id="spriteForgeToggle" type="button" aria-pressed="true" title="逐格動畫試驗模式：Agent Sprite Forge 播放引擎，使用現有角色繪製生成測試圖格">逐格動畫：開</button><button class="icon-button" id="pauseButton" hidden aria-label="暫停遊戲"><span data-ui-icon="pause"></span></button></div></div>
           <div class="arena"><canvas id="arena" width="960" height="540" tabindex="0" aria-label="地牢戰場。WASD 或方向鍵移動，取得衝刺遺物後可按空白鍵衝刺，Enter 詠唱，E 與附近角色或物件互動。">你的瀏覽器無法顯示 Canvas，請使用支援 Canvas 的瀏覽器。</canvas><div class="arena-vignette"></div><div id="bossBanner" class="boss-banner" hidden><div class="boss-heading"><strong id="bossName"></strong><span id="bossPhase"></span></div><div class="boss-meter"><i id="bossHealthBar"></i><span></span></div><small id="bossHealth"></small><div id="bossIdentityHint" class="boss-identity-hint" hidden></div><div id="bossSpellBar" class="boss-spellbar" hidden></div></div><button id="clashButton" type="button" class="clash-button" hidden aria-label="法術對決，快速連打">⚡ 法術對決 · 快速連打 <span id="clashProgress">0 / 12</span></button><div id="arenaHUD" class="arena-hud" hidden><span id="roomBadge">探索房間</span><span id="enemyCount"></span></div><div id="chantQte" class="chant-qte" hidden><div class="qte-top"><b>✦ 咒語連鎖</b><span id="qteTime"></span></div><div class="qte-time-meter"><i id="qteTimeBar"></i></div><div id="qteLetters" class="qte-letters" aria-hidden="true"></div><div class="qte-bottom"><div class="qte-next"><small>下一鍵</small><kbd id="qteNext"></kbd></div><span id="qteHint" role="status" aria-live="polite"></span><b id="qteProgressText"></b></div><div class="qte-progress-meter"><i id="qteProgress"></i></div></div><div id="castFeedback" class="cast-feedback" hidden></div><div id="spellInterference" class="spell-interference" role="status" aria-live="polite" hidden></div><div id="focusFlag" class="focus-flag" hidden>詠唱中 · 時間放慢</div><div class="arena-caption" id="arenaCaption"><span>✧</span> 古老的文字，正在等待回聲。</div><div id="pauseOverlay" class="pause-overlay" hidden><span class="eyebrow">TIME STANDS STILL</span><h3>冒險已暫停</h3><p>準備好後，再讓文字化為魔法。</p><button id="resumeButton" class="primary">繼續冒險</button></div></div>
           <div class="vitals" id="vitals"><div class="vital-block"><div class="vital-label"><span><i data-ui-icon="heal"></i>生命</span><b id="hpText">100 / 100</b></div><div class="meter health"><i id="hpBar" style="width:100%"></i></div></div><div class="mini-stat"><small><i data-ui-icon="shield"></i>護盾</small><b id="shieldText">0</b></div><div class="mini-stat gold-stat"><small><i data-ui-icon="gold"></i>金幣</small><b id="goldText">0</b></div><div class="mini-stat"><small><i data-ui-icon="combo"></i>連擊</small><b id="comboText">× 0</b></div><button id="quickPotion" class="quick-potion" type="button" hidden disabled aria-label="使用苔露藥水" title="快捷補血 · 恢復 38 點生命；保留正在輸入的咒語"><i data-ui-icon="potion"></i><span id="quickPotionCount">×0</span></button></div>
         </div>
@@ -56,7 +57,8 @@
 </div>
 
 <script src="cards-data.js"></script><script src="cards-extra.js"></script><script src="card-art.js"></script><script src="card-art-extra.js"></script>
-<script src="dungeon-story.js?v=20261029-tap7"></script><script src="dungeon-engine.js?v=20261029-tap7"></script><script src="dungeon-boss-disruption.js?v=20261029-tap7"></script><script src="dungeon-boss-evolution.js?v=20261029-tap7"></script><script src="dungeon-boss-identity.js?v=20261029-tap7"></script><script src="dungeon-hd-renderer.js?v=20261029-tap7"></script><script src="dungeon-companion-ai.js?v=20261029-tap7"></script><script src="dungeon-combat-arts.js?v=20261029-tap7"></script><script src="dungeon-storage.js?v=20261029-tap7"></script><script src="dungeon-arena.js?v=20261029-tap7"></script><script src="dungeon-explore.js?v=20261029-tap7"></script><script src="dungeon-renderer.js?v=20261029-tap7"></script><script src="dungeon-character.js?v=20261029-tap7"></script>
-<script src="dungeon-enemy-character.js?v=20261029-tap7"></script><script src="dungeon-arena-renderer.js?v=20261029-tap7"></script><script src="dungeon-audio.js?v=20261029-tap7"></script><script src="dungeon-controls.js?v=20261029-tap7"></script><script src="dungeon-chant.js?v=20261029-tap7"></script><script src="dungeon-icons.js?v=20261029-tap7"></script><script src="dungeon.js?v=20261029-tap7"></script>
+<script src="dungeon-story.js?v=20261030-forge1"></script><script src="dungeon-engine.js?v=20261030-forge1"></script><script src="dungeon-boss-disruption.js?v=20261030-forge1"></script><script src="dungeon-boss-evolution.js?v=20261030-forge1"></script><script src="dungeon-boss-identity.js?v=20261030-forge1"></script><script src="dungeon-hd-renderer.js?v=20261030-forge1"></script><script src="dungeon-companion-ai.js?v=20261030-forge1"></script><script src="dungeon-combat-arts.js?v=20261030-forge1"></script><script src="dungeon-storage.js?v=20261030-forge1"></script><script src="dungeon-arena.js?v=20261030-forge1"></script><script src="dungeon-explore.js?v=20261030-forge1"></script><script src="dungeon-renderer.js?v=20261030-forge1"></script><script src="dungeon-character.js?v=20261030-forge1"></script>
+<script src="dungeon-enemy-character.js?v=20261030-forge1"></script><script src="dungeon-arena-renderer.js?v=20261030-forge1"></script><script src="dungeon-audio.js?v=20261030-forge1"></script><script src="dungeon-controls.js?v=20261030-forge1"></script><script src="dungeon-chant.js?v=20261030-forge1"></script><script src="dungeon-icons.js?v=20261030-forge1"></script><script src="dungeon.js?v=20261030-forge1"></script>
+<script type="module" src="dungeon-forge-sprites.mjs?v=20261030-forge1"></script>
 </body>
 </html>
