@@ -98,15 +98,17 @@ def generate(source: Path, output: Path, cell: tuple[int, int], fps: float,
         for row,slices in enumerate(sheets):
             for index in range(frames):
                 canvas.alpha_composite(slices[min(index,len(slices)-1)],(index*cell[0],row*cell[1]))
-        dest_dir = output / actor
-        dest_dir.mkdir(parents=True,exist_ok=True)
-        canvas.save(dest_dir / (action+".png"), optimize=True)
+        output.mkdir(parents=True,exist_ok=True)
+        # Flat, unique basenames let the in-game HTML file picker upload many
+        # characters at once (mobile browsers otherwise drop folder paths).
+        sheet_name = f"{actor}__{action}.png"
+        canvas.save(output / sheet_name, optimize=True)
         char = chars.setdefault(actor,{
             "cell":list(cell),"anchor":list(anchor),"scale":scale,
             "actions":{},
         })
         char["actions"][action]={
-            "sheet":f"{actor}/{action}.png","frames":frames,"columns":frames,
+            "sheet":sheet_name,"frames":frames,"columns":frames,
             "fps":fps,"loop":action not in ("attack","cast","dash","hurt","fallen","death"),
             "directions":rows,
         }
