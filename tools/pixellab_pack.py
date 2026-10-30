@@ -36,8 +36,8 @@ def parse_size(text: str) -> tuple[int, int]:
 
 def parse_file(source: Path, path: Path) -> tuple[str, str, str] | None:
     relative = path.relative_to(source)
-    if len(relative.parts) >= 4:
-        actor, action, direction = relative.parts[-4], relative.parts[-3], path.stem
+    if len(relative.parts) >= 3:
+        actor, action, direction = relative.parts[-3], relative.parts[-2], path.stem
     else:
         fragments = path.stem.split("__")
         if len(fragments) != 3:
