@@ -61,14 +61,14 @@ Boss 素材名稱範例：thorn（藤蔓與荊棘）、prism（碎鏡與折射�
 
     assets/dungeon/pixellab/
       pack.json
-      player/idle.png
-      player/walk.png
-      player/cast.png
-      thorn/idle.png
+      player__idle.png
+      player__walk.png
+      player__cast.png
+      thorn__idle.png
 
 素材 pack.json 是 Word Relic PixelLab v1 轉接規格，**不是 PixelLab 官方原生 JSON**；PNG 才是使用者實際生成／匯出的美術素材。範例規格放在 assets/dungeon/pixellab/pack.example.json。
 
-每列是一個方向，每格對應同一動作的一張影格；角色有自己的原生格尺寸、腳底錨點、縮放比、FPS。若 PixelLab 匯出的是九格八方向靜態圖，應先依標示拆成方向檔；不能假設任何排列順序。
+打包腳本使用角色與動作的唯一檔名，以便手機選取多角色的 PNG 而不會遇到 idle.png 同名衝突。每列是一個方向，每格對應同一動作的一張影格；角色有自己的原生格尺寸、腳底錨點、縮放比、FPS。若 PixelLab 匯出的是九格八方向靜態圖，應先依標示拆成方向檔；不能假設任何排列順序。
 
 ## 手機或網頁預覽
 
