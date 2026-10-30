@@ -111,9 +111,11 @@ function frameFor(name,pose,item){
     name==='dash'?'cycle':item.clip.mode).frame;
 }
 function draw(ctx,pose,appearance='player'){
-  if(!enabled||appearance!=='player')return false;
-  // User-owned PixelLab character sheets take priority over codeart/Forge fallback.
+  if(appearance!=='player')return false;
+  // PixelLab and Forge preference toggles are independent: disabling the
+  // old code-art preview must not unexpectedly hide imported PixelLab art.
   if(drawPixelLab(ctx,pose,'player'))return true;
+  if(!enabled)return false;
   if(!ready){synthesize();if(!ready)return false;}
   const name=selectPose(pose),item=clips.get(name)||clips.get('idle');
   if(!item||!item.pages.length)return false;
