@@ -1133,7 +1133,8 @@
       // Lumina keeps her original rig while damage still adds a small recoil
       // over its authoritative cast pose, without changing the player's art.
       if(modern&&!articulated&&pose?.action&&pose.hitRecoil>0)c.translate(-pose.facingX*pose.hitRecoil*2,pose.hitRecoil);
-      if(articulated)window.DungeonEnemyCharacter.draw(c,pose,{...e,sprite:npcId,boss});
+      if(window.DungeonPixelLab?.render(c,pose,npcId)){/* Imported PixelLab 8-way sprite; authoritative combat pose. */}
+      else if(articulated)window.DungeonEnemyCharacter.draw(c,pose,{...e,sprite:npcId,boss});
       else if(isNpc)this.npc(c,npcId,p,t,still,boss,val(e.phase,1),pose);
       else if(this.legacy?.enemy)this.legacy.enemy.call(this.legacy,c,0,0,{id:type,kind:boss?'boss':e.kind,boss,phase:e.phase},t,p,still,[1,0,2,3][region]);
       else this.fallbackFoe(c,e,p,boss);

@@ -1,0 +1,57 @@
+{
+  "schema": "word-relic.pixellab.v1",
+  "source": "example-only-not-real-art",
+  "characters": {
+    "player": {
+      "cell": [
+        64,
+        96
+      ],
+      "anchor": [
+        32,
+        90
+      ],
+      "scale": 1.05,
+      "directions": [
+        "east",
+        "south-east",
+        "south",
+        "south-west",
+        "west",
+        "north-west",
+        "north",
+        "north-east"
+      ],
+      "actions": {
+        "idle": {
+          "sheet": "player/idle.png",
+          "frames": 6,
+          "columns": 6,
+          "fps": 6,
+          "loop": true
+        },
+        "walk": {
+          "sheet": "player/walk.png",
+          "frames": 8,
+          "columns": 8,
+          "fps": 9,
+          "loop": true
+        },
+        "cast": {
+          "sheet": "player/cast.png",
+          "frames": 8,
+          "columns": 8,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "sheet": "player/hurt.png",
+          "frames": 4,
+          "columns": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    }
+  }
+}
