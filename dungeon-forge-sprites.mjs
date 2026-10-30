@@ -179,6 +179,12 @@ if(typeof window!=='undefined'){
   window.DungeonForgeSprites=api;
   const button=document.getElementById('spriteForgeToggle');
   if(button){button.addEventListener('click',toggle);updateControl();}
+  // Warm the sprite sheets while the UI is idle; avoid generating 56 frames
+  // inside the first combat paint on slower mobile devices.
+  if(enabled){
+    if(typeof window.requestIdleCallback==='function')window.requestIdleCallback(()=>synthesize(),{timeout:1300});
+    else if(typeof window.setTimeout==='function')window.setTimeout(()=>synthesize(),0);
+  }
 }
 export {draw,selectPose,frameFor,loadSet,toggle,makeManifest,samplePose};
 export default api;
