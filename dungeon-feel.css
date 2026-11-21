@@ -1,0 +1,65 @@
+/* Word Relic 2.0: Star Chart, run summary and perfect-chant chip (see dungeon-feel.js). */
+
+/* Header entry point */
+.heading-meta .feel-chart-button{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:6px 10px;border:1px solid #ffd27a66;border-radius:6px;background:#3a3222;color:#f1e2c2;font-size:.72rem;white-space:nowrap}
+@media(max-width:780px){.heading-meta .feel-chart-button{font-size:.65rem;padding:5px 8px}}
+.feel-chart-button>span{color:var(--gold,#ecd2aa)}
+.feel-chart-button b{font-weight:700;color:var(--gold,#ecd2aa);font-variant-numeric:tabular-nums}
+
+/* Perfect-chant timer inside the chant panel */
+.feel-perfect-chip{margin-left:auto;margin-right:10px;padding:2px 8px;border-radius:999px;font-size:.7rem;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;
+  border:1px solid #ffd27a88;background:#ffd27a1f;color:#ffe1a0;transition:opacity .15s}
+.feel-perfect-chip[data-state=lost]{border-color:#8a96a066;background:transparent;color:#a3adb6}
+.feel-perfect-chip[hidden]{display:none}
+
+/* Perfect chant takes over the game's cast banner */
+.cast-feedback.feel-perfect{border-color:#ffd27a;background:#3b2d12f0;color:#ffe1a0;box-shadow:0 0 22px #ffd27a33}
+
+/* Low-HP heartbeat layer (opacity driven by dungeon-feel.js) */
+.feel-vignette{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;
+  background:radial-gradient(ellipse at 50% 50%,rgba(160,20,40,0) 52%,rgba(160,20,40,.42) 82%,rgba(140,10,30,.7) 100%)}
+
+/* Shared dialog layout (inherits the game's dialog frame) */
+.feel-dialog{width:min(560px,calc(100% - 28px));max-height:88dvh;overflow-y:auto;overscroll-behavior:contain}
+.feel-dialog h2{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:6px 0 6px;font-size:1.45rem}
+.feel-dialog h2 small{font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid #87929b88;color:var(--muted,#a9b8c3)}
+.feel-dialog .feel-lead{margin:0 0 16px;font-size:.88rem;line-height:1.75;color:#c3cfd6}
+.feel-dialog::backdrop{background:#050b12b3}
+
+/* Summary */
+.feel-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.feel-stat{padding:10px 12px;border-radius:10px;background:#ffffff0a;border:1px solid #ffffff14}
+.feel-stat b{display:block;font-size:1.35rem;line-height:1.2;font-variant-numeric:tabular-nums;color:#f0eee6}
+.feel-stat span{display:block;margin-top:2px;font-size:.72rem;color:var(--muted,#a9b8c3)}
+.feel-dust{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 12px;margin-top:14px;padding:14px 16px;border-radius:12px;
+  border:1px solid #ffd27a55;background:linear-gradient(110deg,#3a2f1c66,#22303d)}
+.feel-dust span{font-size:.82rem;color:#e9d6ad}
+.feel-dust b{grid-row:1/3;grid-column:2;font-size:2rem;line-height:1;color:#ffd27a;font-variant-numeric:tabular-nums}
+.feel-dust small{font-size:.72rem;color:#b7aa8c}
+.feel-records{margin:10px 0 0!important;font-size:.82rem!important;color:#c9f3e0!important}
+.feel-actions{display:flex;gap:8px;margin-top:16px}
+.feel-actions>button{flex:1;min-height:46px}
+
+/* Star Chart */
+.feel-balance{font-size:.9rem;font-weight:700;color:#ffd27a;padding:3px 10px;border-radius:999px;border:1px solid #ffd27a55;background:#ffd27a14}
+.feel-ups{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.feel-up{display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:#ffffff08;border:1px solid #ffffff14}
+.feel-up.maxed{border-color:#ffd27a44;background:#ffd27a0d}
+.feel-up-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;font-size:1.1rem;color:#ffe1a0;background:radial-gradient(circle at 35% 30%,#4a3d22,#1e2833);border:1px solid #ffd27a55}
+.feel-up-body{min-width:0}
+.feel-up-body b{display:block;font-size:.95rem}
+.feel-up-body small{display:block;margin-top:3px;font-size:.74rem;line-height:1.5;color:var(--muted,#a9b8c3)}
+.feel-pips{display:inline-flex;gap:4px;margin-top:4px}
+.feel-pips i{width:9px;height:9px;border-radius:50%;border:1px solid #ffd27a88;background:transparent}
+.feel-pips i.on{background:#ffd27a;box-shadow:0 0 6px #ffd27a88}
+.feel-up>button{min-width:78px;min-height:40px;padding:0 12px;white-space:nowrap}
+.feel-up>button[disabled]{opacity:.55;cursor:default}
+.feel-foot{margin:14px 0 0!important;font-size:.74rem!important;line-height:1.6!important;color:#8f9ca6!important}
+
+@media(max-width:480px){
+  .feel-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .feel-up{grid-template-columns:34px minmax(0,1fr);row-gap:8px}
+  .feel-up-icon{width:34px;height:34px;font-size:.95rem}
+  .feel-up>button{grid-column:1/-1}
+}
+@media(prefers-reduced-motion:reduce){.feel-perfect-chip{transition:none}}
