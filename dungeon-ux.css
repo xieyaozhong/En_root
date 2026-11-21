@@ -1,0 +1,67 @@
+/* Word Relic UX pass (2026-11-22).
+   Loaded last on purpose: it only corrects layout collisions found on phones and
+   hides developer tools from players. Remove this file to get the old layout back. */
+
+/* Developer tools (frame-animation test, PixelLab import) are hidden for players.
+   Open dungeon.html?dev=1 once to show them; ?dev=0 hides them again. */
+html:not(.wr-dev) #spriteForgeToggle,
+html:not(.wr-dev) #pixelLabButton{display:none!important}
+
+/* Stage header: the region name and floor label stay on one line instead of
+   breaking one character per line when space runs out. */
+.stage-top{gap:10px}
+.stage-top>div:first-child{min-width:0;flex:1 1 auto}
+.stage-top .chapter,.stage-top h2{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage-controls{flex:none;min-width:0}
+.floor-label{white-space:nowrap;flex:none}
+#expandButton .expand-label{white-space:nowrap}
+@media(max-width:420px){
+  /* Before a run, the full-screen button is disabled; its icon and tooltip are enough. */
+  .touch-layout:not(.in-run) #expandButton[disabled] .expand-label{display:none}
+  .touch-layout:not(.in-run) #expandButton[disabled]{width:44px;min-width:44px;padding:0;justify-content:center}
+}
+
+/* Mobile start shortcut, shown under the stage before a run (see dungeon-ux.js). */
+.ux-quickstart{display:none}
+@media(max-width:780px){
+  body:not(.in-run) .ux-quickstart:not([hidden]){display:flex;gap:8px;margin:10px 0 2px}
+  .ux-quickstart>button{flex:1 1 0;min-height:48px;margin:0;white-space:nowrap}
+  .ux-quickstart>button.primary{flex-grow:1.35}
+  .ux-quickstart-note{display:none}
+  body:not(.in-run) .ux-quickstart-note:not(:empty){display:block;margin:6px 2px 0;font-size:.72rem;line-height:1.5;color:#9fb1bd}
+}
+
+/* Portrait full-screen run: the floating toolbar already has pause, backpack and
+   exit, so the duplicates in the stage header go away and the toolbar fits on one row. */
+@media(orientation:portrait){
+  .touch-layout #gameSurface.is-immersive #inventoryButton,
+  .touch-layout #gameSurface.is-immersive #pauseButton,
+  .touch-layout #gameSurface.is-immersive #expandButton{display:none!important}
+  .touch-layout #gameSurface.is-immersive #immersiveTools,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>#immersiveTools{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .touch-layout #gameSurface.is-immersive #immersiveTools>button{flex-direction:column;justify-content:center;gap:2px;padding:4px 2px;min-width:0;font-size:.62rem;line-height:1.2}
+}
+
+/* Landscape full-screen run: the fighting-school bar used to fall into the top-left
+   corner on top of the health bar, with its description hidden behind the exit button.
+   It now sits as four compact chips between the health panel and the toolbar,
+   and the boss banner moves one row down so both stay readable. */
+@media(orientation:landscape){
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.school-bar:not([hidden]){
+    position:absolute;z-index:6;top:var(--hud-top);
+    left:calc((var(--hud-left) + clamp(156px,23vw,230px) + 100% - var(--hud-right) - 236px) / 2);
+    transform:translateX(-50%);
+    display:flex;flex-wrap:nowrap;gap:4px;width:auto;margin:0;padding:0;
+    background:none;border:0;box-shadow:none;pointer-events:none;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.school-bar .school-title,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.school-bar .school-summary,
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.school-bar .school-key{display:none}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.school-bar .school-choice{
+    flex:none;width:40px;min-width:40px;height:40px;min-height:40px;padding:0;gap:0;justify-content:center;
+    font-size:0;border-radius:10px;background:#112432b8;pointer-events:auto;
+  }
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.school-bar .school-choice[aria-pressed="true"]{background:color-mix(in srgb,var(--school-color,#b0ccff) 26%,#112432)}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal)>.school-bar .school-choice .school-symbol{width:24px;height:24px;font-size:.82rem}
+  .touch-layout #gameSurface.is-immersive:not(.immersive-terminal) .boss-banner{top:calc(var(--hud-top) + 50px)}
+}
